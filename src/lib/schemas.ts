@@ -1,0 +1,80 @@
+import { z } from 'zod'
+
+export const contaPagarSchema = z.object({
+  descricao: z.string().min(1, 'Descrição obrigatória').max(255),
+  valor: z.coerce.number().positive('Valor deve ser positivo'),
+  data_vencimento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida'),
+  status: z.enum(['pendente', 'pago', 'atrasado', 'cancelado']).default('pendente'),
+  categoria: z.string().optional().nullable(),
+  fornecedor: z.string().optional().nullable(),
+  fornecedor_id: z
+    .string()
+    .uuid()
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .transform((v) => v || null),
+  moeda: z.string().default('BRL'),
+  recorrente: z.coerce.boolean().default(false),
+  frequencia: z
+    .enum(['semanal', 'mensal', 'semestral', 'anual'])
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .transform((v) => v || null),
+  is_cartao: z.coerce.boolean().default(false),
+  num_parcelas: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined) ? undefined : v,
+    z.coerce.number().int().min(2).max(48).optional()
+  ),
+  cartao_info: z.string().optional().nullable(),
+  pix_copia_cola: z.string().optional().nullable(),
+  codigo_boleto: z.string().optional().nullable(),
+})
+
+export const contaReceberSchema = z.object({
+  descricao: z.string().min(1, 'Descrição obrigatória').max(255),
+  valor: z.coerce.number().positive('Valor deve ser positivo'),
+  data_vencimento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida'),
+  status: z.enum(['pendente', 'recebido', 'atrasado', 'cancelado']).default('pendente'),
+  negocio_id: z
+    .string()
+    .uuid()
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .transform((v) => v || null),
+  cliente_id: z
+    .string()
+    .uuid()
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .transform((v) => v || null),
+  moeda: z.string().default('BRL'),
+})
+
+export const negocioSchema = z.object({
+  titulo: z.string().min(1, 'Título obrigatório').max(255),
+  cliente_id: z.string().uuid('Cliente obrigatório'),
+  solucao_id: z.string().uuid('Solução obrigatória'),
+  responsavel_id: z.string().uuid('Responsável obrigatório'),
+  estagio: z.enum([
+    'prospeccao',
+    'qualificacao',
+    'proposta',
+    'negociacao',
+    'fechado_ganho',
+    'fechado_perdido',
+  ]),
+  valor_estimado: z.coerce.number().min(0).optional().nullable(),
+  probabilidade: z.coerce.number().int().min(0).max(100).optional().nullable(),
+  data_previsao_fechamento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .transform((v) => v || null),
+  observacoes: z.string().optional().nullable(),
+})

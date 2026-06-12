@@ -1,0 +1,166 @@
+import { google } from 'googleapis'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+const SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+
+export function getOAuthClient() {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  )
+}
+
+export function getAuthUrl(): string {
+  const auth = getOAuthClient()
+  return auth.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES,
+    prompt: 'consent',
+  })
+}
+
+export async function exchangeCodeForTokens(code: string): Promise<{
+  access_token: string
+  refresh_token: string
+  expiry_date: number
+}> {
+  const auth = getOAuthClient()
+  const { tokens } = await auth.getToken(code)
+
+  if (!tokens.access_token || !tokens.refresh_token || !tokens.expiry_date) {
+    throw new Error('Tokens incompletos retornados pelo Google.')
+  }
+
+  return {
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    expiry_date: tokens.expiry_date,
+  }
+}
+
+/** Renova o access_token usando o refresh_token e persiste no banco. */
+async function refreshAndSaveToken(
+  userId: string,
+  refreshToken: string
+): Promise<string> {
+  const auth = getOAuthClient()
+  auth.setCredentials({ refresh_token: refreshToken })
+
+  const { credentials } = await auth.refreshAccessToken()
+
+  if (!credentials.access_token) {
+    throw new Error('Não foi possível renovar o token de acesso do Google.')
+  }
+
+  const admin = createAdminClient()
+  await admin
+    .from('profiles')
+    .update({
+      google_access_token: credentials.access_token,
+      google_token_expiry: credentials.expiry_date
+        ? new Date(credentials.expiry_date).toISOString()
+        : null,
+    })
+    .eq('id', userId)
+
+  return credentials.access_token
+}
+
+interface CalendarEventParams {
+  userId: string
+  accessToken: string
+  refreshToken: string
+  tokenExpiry: string
+  title: string
+  description?: string
+  startDateTime: string
+  endDateTime: string
+  attendeeEmails?: string[]
+}
+
+interface CalendarEventResult {
+  eventId: string
+  eventUrl: string
+}
+
+/** Retorna um cliente OAuth com token válido (renova automaticamente se necessário). */
+async function getValidAuthClient(
+  userId: string,
+  accessToken: string,
+  refreshToken: string,
+  tokenExpiry: string
+): Promise<ReturnType<typeof getOAuthClient>> {
+  const auth = getOAuthClient()
+  const expiry = new Date(tokenExpiry).getTime()
+  const now = Date.now()
+
+  // Renova se faltam menos de 5 minutos para expirar
+  if (now >= expiry - 5 * 60 * 1000) {
+    const newToken = await refreshAndSaveToken(userId, refreshToken)
+    auth.setCredentials({ access_token: newToken, refresh_token: refreshToken })
+  } else {
+    auth.setCredentials({ access_token: accessToken, refresh_token: refreshToken })
+  }
+
+  return auth
+}
+
+export async function createCalendarEvent(
+  params: CalendarEventParams
+): Promise<CalendarEventResult> {
+  const {
+    userId,
+    accessToken,
+    refreshToken,
+    tokenExpiry,
+    title,
+    description,
+    startDateTime,
+    endDateTime,
+    attendeeEmails,
+  } = params
+
+  const auth = await getValidAuthClient(userId, accessToken, refreshToken, tokenExpiry)
+  const calendar = google.calendar({ version: 'v3', auth })
+
+  const event = await calendar.events.insert({
+    calendarId: 'primary',
+    requestBody: {
+      summary: title,
+      description: description ?? '',
+      start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
+      end: { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' },
+      attendees: attendeeEmails?.map((email) => ({ email })) ?? [],
+    },
+  })
+
+  const eventId = event.data.id
+  const eventUrl = event.data.htmlLink
+
+  if (!eventId || !eventUrl) {
+    throw new Error('Evento criado, mas ID/URL não retornados pelo Google.')
+  }
+
+  return { eventId, eventUrl }
+}
+
+interface DeleteEventParams {
+  userId: string
+  accessToken: string
+  refreshToken: string
+  tokenExpiry: string
+  eventId: string
+}
+
+export async function deleteCalendarEvent(params: DeleteEventParams): Promise<void> {
+  const { userId, accessToken, refreshToken, tokenExpiry, eventId } = params
+
+  const auth = await getValidAuthClient(userId, accessToken, refreshToken, tokenExpiry)
+  const calendar = google.calendar({ version: 'v3', auth })
+
+  await calendar.events.delete({
+    calendarId: 'primary',
+    eventId,
+  })
+}
