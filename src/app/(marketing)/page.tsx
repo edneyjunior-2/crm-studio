@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { Hero } from '@/components/marketing/hero'
+import { ProductShowcase } from '@/components/marketing/product-showcase'
 import { Reveal } from '@/components/marketing/motion'
 
 export const metadata = {
@@ -22,6 +23,18 @@ export default function HomePage() {
   return (
     <>
       <Hero />
+
+      {/* Showcase interativo — telas reais do produto (Pipeline + Financeiro) */}
+      <section className="mx-auto max-w-[1180px] px-6 pb-12 sm:px-8 lg:pb-20">
+        <Reveal>
+          <ProductShowcase />
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Telas do CRM Studio com dados de exemplo. Troque de aba para ver o pipeline e o financeiro.
+          </p>
+        </Reveal>
+      </section>
 
       {/* Módulos — lista editorial numerada (não grid de cards) */}
       <section className="border-t border-border">

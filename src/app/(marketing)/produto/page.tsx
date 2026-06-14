@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { Reveal } from '@/components/marketing/motion'
+import { ProductShowcase } from '@/components/marketing/product-showcase'
 
 export const metadata = {
   title: 'Produto · CRM Studio',
@@ -42,6 +43,11 @@ export default function ProdutoPage() {
             O CRM Studio foi construído para parar de copiar dados de uma ferramenta para outra. O que
             acontece no funil reflete na agenda e no financeiro, automaticamente.
           </p>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <div className="mt-12">
+            <ProductShowcase defaultTab="financeiro" />
+          </div>
         </Reveal>
       </section>
 
