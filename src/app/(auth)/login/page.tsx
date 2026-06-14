@@ -1,56 +1,63 @@
-import { GoogleLoginButton } from '@/components/auth/google-login-button'
+import Link from 'next/link'
+import { login } from './actions'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface LoginPageProps {
   searchParams: Promise<{ error?: string }>
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const params = await searchParams
-  const error = params.error
+  const { error } = await searchParams
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 -right-24 size-96 rounded-full bg-primary/4 blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 size-96 rounded-full bg-accent/8 blur-3xl" />
+        <div className="absolute -top-24 -right-24 size-96 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 size-96 rounded-full bg-accent/10 blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm">
-        <div className="mb-10 text-center">
-          <div className="mb-6 inline-flex size-20 items-center justify-center rounded-2xl bg-primary p-3 shadow-lg shadow-primary/20">
-            <img
-              src="/aurum-icon.svg"
-              alt="Aurum"
-              className="size-full object-contain brightness-0 invert"
-            />
-          </div>
-
-          <h1 className="text-3xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
-            CRM Aurum
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Consultoria Tributária
-          </p>
-
-          <div className="mx-auto mt-4 h-px w-16 bg-accent/60" />
+        <div className="mb-8 text-center">
+          <Link href="/" className="font-logo text-2xl font-extrabold tracking-[-0.03em] text-foreground">
+            CRM Studio<span className="text-accent">.</span>
+          </Link>
+          <p className="mt-2 text-sm text-muted-foreground">Acesse a sua conta</p>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
-          <p className="mb-6 text-center text-sm text-muted-foreground">
-            Entre com sua conta Google para continuar
-          </p>
-
           {error && (
-            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm text-destructive">
+            <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
               {decodeURIComponent(error)}
             </div>
           )}
 
-          <GoogleLoginButton />
+          <form action={login} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">E-mail</Label>
+              <Input id="email" name="email" type="email" autoComplete="email" required placeholder="voce@empresa.com.br" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Senha</Label>
+                <Link href="/esqueci-senha" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+                  Esqueci minha senha
+                </Link>
+              </div>
+              <Input id="password" name="password" type="password" autoComplete="current-password" required placeholder="••••••••" />
+            </div>
+            <Button type="submit" className="mt-2 w-full">
+              Entrar
+            </Button>
+          </form>
         </div>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground/70">
-          Acesso restrito a membros da equipe Aurum
+        <p className="mt-8 text-center text-sm text-muted-foreground">
+          Ainda não tem conta?{' '}
+          <Link href="/contato" className="font-medium text-foreground underline-offset-4 hover:underline">
+            Fale com a gente
+          </Link>
         </p>
       </div>
     </div>
