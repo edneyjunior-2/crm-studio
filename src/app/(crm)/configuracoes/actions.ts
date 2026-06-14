@@ -10,7 +10,8 @@ export async function createUser(
   role: string,
   fullName: string
 ): Promise<{ error?: string }> {
-  await getAuthAdmin()
+  const { empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const admin = createAdminClient()
 
@@ -18,7 +19,9 @@ export async function createUser(
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: fullName },
+    // empresa_id no metadata: o trigger handle_new_user adiciona o membro à empresa do admin
+    // (em vez de criar uma empresa nova, que é o caminho do cadastro self-serve).
+    user_metadata: { full_name: fullName, role, empresa_id: empresaId },
   })
 
   if (createError) return { error: createError.message }
@@ -28,7 +31,7 @@ export async function createUser(
 
   const { error: profileError } = await admin
     .from('profiles')
-    .upsert({ id: userId, full_name: fullName, role })
+    .upsert({ id: userId, full_name: fullName, role, empresa_id: empresaId })
 
   if (profileError) {
     await admin.auth.admin.deleteUser(userId)
