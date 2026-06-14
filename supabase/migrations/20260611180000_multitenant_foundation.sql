@@ -1,68 +1,78 @@
 -- ============================================================================
--- CRM Studio — Fundação Multi-Tenant (M0)
+-- CRM Studio — Fundação Multi-Tenant (M0) — versão ENDURECIDA
 -- ============================================================================
 -- Aplicar SOMENTE no projeto Supabase NOVO do CRM Studio, DEPOIS de todas as
--- migrations herdadas (001..020 + datadas) que criam as tabelas. NUNCA no banco
--- da Aurum.
+-- migrations herdadas (001..020 + datadas) que criam as tabelas. NUNCA na Aurum.
 --
--- Estratégia: isolamento por `empresa_id` + RLS RESTRICTIVE. Policies restritivas
--- fazem AND com as policies permissivas de RBAC (admin/sócio/comercial) que já
--- existem — o RBAC é PRESERVADO e ganha por cima a camada "só a sua empresa".
--- Um trigger preenche empresa_id automaticamente no insert das tabelas de domínio.
+-- Endurecimento aplicado a partir de docs/M0-MULTITENANT-AUDIT.md:
+--   G1  inclui `parceiros_comissao` no loop de tenant (estava de fora → vazamento
+--       entre tenants; ela já tem RLS+RBAC na 018, faltava só o empresa_id/isolamento).
+--   G3  trigger set_empresa_id FORÇA a empresa do usuário (anti-spoofing) e bloqueia
+--       insert órfão sem contexto de tenant.
+--   G6  empresa_admin_update trava plano/status (admin não se auto-promove).
+-- (Seção "authenticated rw" do audit foi OMITIDA de propósito: a 018 já tem o RBAC
+--  certo na parceiros_comissao; aquela policy afrouxaria — deixaria comercial escrever.)
 --
--- Decisões de produto travadas (ver docs/BLUEPRINT-SAAS.md):
---   - Planos fechados: free | starter | pro | business (cada plano embute módulos).
---   - Preço FLAT por empresa (não por usuário).
+-- Isolamento: empresa_id + RLS RESTRICTIVE (faz AND com as PERMISSIVE de RBAC).
+-- Banco novo e vazio → sem backfill (não há dados legados). Ver Seção 0 do audit
+-- caso um dia migre dados existentes.
 -- ============================================================================
 
--- 1) Tabela de tenants (empresas/clientes do SaaS) -----------------------------
+-- 0) Tenants + vínculo + helpers ---------------------------------------------
 create table if not exists public.empresas (
-  id             uuid primary key default gen_random_uuid(),
-  nome           text not null,
-  slug           text unique,                           -- subdomínio futuro: clientex.crmstudio.com.br
-  plano          text not null default 'free'
-                   check (plano in ('free','starter','pro','business')),
-  status         text not null default 'trial'          -- ciclo de vida da assinatura (M2/Asaas)
-                   check (status in ('trial','ativo','pendente','atrasado','suspenso','cancelado')),
-  trial_ends_at  timestamptz,
-  ativo          boolean not null default true,
-  config         jsonb not null default '{}'::jsonb,    -- branding (logo_url, cores) + dados fiscais do contrato
-  created_at     timestamptz not null default now()
+  id            uuid primary key default gen_random_uuid(),
+  nome          text not null,
+  slug          text unique,
+  plano         text not null default 'free'
+                  check (plano in ('free','starter','pro','business')),
+  status        text not null default 'trial'
+                  check (status in ('trial','ativo','pendente','atrasado','suspenso','cancelado')),
+  trial_ends_at timestamptz,
+  ativo         boolean not null default true,
+  config        jsonb not null default '{}'::jsonb,
+  created_at    timestamptz not null default now()
 );
 alter table public.empresas enable row level security;
 
--- 2) Vínculo usuário -> empresa ------------------------------------------------
 alter table public.profiles add column if not exists empresa_id uuid references public.empresas(id);
+create index if not exists idx_profiles_empresa on public.profiles(empresa_id);
 
--- 3) Empresa do usuário logado (SECURITY DEFINER p/ ler profiles sem esbarrar na RLS)
-create or replace function public.current_empresa_id()
-returns uuid language sql stable security definer set search_path = public
-as $$ select empresa_id from public.profiles where id = auth.uid() $$;
-
--- 4) Dono da PLATAFORMA (você) — distinto do `admin`, que é dono de UMA empresa.
---    Usado pelo Dashboard Admin (M3). Fica fora da RLS de tenant.
 create table if not exists public.platform_admins (
   user_id    uuid primary key references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
 alter table public.platform_admins enable row level security;
 
+create or replace function public.current_empresa_id()
+returns uuid language sql stable security definer set search_path = public
+as $$ select empresa_id from public.profiles where id = auth.uid() $$;
+
 create or replace function public.is_platform_admin()
 returns boolean language sql stable security definer set search_path = public
 as $$ select exists(select 1 from public.platform_admins where user_id = auth.uid()) $$;
 
--- 5) Trigger genérico: preenche empresa_id no insert quando vier nulo -----------
+-- get_my_role() já vem da 001; recriado aqui defensivamente
+create or replace function public.get_my_role()
+returns text language sql stable security definer set search_path = public
+as $$ select role from public.profiles where id = auth.uid() $$;
+
+-- 1) Trigger de tenant: FORÇA a empresa do usuário (anti-spoofing). (G3) -------
 create or replace function public.set_empresa_id()
 returns trigger language plpgsql set search_path = public as $$
+declare
+  v_emp uuid := public.current_empresa_id();
 begin
-  if new.empresa_id is null then
-    new.empresa_id := public.current_empresa_id();
+  if v_emp is not null then
+    new.empresa_id := v_emp;                 -- carimba a própria empresa, ignora o que veio
+  elsif new.empresa_id is null then
+    raise exception 'empresa_id obrigatório: sem tenant no contexto (auth.uid()=%).', auth.uid();
   end if;
   return new;
 end $$;
 
--- 6) empresa_id + índice + trigger + isolamento RESTRICTIVE nas tabelas de domínio
---    ⚠️ Verifique que TODAS as tabelas de domínio do schema estão nesta lista.
+-- 2) Loop nas tabelas de domínio — LISTA COMPLETA (inclui parceiros_comissao). (G1)
+--    Habilita RLS (idempotente), adiciona empresa_id+índice, trigger e RESTRICTIVE.
+--    NÃO inclui as tabelas dos módulos Estoque/RH (criadas depois, já multi-tenant).
 do $body$
 declare
   t text;
@@ -70,14 +80,21 @@ declare
     'agenda_bloqueios','atividades','bancos','calendario_contatos','calendario_eventos',
     'calendario_notas','calendario_notificacoes','clientes','comissoes_comercial',
     'contas_pagar','contas_receber','fluxo_cards','fluxo_colunas','fluxos','followups',
-    'fornecedores','movimentacoes','negocios','parceiros','solucoes'
+    'fornecedores','movimentacoes','negocios','parceiros','parceiros_comissao','solucoes'
   ];
 begin
   foreach t in array tabelas loop
+    if to_regclass(format('public.%I', t)) is null then
+      raise notice 'tabela % inexistente — pulada', t; continue;
+    end if;
+
+    execute format('alter table public.%I enable row level security', t);
     execute format('alter table public.%I add column if not exists empresa_id uuid references public.empresas(id)', t);
-    execute format('create index if not exists idx_%I_empresa on public.%I(empresa_id)', t, t);
+    execute format('create index if not exists idx_%s_empresa on public.%I(empresa_id)', t, t);
+
     execute format('drop trigger if exists trg_set_empresa on public.%I', t);
     execute format('create trigger trg_set_empresa before insert on public.%I for each row execute function public.set_empresa_id()', t);
+
     execute format('drop policy if exists tenant_isolation on public.%I', t);
     execute format(
       'create policy tenant_isolation on public.%I as restrictive for all '
@@ -87,28 +104,32 @@ begin
 end
 $body$;
 
--- 7) Isolamento em profiles (usuário só enxerga colegas da própria empresa) -----
+-- 3) profiles — isolamento de tenant (vê só colegas da empresa; sempre vê a si). RESTRICTIVE
 drop policy if exists tenant_isolation_profiles on public.profiles;
 create policy tenant_isolation_profiles on public.profiles as restrictive for all
-  using (empresa_id = public.current_empresa_id())
-  with check (empresa_id = public.current_empresa_id());
+  using (empresa_id = public.current_empresa_id() or id = auth.uid())
+  with check (empresa_id = public.current_empresa_id() or id = auth.uid());
 
--- 8) RLS da tabela empresas ----------------------------------------------------
+-- 4) empresas — RLS. Admin edita a própria SEM trocar plano/status (billing). (G6)
 drop policy if exists empresa_self_select on public.empresas;
 create policy empresa_self_select on public.empresas for select
-  using (id = public.current_empresa_id());
+  using (id = public.current_empresa_id() or public.is_platform_admin());
 
--- admin da empresa pode editar a própria empresa (nome, logo, config) — não o plano/status
 drop policy if exists empresa_admin_update on public.empresas;
 create policy empresa_admin_update on public.empresas for update
   using (id = public.current_empresa_id() and public.get_my_role() = 'admin')
-  with check (id = public.current_empresa_id());
+  with check (
+    id = public.current_empresa_id()
+    and plano  = (select plano  from public.empresas e where e.id = empresas.id)
+    and status = (select status from public.empresas e where e.id = empresas.id)
+  );
+-- (sem policy de INSERT/DELETE → default-deny; criação só via handle_new_user / service role)
+revoke all on public.empresas from anon;
+grant select, update on public.empresas to authenticated;
 
--- 9) handle_new_user — agora multi-tenant. Substitui o trigger da migration 001.
---    REGRAS:
---      * Convidado (admin adiciona membro): metadata traz `empresa_id` -> entra na empresa existente.
---      * Fundador (cadastro self-serve):    metadata traz `empresa_nome` -> CRIA empresa nova e vira admin.
---      * Nenhum dos dois (criação manual no dashboard): profile com empresa_id NULL (fail-closed: não vê nada).
+-- 5) handle_new_user multi-tenant --------------------------------------------
+--    Convidado: metadata `empresa_id` → entra na empresa. Fundador: `empresa_nome`
+--    → cria empresa e vira admin. Nenhum: empresa_id NULL (fail-closed).
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -118,11 +139,9 @@ declare
   v_emp_nome   text := new.raw_user_meta_data->>'empresa_nome';
 begin
   if v_meta_emp is not null and v_meta_emp <> '' then
-    -- Convidado: entra na empresa do admin que o criou.
     v_empresa_id := v_meta_emp::uuid;
     v_role := coalesce(new.raw_user_meta_data->>'role', 'comercial');
   elsif v_emp_nome is not null and v_emp_nome <> '' then
-    -- Fundador: cria a própria empresa (trial de 14 dias) e vira admin.
     insert into public.empresas (nome, status, trial_ends_at)
     values (v_emp_nome, 'trial', now() + interval '14 days')
     returning id into v_empresa_id;
@@ -133,25 +152,16 @@ begin
   end if;
 
   insert into public.profiles (id, full_name, role, empresa_id)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'full_name', new.email),
-    v_role,
-    v_empresa_id
-  )
+  values (new.id,
+          coalesce(new.raw_user_meta_data->>'full_name', new.email),
+          v_role, v_empresa_id)
   on conflict (id) do nothing;
-
   return new;
 end $$;
 
--- (o trigger trg_on_auth_user_created da migration 001 continua apontando p/ esta função)
+drop trigger if exists trg_on_auth_user_created on auth.users;
+create trigger trg_on_auth_user_created
+  after insert on auth.users for each row
+  execute function public.handle_new_user();
 
--- ============================================================================
--- ⚠️ AO APLICAR — ver docs/M0-SETUP-SUPABASE.md:
---  - Rodar este arquivo POR ÚLTIMO (depois das migrations que criam as tabelas).
---  - Criar a 1ª empresa + seu admin via cadastro self-serve OU seed manual.
---  - Registrar você como platform_admin: insert into platform_admins(user_id) ...
---  - Se migrar dados existentes: criar 1 empresa e backfill
---    `update <tabela> set empresa_id = '<id>'` em massa ANTES de confiar na RLS.
--- ============================================================================
 notify pgrst, 'reload schema';
