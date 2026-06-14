@@ -1,46 +1,45 @@
 import type { Metadata } from 'next'
-import { Libre_Baskerville, Inter } from 'next/font/google'
-import localFont from 'next/font/local'
+import { Archivo, Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 
-// Tipografia oficial Aurum:
-//   Primária  → Libre Baskerville (títulos, headings)
-//   Secundária → NEXA (corpo, UI, navegação)
-//
-// Para ativar o NEXA:
-//   1. Obtenha os arquivos .woff2 com a empresa que criou a marca
-//   2. Salve em /public/fonts/Nexa-Regular.woff2  e  /public/fonts/Nexa-Bold.woff2
-//   3. Remova o coment abaixo e exclua o import do Inter
+// Tipografia CRM Studio:
+//   Logo      → Archivo            (--font-logo)
+//   Display   → Space Grotesk      (--font-heading — títulos/headings)
+//   Corpo/UI  → IBM Plex Sans      (--font-body)
+//   Labels    → IBM Plex Mono      (--font-mono — rótulos, números)
 
-const libreBaskerville = Libre_Baskerville({
+const archivo = Archivo({
   subsets: ['latin'],
-  weight: ['400', '700'],
-  style: ['normal', 'italic'],
+  weight: ['600', '700', '800'],
+  variable: '--font-logo',
+  display: 'swap',
+})
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-heading',
   display: 'swap',
 })
 
-// Fallback enquanto os arquivos da NEXA não são adicionados
-const inter = Inter({
+const ibmPlexSans = IBM_Plex_Sans({
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-body',
   display: 'swap',
 })
 
-// Descomente quando os arquivos Nexa estiverem em /public/fonts/:
-// const nexa = localFont({
-//   src: [
-//     { path: '../../public/fonts/Nexa-Regular.woff2', weight: '400', style: 'normal' },
-//     { path: '../../public/fonts/Nexa-Bold.woff2',    weight: '700', style: 'normal' },
-//   ],
-//   variable: '--font-body',
-//   fallback: ['system-ui', 'sans-serif'],
-//   display: 'swap',
-// })
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: 'CRM Aurum',
-  description: 'CRM de representação comercial multi-solução',
+  title: 'CRM Studio · Vendas, financeiro e equipe em um só lugar',
+  description:
+    'CRM brasileiro para PMEs: pipeline de vendas, módulo financeiro e calendário integrado ao Google. Organize seu time comercial sem planilha.',
 }
 
 export default function RootLayout({
@@ -51,7 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${libreBaskerville.variable} ${inter.variable} h-full antialiased`}
+      className={`${archivo.variable} ${spaceGrotesk.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">{children}</body>
     </html>

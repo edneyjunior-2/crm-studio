@@ -151,12 +151,11 @@ export function Sidebar({ profile }: SidebarProps) {
           collapsed ? 'justify-center px-0 py-4' : 'gap-3 px-5 py-4'
         )}
       >
-        <img src="/aurum-icon.svg" alt="Aurum" className="size-8 shrink-0" />
+        <img src="/aurum-icon.svg" alt="CRM Studio" className="size-8 shrink-0" />
         {!collapsed && (
-          <div className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold text-sidebar-foreground tracking-wide">AURUM</span>
-            <span className="text-[10px] text-muted-foreground tracking-widest uppercase">Tax Advisory</span>
-          </div>
+          <span className="font-logo text-base font-extrabold tracking-[-0.03em] text-sidebar-foreground">
+            CRM Studio<span className="text-sidebar-primary">.</span>
+          </span>
         )}
       </div>
 

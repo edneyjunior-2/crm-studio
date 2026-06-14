@@ -1,7 +1,22 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Rotas públicas — o website institucional (marketing), acessível sem login.
+// Retornam antes de criar o cliente Supabase, então renderizam mesmo
+// sem envs configuradas e sem custo de auth.
+const PUBLIC_ROUTES = ['/', '/produto', '/precos', '/contato']
+
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  )
+}
+
 export async function middleware(request: NextRequest) {
+  if (isPublicRoute(request.nextUrl.pathname)) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
