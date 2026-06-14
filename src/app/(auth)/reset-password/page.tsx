@@ -89,7 +89,7 @@ export default function ResetPasswordPage() {
           </div>
 
           <h1 className="text-3xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
-            CRM Aurum
+            CRM Studio
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Consultoria Tributária
@@ -234,7 +234,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <p className="mt-8 text-center text-xs text-muted-foreground/70">
-          Acesso restrito a membros da equipe Aurum
+          Acesso restrito a usuários autorizados
         </p>
       </div>
     </div>

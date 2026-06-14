@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import {
   LayoutDashboard,
@@ -23,6 +23,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   CalendarDays,
+  Boxes,
+  IdCard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
@@ -102,6 +104,18 @@ const navItems: NavItem[] = [
     icon: FileText,
   },
   {
+    href: '/estoque',
+    label: 'Estoque',
+    icon: Boxes,
+    roles: ['admin', 'socio'],
+  },
+  {
+    href: '/rh',
+    label: 'RH',
+    icon: IdCard,
+    roles: ['admin'],
+  },
+  {
     href: '/automacoes',
     label: 'Automações',
     icon: Zap,
@@ -124,13 +138,6 @@ export function Sidebar({ profile }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const prefersReduced = useReducedMotion()
 
-  useEffect(() => {
-    const isContratos = pathname === '/contratos' || pathname.startsWith('/contratos/')
-    if (isContratos) {
-      setCollapsed(true)
-    }
-  }, [pathname])
-
   const visibleItems = navItems.filter((item) => {
     if (item.roles && !item.roles.includes(profile.role)) return false
     if (item.parentHref && !pathname.startsWith(item.parentHref)) return false
@@ -151,8 +158,11 @@ export function Sidebar({ profile }: SidebarProps) {
           collapsed ? 'justify-center px-0 py-4' : 'gap-3 px-5 py-4'
         )}
       >
-        <img src="/aurum-icon.svg" alt="CRM Studio" className="size-8 shrink-0" />
-        {!collapsed && (
+        {collapsed ? (
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-logo text-sm font-extrabold text-sidebar">
+            CS
+          </span>
+        ) : (
           <span className="font-logo text-base font-extrabold tracking-[-0.03em] text-sidebar-foreground">
             CRM Studio<span className="text-sidebar-primary">.</span>
           </span>

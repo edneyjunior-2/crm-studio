@@ -50,7 +50,7 @@ export default async function MinhaContaPage({
       <section className="flex flex-col gap-4">
         <div>
           <h3 className="text-base font-medium text-foreground">Perfil</h3>
-          <p className="text-sm text-muted-foreground">Suas informações no CRM Aurum.</p>
+          <p className="text-sm text-muted-foreground">Suas informações no CRM Studio.</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="grid grid-cols-2 gap-4">

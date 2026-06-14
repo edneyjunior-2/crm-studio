@@ -10,7 +10,7 @@ const pageTitles: Record<string, string> = {
   '/pipeline': 'Pipeline',
   '/financeiro': 'Financeiro',
   '/configuracoes': 'Configurações',
-  '/contratos': 'Gerador de Contratos',
+  '/contratos': 'Contratos',
 }
 
 function getPageTitle(pathname: string): string {
@@ -19,7 +19,7 @@ function getPageTitle(pathname: string): string {
       return title
     }
   }
-  return 'CRM Aurum'
+  return 'CRM Studio'
 }
 
 function getInitials(name: string): string {

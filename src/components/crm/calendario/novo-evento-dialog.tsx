@@ -556,7 +556,7 @@ export function NovoEventoDialog({
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-1.5">
                     <Users className="size-3.5" />
-                    Compartilhar com a Aurum
+                    Compartilhar com a equipe
                   </Label>
                   <button
                     type="button"

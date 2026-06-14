@@ -17,13 +17,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/login?error=Erro+ao+autenticar+com+Google', url.origin))
   }
 
-  const email = data.user.email ?? ''
-  if (!email.endsWith('@aurumtax.com.br')) {
-    await supabase.auth.signOut()
-    return NextResponse.redirect(
-      new URL('/login?error=Acesso+restrito+a+membros+da+equipe+Aurum+%28%40aurumtax.com.br%29', url.origin)
-    )
-  }
-
   return NextResponse.redirect(new URL(next, url.origin))
 }

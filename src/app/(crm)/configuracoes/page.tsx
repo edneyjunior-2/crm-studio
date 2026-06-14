@@ -49,7 +49,7 @@ export default async function ConfiguracoesPage() {
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">Configurações</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Gerencie os usuários e permissões do CRM Aurum.
+              Gerencie os usuários e permissões do CRM Studio.
             </p>
           </div>
         </div>

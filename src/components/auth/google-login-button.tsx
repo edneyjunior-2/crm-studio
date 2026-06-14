@@ -10,7 +10,6 @@ export function GoogleLoginButton() {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/api/auth/callback`,
-        queryParams: { hd: 'aurumtax.com.br' },
       },
     })
   }

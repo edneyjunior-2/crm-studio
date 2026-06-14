@@ -1,5 +1,5 @@
 {
-  "name": "aurum-crm",
+  "name": "crm-studio",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "health": "curl -s http://localhost:3000/api/health | npx json",
-    "smoke": "APP_URL=https://crm.aurumtax.com.br npx tsx scripts/smoke-test.ts"
+    "smoke": "APP_URL=http://localhost:3000 npx tsx scripts/smoke-test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
