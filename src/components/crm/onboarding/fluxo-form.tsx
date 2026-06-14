@@ -18,9 +18,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
-import { createFluxo, updateFluxo } from '@/app/(crm)/fluxos/actions'
+import { createFluxo, updateFluxo } from '@/app/(crm)/onboarding/actions'
 import type { Fluxo } from '@/types'
 
 interface FluxoFormProps {
@@ -52,7 +51,7 @@ export function FluxoForm({ trigger, fluxo, onSuccess }: FluxoFormProps) {
         return
       }
 
-      toast.success(fluxo ? 'Fluxo atualizado com sucesso!' : 'Fluxo criado com sucesso!')
+      toast.success(fluxo ? 'Fluxo atualizado com sucesso!' : 'Fluxo de onboarding criado com sucesso!')
       setOpen(false)
       formRef.current?.reset()
       onSuccess?.()
@@ -66,7 +65,7 @@ export function FluxoForm({ trigger, fluxo, onSuccess }: FluxoFormProps) {
       </span>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{fluxo ? 'Editar Fluxo' : 'Novo Fluxo'}</DialogTitle>
+          <DialogTitle>{fluxo ? 'Editar Fluxo' : 'Novo Fluxo de Onboarding'}</DialogTitle>
         </DialogHeader>
 
         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -95,6 +94,7 @@ export function FluxoForm({ trigger, fluxo, onSuccess }: FluxoFormProps) {
 
           <div className="flex flex-col gap-1.5">
             <Label>Visibilidade</Label>
+            {/* Renderizamos o label manualmente no trigger — nunca confiamos em SelectValue para strings simples */}
             <Select
               value={visibilidade}
               onValueChange={(v) => setVisibilidade(v as 'privado' | 'todos_comerciais')}

@@ -31,7 +31,7 @@ export async function createFluxo(formData: FormData): Promise<{ error?: string 
   const { supabase, user, role } = await getAuthUser()
 
   if (!['admin', 'socio'].includes(role ?? '')) {
-    return { error: 'Sem permissão para criar fluxos.' }
+    return { error: 'Sem permissão para criar fluxos de onboarding.' }
   }
 
   const { error } = await supabase.from('fluxos').insert({
@@ -43,7 +43,7 @@ export async function createFluxo(formData: FormData): Promise<{ error?: string 
 
   if (error) return { error: error.message }
 
-  revalidatePath('/fluxos')
+  revalidatePath('/onboarding')
   return {}
 }
 
@@ -77,8 +77,8 @@ export async function updateFluxo(
 
   if (error) return { error: error.message }
 
-  revalidatePath('/fluxos')
-  revalidatePath(`/fluxos/${id}`)
+  revalidatePath('/onboarding')
+  revalidatePath(`/onboarding/${id}`)
   return {}
 }
 
@@ -102,7 +102,7 @@ export async function deleteFluxo(id: string): Promise<{ error?: string }> {
 
   if (error) return { error: error.message }
 
-  revalidatePath('/fluxos')
+  revalidatePath('/onboarding')
   return {}
 }
 
@@ -150,7 +150,7 @@ export async function createColuna(
 
   if (error) return { error: error.message }
 
-  revalidatePath(`/fluxos/${fluxoId}`)
+  revalidatePath(`/onboarding/${fluxoId}`)
   return {}
 }
 
@@ -191,7 +191,7 @@ export async function updateColuna(
 
   if (error) return { error: error.message }
 
-  revalidatePath(`/fluxos/${coluna.fluxo_id}`)
+  revalidatePath(`/onboarding/${coluna.fluxo_id}`)
   return {}
 }
 
@@ -225,7 +225,7 @@ export async function deleteColuna(id: string): Promise<{ error?: string }> {
 
   if (error) return { error: error.message }
 
-  revalidatePath(`/fluxos/${coluna.fluxo_id}`)
+  revalidatePath(`/onboarding/${coluna.fluxo_id}`)
   return {}
 }
 
@@ -239,16 +239,13 @@ export async function reorderColunas(
     return { error: 'Sem permissão.' }
   }
 
-  // Paraleliza os updates com Promise.all — cada coluna recebe sua nova ordem
-  // simultaneamente. Ideal futuro: substituir por uma RPC que aceite um array
-  // de { id, ordem } e resolva tudo em uma única transação no banco.
   const updates = ids.map((id, index) =>
     supabase.from('fluxo_colunas').update({ ordem: index }).eq('id', id)
   )
 
   await Promise.all(updates)
 
-  revalidatePath(`/fluxos/${fluxoId}`)
+  revalidatePath(`/onboarding/${fluxoId}`)
   return {}
 }
 
@@ -283,13 +280,19 @@ export async function createCard(
 
   if (error) return { error: error.message }
 
-  revalidatePath(`/fluxos/${fluxoId}`)
+  revalidatePath(`/onboarding/${fluxoId}`)
   return {}
 }
 
 export async function updateCard(
   id: string,
-  data: { titulo?: string; descricao?: string | null }
+  data: {
+    titulo?: string
+    descricao?: string | null
+    cliente_id?: string | null
+    data_limite?: string | null
+    concluido?: boolean
+  }
 ): Promise<{ error?: string }> {
   const { supabase } = await getAuthUser()
 
@@ -308,7 +311,7 @@ export async function updateCard(
 
   if (error) return { error: error.message }
 
-  revalidatePath(`/fluxos/${card.fluxo_id}`)
+  revalidatePath(`/onboarding/${card.fluxo_id}`)
   return {}
 }
 
@@ -343,7 +346,7 @@ export async function moveCard(
 
   if (error) return { error: error.message }
 
-  revalidatePath(`/fluxos/${card.fluxo_id}`)
+  revalidatePath(`/onboarding/${card.fluxo_id}`)
   return {}
 }
 
@@ -359,7 +362,6 @@ export async function deleteCard(id: string): Promise<{ error?: string }> {
   if (!card) return { error: 'Card não encontrado.' }
 
   if (!['admin', 'socio'].includes(role ?? '')) {
-    // comercial não pode deletar
     return { error: 'Sem permissão para excluir cards.' }
   }
 
@@ -378,6 +380,6 @@ export async function deleteCard(id: string): Promise<{ error?: string }> {
 
   if (error) return { error: error.message }
 
-  revalidatePath(`/fluxos/${card.fluxo_id}`)
+  revalidatePath(`/onboarding/${card.fluxo_id}`)
   return {}
 }

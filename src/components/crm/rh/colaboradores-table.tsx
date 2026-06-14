@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Pencil, UserX, Users } from 'lucide-react'
+import { Search, Pencil, UserX, Users, FileText, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -25,9 +25,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { ColaboradorForm } from './colaborador-form'
+import { ColaboradorDocumentos } from './colaborador-documentos'
 import { desligarColaborador } from '@/app/(crm)/rh/actions'
-import type { Colaborador } from '@/types/rh'
+import { listarDocumentos } from '@/app/(crm)/rh/documentos-actions'
+import type { Colaborador, ColaboradorDocumento } from '@/types/rh'
 import {
   COLABORADOR_STATUS_LABEL,
   TIPO_CONTRATO_LABEL,
@@ -59,6 +67,75 @@ function StatusBadge({ status }: { status: Colaborador['status'] }) {
     </Badge>
   )
 }
+
+// ============================================================================
+// Dialog de documentos do colaborador
+// ============================================================================
+
+interface DocumentosDialogProps {
+  colaborador: Colaborador
+}
+
+function DocumentosDialog({ colaborador }: DocumentosDialogProps) {
+  const [open, setOpen] = useState(false)
+  const [documentos, setDocumentos] = useState<ColaboradorDocumento[]>([])
+  const [isLoading, startLoadTransition] = useTransition()
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen)
+    if (nextOpen) {
+      // Carrega documentos ao abrir o dialog
+      startLoadTransition(async () => {
+        const result = await listarDocumentos(colaborador.id)
+        if (result.error) {
+          toast.error(`Erro ao carregar documentos: ${result.error}`)
+          return
+        }
+        setDocumentos(result.data ?? [])
+      })
+    }
+  }
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => handleOpenChange(true)}
+        title="Documentos do colaborador"
+      >
+        <FileText className="size-3.5" />
+        <span className="sr-only">Documentos</span>
+      </Button>
+
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              Documentos — {colaborador.nome}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto pr-1 pb-1">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                Carregando documentos...
+              </div>
+            ) : (
+              <ColaboradorDocumentos
+                colaboradorId={colaborador.id}
+                documentosIniciais={documentos}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+// ============================================================================
 
 interface ColaboradoresTableProps {
   colaboradores: Colaborador[]
@@ -134,7 +211,7 @@ export function ColaboradoresTable({ colaboradores }: ColaboradoresTableProps) {
                 <TableHead>Contrato</TableHead>
                 <TableHead>Admissão</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-28 text-right">Ações</TableHead>
+                <TableHead className="w-36 text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -163,6 +240,8 @@ export function ColaboradoresTable({ colaboradores }: ColaboradoresTableProps) {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
+                      <DocumentosDialog colaborador={colaborador} />
+
                       <ColaboradorForm
                         colaborador={colaborador}
                         trigger={

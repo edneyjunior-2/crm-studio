@@ -273,6 +273,11 @@ export interface FluxoCard {
   responsavel_id: string | null
   ordem: number
   responsavel?: { full_name: string }
+  // Campos Onboarding (AC2)
+  cliente_id: string | null
+  data_limite: string | null
+  concluido: boolean
+  cliente?: { razao_social: string } | null
 }
 
 export interface AgendaBloqueio {

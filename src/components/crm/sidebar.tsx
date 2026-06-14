@@ -19,7 +19,7 @@ import {
   Zap,
   UserCircle,
   FileText,
-  LayoutTemplate,
+  GitBranch,
   PanelLeftClose,
   PanelLeftOpen,
   CalendarDays,
@@ -75,9 +75,9 @@ const navItems: NavItem[] = [
     parentHref: '/pipeline',
   },
   {
-    href: '/fluxos',
-    label: 'Fluxos',
-    icon: LayoutTemplate,
+    href: '/onboarding',
+    label: 'Onboarding',
+    icon: GitBranch,
   },
   {
     href: '/calendario',

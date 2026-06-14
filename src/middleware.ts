@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Rotas públicas — o website institucional (marketing), acessível sem login.
 // Retornam antes de criar o cliente Supabase, então renderizam mesmo
 // sem envs configuradas e sem custo de auth.
-const PUBLIC_ROUTES = ['/', '/produto', '/precos', '/contato']
+const PUBLIC_ROUTES = ['/', '/produto', '/precos', '/contato', '/cadastro', '/termos', '/contrato-operador']
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some(

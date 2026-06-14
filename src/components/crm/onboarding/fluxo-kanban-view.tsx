@@ -8,10 +8,10 @@ import {
   Plus,
   X,
   Pencil,
-  ChevronLeft,
-  ChevronRight,
   Trash2,
-  LayoutTemplate,
+  GitBranch,
+  CalendarClock,
+  CheckCircle2,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -37,7 +37,7 @@ import {
   createCard,
   moveCard,
   deleteCard,
-} from '@/app/(crm)/fluxos/actions'
+} from '@/app/(crm)/onboarding/actions'
 import type { Fluxo, FluxoColuna, FluxoCard } from '@/types'
 
 // 10 cores pré-definidas para status
@@ -54,14 +54,27 @@ const CORES_PRESET = [
   { label: 'Esmeralda', value: '#10B981' },
 ]
 
+interface ClienteOption {
+  id: string
+  razao_social: string
+}
+
 interface FluxoKanbanViewProps {
   fluxo: Fluxo
   isOwnerOrAdmin: boolean
+  clientes: ClienteOption[]
 }
 
-export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKanbanViewProps) {
+export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin, clientes }: FluxoKanbanViewProps) {
   const router = useRouter()
   const [colunas, setColunas] = useState<FluxoColuna[]>(initialFluxo.colunas ?? [])
+  // Re-sincroniza as colunas quando o fluxo recarrega (router.refresh): padrão React de
+  // "ajustar estado ao mudar de prop" durante a renderização (sem useEffect).
+  const [prevFluxo, setPrevFluxo] = useState(initialFluxo)
+  if (prevFluxo !== initialFluxo) {
+    setPrevFluxo(initialFluxo)
+    setColunas(initialFluxo.colunas ?? [])
+  }
   const [, startTransition] = useTransition()
 
   // Estado para nova coluna inline
@@ -95,9 +108,11 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
     | null
   >(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-
-  // Estado para deleção do board
   const [deletingBoard, setDeletingBoard] = useState(false)
+
+  // ─── DnD nativo (AC5) — igual ao padrão de kanban-board.tsx ───────────────
+  const [draggedCardId, setDraggedCardId] = useState<string | null>(null)
+  const [dragOverColunaId, setDragOverColunaId] = useState<string | null>(null)
 
   const canManage = isOwnerOrAdmin
 
@@ -112,6 +127,66 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
       setTimeout(() => novoCardRef.current?.focus(), 50)
     }
   }, [addingCardColunaId])
+
+  // ─── DnD handlers ─────────────────────────────────────────────────────────
+
+  function handleDragStart(e: React.DragEvent<HTMLDivElement>, cardId: string) {
+    setDraggedCardId(cardId)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', cardId)
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>, colunaId: string) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverColunaId(colunaId)
+  }
+
+  function handleDragLeave() {
+    setDragOverColunaId(null)
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>, targetColunaId: string) {
+    e.preventDefault()
+    const cardId = e.dataTransfer.getData('text/plain')
+    setDragOverColunaId(null)
+    setDraggedCardId(null)
+
+    // Encontra o card e sua coluna atual
+    let card: FluxoCard | undefined
+    let srcColunaId: string | undefined
+    for (const col of colunas) {
+      const found = (col.cards ?? []).find((c) => c.id === cardId)
+      if (found) {
+        card = found
+        srcColunaId = col.id
+        break
+      }
+    }
+
+    if (!card || srcColunaId === targetColunaId) return
+
+    // Optimistic update
+    setColunas((prev) =>
+      prev.map((col) => {
+        if (col.id === srcColunaId) {
+          return { ...col, cards: (col.cards ?? []).filter((c) => c.id !== cardId) }
+        }
+        if (col.id === targetColunaId) {
+          return { ...col, cards: [...(col.cards ?? []), { ...card!, coluna_id: targetColunaId }] }
+        }
+        return col
+      })
+    )
+
+    startTransition(async () => {
+      const result = await moveCard(cardId, targetColunaId)
+      if (result.error) {
+        toast.error(result.error)
+        router.refresh()
+      }
+    })
+  }
 
   // ─── Colunas ───────────────────────────────────────────────────────────────
 
@@ -132,7 +207,6 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
       return
     }
 
-    // Optimistic update via router refresh
     toast.success('Coluna criada!')
     setAddingColuna(false)
     setNovaColunaTitulo('')
@@ -217,37 +291,6 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
     router.refresh()
   }
 
-  async function handleMoveCard(card: FluxoCard, direction: 'left' | 'right') {
-    const colIndex = colunas.findIndex((c) => c.id === card.coluna_id)
-    if (colIndex === -1) return
-
-    const targetIndex = direction === 'left' ? colIndex - 1 : colIndex + 1
-    if (targetIndex < 0 || targetIndex >= colunas.length) return
-
-    const targetColuna = colunas[targetIndex]
-
-    // Optimistic update
-    setColunas((prev) =>
-      prev.map((col) => {
-        if (col.id === card.coluna_id) {
-          return { ...col, cards: (col.cards ?? []).filter((c) => c.id !== card.id) }
-        }
-        if (col.id === targetColuna.id) {
-          return { ...col, cards: [...(col.cards ?? []), { ...card, coluna_id: targetColuna.id }] }
-        }
-        return col
-      })
-    )
-
-    startTransition(async () => {
-      const result = await moveCard(card.id, targetColuna.id)
-      if (result.error) {
-        toast.error(result.error)
-        router.refresh()
-      }
-    })
-  }
-
   function handleOpenCardDetail(card: FluxoCard) {
     setSelectedCard(card)
     setCardDialogOpen(true)
@@ -291,17 +334,28 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
     }
   }
 
-  // Sincroniza colunas quando o fluxo recarrega via router.refresh()
-  useEffect(() => {
-    setColunas(initialFluxo.colunas ?? [])
-  }, [initialFluxo])
+  // Helper para data limite
+  function formatDataLimite(data: string | null): string | null {
+    if (!data) return null
+    // data é string 'YYYY-MM-DD' — parseia sem toISOString (convenção datas locais)
+    const [ano, mes, dia] = data.split('-')
+    return `${dia}/${mes}/${ano}`
+  }
+
+  function isDataVencida(data: string | null): boolean {
+    if (!data) return false
+    const [ano, mes, dia] = data.split('-').map(Number)
+    const hoje = new Date()
+    const limite = new Date(ano, mes - 1, dia)
+    return limite < new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+  }
 
   return (
     <div className="flex flex-col gap-4 min-h-0">
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/fluxos" className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'shrink-0')}>
+          <Link href="/onboarding" className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'shrink-0')}>
             <ArrowLeft className="size-4" />
           </Link>
           <div className="flex flex-col gap-0.5">
@@ -338,13 +392,20 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
 
       {/* Kanban horizontal */}
       <div className="flex gap-3 overflow-x-auto pb-4 min-h-[60vh]">
-        {colunas.map((coluna, colIndex) => {
+        {colunas.map((coluna) => {
           const cards = coluna.cards ?? []
+          const isDragOver = dragOverColunaId === coluna.id
 
           return (
             <div
               key={coluna.id}
-              className="flex w-72 shrink-0 flex-col rounded-xl border border-border bg-muted/30"
+              onDragOver={(e) => handleDragOver(e, coluna.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, coluna.id)}
+              className={cn(
+                'flex w-72 shrink-0 flex-col rounded-xl border border-border bg-muted/30 transition-colors',
+                isDragOver && 'bg-muted/60 ring-2 ring-inset ring-muted-foreground/20'
+              )}
             >
               {/* Coluna Header */}
               <div className="flex items-center gap-2 px-3 py-2.5">
@@ -442,28 +503,70 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
               <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2 pt-0">
                 {cards.length === 0 && !addingCardColunaId && (
                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 py-8 text-center">
-                    <LayoutTemplate className="mb-1.5 size-6 text-muted-foreground/25" />
+                    <GitBranch className="mb-1.5 size-6 text-muted-foreground/25" />
                     <p className="text-xs text-muted-foreground/50">Nenhum card</p>
                   </div>
+                )}
+
+                {/* Drop ghost quando arrastando para coluna vazia */}
+                {isDragOver && draggedCardId && cards.length === 0 && (
+                  <div className="h-16 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50" />
                 )}
 
                 {cards.map((card) => (
                   <div
                     key={card.id}
-                    className="group/card relative flex flex-col gap-1.5 rounded-lg border border-border bg-card px-3 py-2.5 shadow-xs transition-shadow hover:shadow-sm"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, card.id)}
+                    className={cn(
+                      'group/card relative flex flex-col gap-1.5 rounded-lg border border-border bg-card px-3 py-2.5 shadow-xs transition-shadow hover:shadow-sm cursor-grab active:cursor-grabbing',
+                      card.concluido && 'opacity-70',
+                      draggedCardId === card.id && 'opacity-40'
+                    )}
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleOpenCardDetail(card)}
-                      className="text-left text-sm font-medium text-foreground hover:text-foreground/80"
-                    >
-                      {card.titulo}
-                    </button>
+                    <div className="flex items-start justify-between gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCardDetail(card)}
+                        className={cn(
+                          'flex-1 text-left text-sm font-medium text-foreground hover:text-foreground/80',
+                          card.concluido && 'line-through text-muted-foreground'
+                        )}
+                      >
+                        {card.titulo}
+                      </button>
+                      {card.concluido && (
+                        <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
+                      )}
+                    </div>
 
                     {card.descricao && (
                       <p className="line-clamp-2 text-xs text-muted-foreground">
                         {card.descricao}
                       </p>
+                    )}
+
+                    {/* Cliente vinculado (AC2) */}
+                    {card.cliente && (
+                      <p className="text-[11px] font-medium text-primary/70">
+                        {card.cliente.razao_social}
+                      </p>
+                    )}
+
+                    {/* Data limite (AC2) */}
+                    {card.data_limite && (
+                      <div className={cn(
+                        'flex items-center gap-1 text-[11px]',
+                        isDataVencida(card.data_limite) && !card.concluido
+                          ? 'text-destructive'
+                          : 'text-muted-foreground/60'
+                      )}>
+                        <CalendarClock className="size-3" />
+                        <span>{formatDataLimite(card.data_limite)}</span>
+                        {isDataVencida(card.data_limite) && !card.concluido && (
+                          <span className="font-medium">— Vencido</span>
+                        )}
+                      </div>
                     )}
 
                     {card.responsavel && (
@@ -473,39 +576,8 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
                     )}
 
                     {/* Ações do card */}
-                    <div className="flex items-center justify-between mt-0.5">
-                      <div className="flex items-center gap-0.5">
-                        <button
-                          type="button"
-                          disabled={colIndex === 0}
-                          onClick={() => handleMoveCard(card, 'left')}
-                          className={cn(
-                            'rounded p-0.5 transition-colors',
-                            colIndex === 0
-                              ? 'cursor-not-allowed text-muted-foreground/20'
-                              : 'text-muted-foreground/40 hover:bg-muted hover:text-foreground/70'
-                          )}
-                          title="Mover para coluna anterior"
-                        >
-                          <ChevronLeft className="size-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={colIndex === colunas.length - 1}
-                          onClick={() => handleMoveCard(card, 'right')}
-                          className={cn(
-                            'rounded p-0.5 transition-colors',
-                            colIndex === colunas.length - 1
-                              ? 'cursor-not-allowed text-muted-foreground/20'
-                              : 'text-muted-foreground/40 hover:bg-muted hover:text-foreground/70'
-                          )}
-                          title="Mover para próxima coluna"
-                        >
-                          <ChevronRight className="size-3.5" />
-                        </button>
-                      </div>
-
-                      {canManage && (
+                    {canManage && (
+                      <div className="flex items-center justify-end mt-0.5">
                         <button
                           type="button"
                           onClick={() => handleDeleteCard(card)}
@@ -514,10 +586,15 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
                         >
                           <Trash2 className="size-3" />
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 ))}
+
+                {/* Drop ghost ao final da coluna com cards */}
+                {isDragOver && draggedCardId && cards.length > 0 && (
+                  <div className="h-12 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50" />
+                )}
 
                 {/* Input inline novo card */}
                 {addingCardColunaId === coluna.id && (
@@ -666,7 +743,7 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
         {colunas.length === 0 && !addingColuna && (
           <div className="flex w-full items-center justify-center rounded-xl border border-dashed border-border bg-muted/10 py-20 text-center">
             <div className="flex flex-col items-center gap-3">
-              <LayoutTemplate className="size-12 text-muted-foreground/25" />
+              <GitBranch className="size-12 text-muted-foreground/25" />
               <p className="text-sm text-muted-foreground">
                 {canManage
                   ? 'Nenhuma coluna ainda. Clique em "Adicionar coluna" para começar.'
@@ -684,6 +761,7 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin }: FluxoKa
           open={cardDialogOpen}
           onOpenChange={setCardDialogOpen}
           onUpdated={handleCardUpdated}
+          clientes={clientes}
         />
       )}
 

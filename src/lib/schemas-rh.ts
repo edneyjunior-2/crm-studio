@@ -92,3 +92,17 @@ export const lancamentoFolhaSchema = z.object({
   descontos: z.coerce.number().min(0).optional().nullable().default(0),
   status: z.enum(['aberto', 'pago']).default('aberto'),
 })
+
+// ============================================================================
+// Documentos de colaboradores
+// ============================================================================
+
+const TIPOS_DOCUMENTO = [
+  'rg', 'cnh', 'cpf', 'aso', 'contrato', 'ferias', 'rescisao', 'diploma', 'outro',
+] as const
+
+export const uploadDocumentoSchema = z.object({
+  colaborador_id: z.string().uuid('Colaborador obrigatório'),
+  tipo: z.enum(TIPOS_DOCUMENTO, 'Tipo obrigatório'),
+  sensivel: z.boolean().optional().default(false),
+})
