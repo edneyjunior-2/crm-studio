@@ -155,3 +155,145 @@
   background-image: radial-gradient(circle, rgba(20, 35, 58, 0.05) 1px, transparent 1px);
   background-size: 24px 24px;
 }
+
+/* ─── Tour guiado de boas-vindas (driver.js) ─────────────────────────────── */
+/* Sobrescreve a paleta padrão (azul) com os tokens da marca */
+.crm-tour-popover {
+  background-color: #14233a !important; /* Navy */
+  border: 1px solid #243a52 !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 8px 32px rgba(20, 35, 58, 0.35) !important;
+  font-family: var(--font-body), system-ui, sans-serif !important;
+  color: #bcc6d8 !important;
+  padding: 1.25rem 1.5rem !important;
+  min-width: 280px !important;
+  max-width: 340px !important;
+}
+
+.crm-tour-popover .driver-popover-title {
+  font-family: var(--font-heading), "Space Grotesk", system-ui, sans-serif !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  margin-bottom: 0.5rem !important;
+  letter-spacing: -0.02em !important;
+}
+
+.crm-tour-popover .driver-popover-description {
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  color: #bcc6d8 !important;
+  margin-bottom: 1rem !important;
+}
+
+.crm-tour-popover .driver-popover-footer {
+  display: flex !important;
+  gap: 0.5rem !important;
+  align-items: center !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: none !important;
+}
+
+.crm-tour-popover .driver-popover-navigation-btns {
+  display: flex !important;
+  gap: 0.5rem !important;
+  align-items: center !important;
+  flex: 1 !important;
+}
+
+/* Botão "Pular" injetado via onPopoverRender */
+.crm-tour-popover .crm-tour-pular-btn {
+  background: transparent !important;
+  color: #7a8fa8 !important;
+  border: 1px solid #3a5068 !important;
+  border-radius: 0.5rem !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  padding: 0.375rem 0.75rem !important;
+  cursor: pointer !important;
+  line-height: 1.4 !important;
+  transition: color 120ms, border-color 120ms !important;
+  flex-shrink: 0 !important;
+}
+
+.crm-tour-popover .crm-tour-pular-btn:hover {
+  color: #bcc6d8 !important;
+  border-color: #5a7a9a !important;
+}
+
+.crm-tour-popover button.driver-popover-next-btn,
+.crm-tour-popover button.driver-popover-prev-btn,
+.crm-tour-popover button.driver-popover-close-btn {
+  border-radius: 0.5rem !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  padding: 0.375rem 0.875rem !important;
+  cursor: pointer !important;
+  transition: opacity 120ms !important;
+  border: none !important;
+  line-height: 1.4 !important;
+}
+
+.crm-tour-popover button.driver-popover-next-btn {
+  background-color: #e8915b !important; /* Âmbar */
+  color: #14233a !important;
+}
+
+.crm-tour-popover button.driver-popover-next-btn:hover {
+  opacity: 0.88 !important;
+}
+
+.crm-tour-popover button.driver-popover-prev-btn {
+  background-color: #243a52 !important;
+  color: #bcc6d8 !important;
+}
+
+.crm-tour-popover button.driver-popover-prev-btn:hover {
+  opacity: 0.88 !important;
+}
+
+.crm-tour-popover button.driver-popover-close-btn {
+  background: transparent !important;
+  color: #bcc6d8 !important;
+  position: absolute !important;
+  top: 0.75rem !important;
+  right: 0.75rem !important;
+  padding: 0.25rem !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+  opacity: 0.6 !important;
+}
+
+.crm-tour-popover button.driver-popover-close-btn:hover {
+  opacity: 1 !important;
+}
+
+/* Seta do popover — Navy */
+.crm-tour-popover .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-right-color: #14233a !important;
+}
+.crm-tour-popover .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-left-color: #14233a !important;
+}
+.crm-tour-popover .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-bottom-color: #14233a !important;
+}
+.crm-tour-popover .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-top-color: #14233a !important;
+}
+
+/* Overlay escuro do spotlight */
+.driver-overlay {
+  background: rgba(20, 35, 58, 0.6) !important;
+}
+
+/* Respeito a prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .driver-overlay,
+  .driver-highlighted-element,
+  .crm-tour-popover {
+    transition: none !important;
+    animation: none !important;
+  }
+}

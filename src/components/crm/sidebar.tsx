@@ -38,6 +38,7 @@ interface NavItem {
   isSubItem?: boolean
   exactMatch?: boolean
   parentHref?: string
+  tourSlug?: string
 }
 
 const navItems: NavItem[] = [
@@ -45,27 +46,32 @@ const navItems: NavItem[] = [
     href: '/dashboard',
     label: 'Dashboard',
     icon: LayoutDashboard,
+    tourSlug: 'dashboard',
   },
   {
     href: '/solucoes',
     label: 'Soluções',
     icon: Package,
+    tourSlug: 'solucoes',
   },
   {
     href: '/parceiros',
     label: 'Parceiros',
     icon: Handshake,
+    tourSlug: 'parceiros',
   },
   {
     href: '/clientes',
     label: 'Clientes',
     icon: Users,
+    tourSlug: 'clientes',
   },
   {
     href: '/pipeline',
     label: 'Pipeline',
     icon: TrendingUp,
     exactMatch: true,
+    tourSlug: 'pipeline',
   },
   {
     href: '/pipeline/historico-perdidos',
@@ -78,17 +84,20 @@ const navItems: NavItem[] = [
     href: '/onboarding',
     label: 'Onboarding',
     icon: GitBranch,
+    tourSlug: 'onboarding',
   },
   {
     href: '/calendario',
     label: 'Calendário',
     icon: CalendarDays,
+    tourSlug: 'calendario',
   },
   {
     href: '/financeiro',
     label: 'Financeiro',
     icon: DollarSign,
     exactMatch: true,
+    tourSlug: 'financeiro',
   },
   {
     href: '/financeiro/bancos',
@@ -102,24 +111,28 @@ const navItems: NavItem[] = [
     href: '/contratos',
     label: 'Contratos',
     icon: FileText,
+    tourSlug: 'contratos',
   },
   {
     href: '/estoque',
     label: 'Estoque',
     icon: Boxes,
     roles: ['admin', 'socio'],
+    tourSlug: 'estoque',
   },
   {
     href: '/rh',
     label: 'RH',
     icon: IdCard,
     roles: ['admin'],
+    tourSlug: 'rh',
   },
   {
     href: '/automacoes',
     label: 'Automações',
     icon: Zap,
     roles: ['admin'],
+    tourSlug: 'automacoes',
   },
 ]
 
@@ -181,6 +194,7 @@ export function Sidebar({ profile }: SidebarProps) {
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
+              {...(item.tourSlug ? { 'data-tour': item.tourSlug } : {})}
               className={cn(
                 'group relative flex items-center rounded-lg text-sm font-medium transition-colors duration-200',
                 collapsed

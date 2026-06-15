@@ -3,6 +3,7 @@ import { UserCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { GoogleCalendarConnect } from '@/components/crm/google/google-calendar-connect'
 import { GoogleConnectFeedback } from '@/components/crm/google/google-connect-feedback'
+import { RefazerTourBtn } from '@/components/crm/refazer-tour-btn'
 
 export default async function MinhaContaPage({
   searchParams,
@@ -77,6 +78,25 @@ export default async function MinhaContaPage({
           </p>
         </div>
         <GoogleCalendarConnect isConnected={!!profile?.google_refresh_token} />
+      </section>
+
+      {/* Tour guiado */}
+      <section className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-base font-medium text-foreground">Ajuda</h3>
+          <p className="text-sm text-muted-foreground">
+            Precisa de um lembrete de como o sistema funciona?
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-sm font-medium text-foreground">Tour guiado</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Reveja a apresentação de cada módulo do sistema.
+            </p>
+          </div>
+          <RefazerTourBtn />
+        </div>
       </section>
     </div>
   )
