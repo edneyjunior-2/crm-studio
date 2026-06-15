@@ -1,5 +1,18 @@
 import { z } from 'zod'
 
+export const encarregadoSchema = z.object({
+  encarregado_nome: z.string().max(255).optional().nullable(),
+  encarregado_email: z
+    .string()
+    .email('E-mail do encarregado inválido')
+    .max(255)
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .transform((v) => v || null),
+  encarregado_telefone: z.string().max(30).optional().nullable(),
+})
+
 export const contaPagarSchema = z.object({
   descricao: z.string().min(1, 'Descrição obrigatória').max(255),
   valor: z.coerce.number().positive('Valor deve ser positivo'),

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthAdmin } from '@/lib/auth'
+import { encarregadoSchema } from '@/lib/schemas'
 
 export async function createUser(
   email: string,
@@ -55,6 +56,33 @@ export async function updateUserRole(
     .from('profiles')
     .update({ role })
     .eq('id', userId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/configuracoes')
+  return {}
+}
+
+export async function salvarEncarregado(
+  data: unknown
+): Promise<{ error?: string }> {
+  const { supabase, empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const parsed = encarregadoSchema.safeParse(data)
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((e) => e.message).join('; ')
+    return { error: msg }
+  }
+
+  const { error } = await supabase
+    .from('empresas')
+    .update({
+      encarregado_nome: parsed.data.encarregado_nome ?? null,
+      encarregado_email: parsed.data.encarregado_email ?? null,
+      encarregado_telefone: parsed.data.encarregado_telefone ?? null,
+    })
+    .eq('id', empresaId)
 
   if (error) return { error: error.message }
 
