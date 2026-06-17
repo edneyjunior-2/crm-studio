@@ -1,52 +1,139 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowUpRight } from 'lucide-react'
-import { Enter } from './motion'
+import { ArrowRight } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
+import { Enter, StaggerText, TextShimmer } from './motion'
+import { HeroBg } from './hero-bg'
+import { Spotlight } from './spotlight'
+
+const EASE_OUT = [0.16, 1, 0.3, 1] as const
 
 export function Hero() {
+  const reduce = useReducedMotion()
+
   return (
-    <section className="mx-auto max-w-[1180px] px-6 pb-10 pt-16 sm:px-8 lg:pb-12 lg:pt-24">
-      <div className="max-w-3xl">
-        <Enter>
-          <p className="mb-6 text-sm font-medium text-muted-foreground">
-            CRM + financeiro, feito no Brasil para quem vende.
-          </p>
-        </Enter>
-        <Enter delay={0.08}>
-          <h1 className="text-balance text-[clamp(2rem,8vw,5.75rem)] font-bold leading-[0.98] tracking-[-0.04em] sm:leading-[0.95]">
-            A venda que fecha vira <span className="text-accent">dinheiro no caixa</span>.
+    <section className="relative min-h-[100dvh] overflow-hidden">
+      {/* Fundo animado — grid de linhas + blob pulsante */}
+      <HeroBg />
+
+      {/* Spotlight que segue o cursor */}
+      <Spotlight />
+
+      {/* Conteúdo do hero — alinhado à esquerda */}
+      <div className="relative mx-auto flex min-h-[100dvh] max-w-[1180px] flex-col justify-center px-6 pb-16 pt-24 sm:px-8">
+        <div className="max-w-[820px]">
+          {/* Badge pill */}
+          <Enter delay={0}>
+            <div className="mb-8 inline-flex items-center gap-2.5 rounded-full border border-accent/25 bg-accent/8 px-4 py-1.5">
+              <span
+                className="size-2 rounded-full bg-accent"
+                style={
+                  reduce
+                    ? {}
+                    : {
+                        animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
+                      }
+                }
+              />
+              <TextShimmer className="text-[13px] font-medium text-accent">
+                Feito no Brasil para quem vende
+              </TextShimmer>
+            </div>
+          </Enter>
+
+          {/* Headline animada palavra por palavra */}
+          <h1 className="text-[clamp(2.6rem,7vw,5.5rem)] font-bold leading-[0.97] tracking-[-0.04em]">
+            <StaggerText
+              text="A venda que fecha"
+              delay={0.08}
+              staggerDelay={0.055}
+            />
+            <br />
+            <StaggerText
+              text="vira"
+              wordClassName="text-foreground"
+              delay={0.08 + 3 * 0.055}
+              staggerDelay={0.055}
+            />
+            {' '}
+            <StaggerText
+              text="dinheiro no caixa."
+              wordClassName="text-accent"
+              delay={0.08 + 4 * 0.055}
+              staggerDelay={0.055}
+            />
           </h1>
-        </Enter>
-        <Enter delay={0.16}>
-          <p className="mt-6 max-w-[34rem] text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            O CRM Studio junta pipeline de vendas, financeiro e equipe num só lugar. O que você fecha
-            no funil já entra no fluxo de caixa, sem planilha e sem digitar duas vezes.
-          </p>
-        </Enter>
-        <Enter delay={0.24}>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center rounded-full bg-foreground px-7 py-3.5 text-[15px] font-semibold text-background transition-transform hover:-translate-y-0.5"
+
+          {/* Subtexto */}
+          <Enter delay={0.44}>
+            <p className="mt-7 max-w-[36rem] text-lg leading-relaxed text-muted-foreground sm:text-xl">
+              Pipeline de vendas, financeiro e equipe num só lugar. O que você fecha
+              no funil já entra no fluxo de caixa, sem planilha, sem duplicar dados.
+            </p>
+          </Enter>
+
+          {/* CTAs */}
+          <Enter delay={0.54}>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link
+                href="/login"
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-8 py-4 text-[15px] font-semibold text-background shadow-[0_4px_24px_rgba(22,24,29,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(22,24,29,0.22)]"
+              >
+                Começar grátis
+                <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href="/contato"
+                className="inline-flex items-center justify-center rounded-full border border-border px-8 py-4 text-[15px] font-semibold text-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-muted hover:-translate-y-0.5"
+              >
+                Falar com vendas
+              </Link>
+            </div>
+          </Enter>
+
+          {/* Stat strip */}
+          <Enter delay={0.64}>
+            <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2">
+              {['14 dias grátis', 'Sem cartão de crédito', 'Setup em 30 min'].map(
+                (item, i) => (
+                  <span
+                    key={item}
+                    className="flex items-center gap-2 text-sm text-muted-foreground"
+                  >
+                    {i > 0 && (
+                      <span className="hidden h-3 w-px bg-border sm:block" />
+                    )}
+                    <span
+                      className="size-1.5 rounded-full bg-accent"
+                      aria-hidden="true"
+                    />
+                    {item}
+                  </span>
+                )
+              )}
+            </div>
+          </Enter>
+        </div>
+
+        {/* Seta de scroll hint — discreta, sem label */}
+        {!reduce && (
+          <motion.div
+            className="absolute bottom-8 left-1/2 -translate-x-1/2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2, duration: 0.6 }}
+            aria-hidden="true"
+          >
+            <motion.div
+              className="flex h-8 w-5 items-start justify-center rounded-full border border-border/60 pt-1.5"
+              animate={{ y: [0, 4, 0] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
             >
-              Começar grátis
-            </Link>
-            <Link
-              href="/contato"
-              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border px-7 py-3.5 text-[15px] font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              Falar com vendas
-              <ArrowUpRight className="size-4" />
-            </Link>
-          </div>
-        </Enter>
-        <Enter delay={0.32}>
-          <p className="mt-8 max-w-md text-sm leading-relaxed text-muted-foreground">
-            Nascido dentro da operação da Aurum, usado todo dia por uma equipe comercial real antes de
-            virar produto.
-          </p>
-        </Enter>
+              <span className="block h-1.5 w-px rounded-full bg-muted-foreground" />
+            </motion.div>
+          </motion.div>
+        )}
       </div>
     </section>
   )
