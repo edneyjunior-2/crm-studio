@@ -1,5 +1,26 @@
 import { z } from 'zod'
 
+// Schema de linha de cliente importada via CSV
+export const clienteImportadoSchema = z.object({
+  razao_social: z.string().min(1, 'Razão Social obrigatória').max(255),
+  cnpj: z.string().max(18).optional().nullable(),
+  contato_nome: z.string().max(255).optional().nullable(),
+  contato_email: z
+    .string()
+    .max(255)
+    .optional()
+    .nullable()
+    .refine(
+      (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+      'E-mail inválido'
+    ),
+  contato_telefone: z.string().max(30).optional().nullable(),
+  segmento: z.string().max(255).optional().nullable(),
+  observacoes: z.string().optional().nullable(),
+})
+
+export type ClienteImportadoInput = z.infer<typeof clienteImportadoSchema>
+
 export const encarregadoSchema = z.object({
   encarregado_nome: z.string().max(255).optional().nullable(),
   encarregado_email: z

@@ -1,9 +1,10 @@
-import { Plus } from 'lucide-react'
+import { Plus, Upload } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ClientesTable } from '@/components/crm/clientes/clientes-table'
 import { ClienteForm } from '@/components/crm/clientes/cliente-form'
+import { ImportarClientesDialog } from '@/components/crm/importar-clientes-dialog'
 import type { Cliente } from '@/types'
 import { Suspense } from 'react'
 
@@ -59,14 +60,24 @@ export default async function ClientesPage() {
             Gerencie os clientes da sua carteira.
           </p>
         </div>
-        <ClienteForm
-          trigger={
-            <Button>
-              <Plus className="size-4" />
-              Novo Cliente
-            </Button>
-          }
-        />
+        <div className="flex items-center gap-2">
+          <ImportarClientesDialog
+            trigger={
+              <Button variant="outline">
+                <Upload className="size-4" />
+                Importar planilha
+              </Button>
+            }
+          />
+          <ClienteForm
+            trigger={
+              <Button>
+                <Plus className="size-4" />
+                Novo Cliente
+              </Button>
+            }
+          />
+        </div>
       </div>
 
       <Suspense fallback={<ClientesSkeleton />}>

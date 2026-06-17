@@ -3,6 +3,23 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { clienteImportadoSchema } from '@/lib/schemas'
+
+export interface LinhaImportacao {
+  razao_social: string
+  cnpj?: string | null
+  contato_nome?: string | null
+  contato_email?: string | null
+  contato_telefone?: string | null
+  segmento?: string | null
+  observacoes?: string | null
+}
+
+export interface ResultadoImportacao {
+  importados: number
+  pulados: { linha: number; motivo: string }[]
+  erro?: string
+}
 
 // Retorno especial para CNPJ disponível para assumir
 export type VerificarCnpjResult =
@@ -180,4 +197,123 @@ export async function deleteCliente(id: string): Promise<{ error?: string }> {
 
   revalidatePath('/clientes')
   return {}
+}
+
+export async function importarClientes(
+  linhas: LinhaImportacao[]
+): Promise<ResultadoImportacao> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { importados: 0, pulados: [], erro: 'Não autenticado.' }
+
+  // Buscar CNPJs já existentes na empresa (RLS limita ao usuário/empresa)
+  const { data: clientesExistentes, error: fetchError } = await supabase
+    .from('clientes')
+    .select('cnpj')
+
+  if (fetchError) return { importados: 0, pulados: [], erro: fetchError.message }
+
+  const cnpjsExistentes = new Set(
+    (clientesExistentes ?? [])
+      .map((c: { cnpj: string | null }) => c.cnpj)
+      .filter(Boolean) as string[]
+  )
+
+  const pulados: { linha: number; motivo: string }[] = []
+  const paraInserir: {
+    linhaOriginal: number
+    dados: {
+      razao_social: string
+      cnpj: string | null
+      contato_nome: string | null
+      contato_email: string | null
+      contato_telefone: string | null
+      segmento: string | null
+      observacoes: string | null
+      responsavel_id: string
+      responsavel_desde: string
+      created_by: string
+      area_tipo: 'publica'
+    }
+  }[] = []
+
+  for (let i = 0; i < linhas.length; i++) {
+    const linhaN = i + 1
+    const linha = linhas[i]
+
+    // Re-validar no servidor
+    const parsed = clienteImportadoSchema.safeParse({
+      razao_social: linha.razao_social,
+      cnpj: linha.cnpj || null,
+      contato_nome: linha.contato_nome || null,
+      contato_email: linha.contato_email || null,
+      contato_telefone: linha.contato_telefone || null,
+      segmento: linha.segmento || null,
+      observacoes: linha.observacoes || null,
+    })
+
+    if (!parsed.success) {
+      const motivo = parsed.error.issues.map((issue) => issue.message).join('; ')
+      pulados.push({ linha: linhaN, motivo })
+      continue
+    }
+
+    const data = parsed.data
+
+    // Verificar CNPJ já existente no banco
+    if (data.cnpj && cnpjsExistentes.has(data.cnpj)) {
+      pulados.push({ linha: linhaN, motivo: 'CNPJ já cadastrado' })
+      continue
+    }
+
+    paraInserir.push({
+      linhaOriginal: linhaN,
+      dados: {
+        razao_social: data.razao_social,
+        cnpj: data.cnpj ?? null,
+        contato_nome: data.contato_nome ?? null,
+        contato_email: data.contato_email ?? null,
+        contato_telefone: data.contato_telefone ?? null,
+        segmento: data.segmento ?? null,
+        observacoes: data.observacoes ?? null,
+        responsavel_id: user.id,
+        responsavel_desde: new Date().toISOString(),
+        created_by: user.id,
+        area_tipo: 'publica',
+      },
+    })
+  }
+
+  if (paraInserir.length === 0) {
+    revalidatePath('/clientes')
+    return { importados: 0, pulados }
+  }
+
+  // Inserir em lotes de 100 para evitar payloads gigantes
+  const CHUNK = 100
+  let importados = 0
+
+  for (let i = 0; i < paraInserir.length; i += CHUNK) {
+    const chunk = paraInserir.slice(i, i + CHUNK)
+
+    const { error: insertError, data: inserted } = await supabase
+      .from('clientes')
+      .insert(chunk.map((item) => item.dados))
+      .select('id')
+
+    if (insertError) {
+      // Reportar todas as linhas do chunk como puladas usando o número de linha real
+      for (const item of chunk) {
+        pulados.push({
+          linha: item.linhaOriginal,
+          motivo: `Erro ao inserir: ${insertError.message}`,
+        })
+      }
+    } else {
+      importados += (inserted ?? chunk).length
+    }
+  }
+
+  revalidatePath('/clientes')
+  return { importados, pulados }
 }
