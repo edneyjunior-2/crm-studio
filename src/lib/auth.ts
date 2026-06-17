@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 type Role = 'admin' | 'socio' | 'comercial'
-type PlanoEmpresa = 'free' | 'starter' | 'pro' | 'business'
-type StatusEmpresa = 'trial' | 'ativo' | 'pendente' | 'atrasado' | 'suspenso' | 'cancelado'
+export type PlanoEmpresa = 'free' | 'starter' | 'pro' | 'business'
+export type StatusEmpresa = 'trial' | 'ativo' | 'pendente' | 'atrasado' | 'suspenso' | 'cancelado'
 
 export interface AuthResult {
   supabase: Awaited<ReturnType<typeof createClient>>
