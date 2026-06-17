@@ -21,7 +21,7 @@ export function Hero() {
       <Spotlight />
 
       {/* Conteúdo do hero — alinhado à esquerda */}
-      <div className="relative mx-auto flex min-h-[100dvh] max-w-[1180px] flex-col justify-center px-6 pb-16 pt-24 sm:px-8">
+      <div className="relative mx-auto flex max-w-[1180px] flex-col px-6 pb-24 pt-36 sm:px-8 sm:pt-40 lg:pt-44">
         <div className="max-w-[820px]">
           {/* Badge pill */}
           <Enter delay={0}>
