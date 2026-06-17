@@ -52,3 +52,11 @@ export async function getAuthAdmin(): Promise<AuthResult> {
   if (auth.role !== 'admin') redirect('/dashboard')
   return auth
 }
+
+/** Apenas platform admins (tabela platform_admins). Redireciona para /dashboard. */
+export async function getAuthPlatformAdmin(): Promise<AuthResult> {
+  const auth = await getAuthUser()
+  const { data: isPlatformAdmin } = await auth.supabase.rpc('is_platform_admin')
+  if (!isPlatformAdmin) redirect('/dashboard')
+  return auth
+}
