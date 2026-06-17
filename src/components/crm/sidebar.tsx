@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
+import type { Modulo } from '@/lib/modulos'
 import { logout } from '@/app/(auth)/login/actions'
 
 interface NavItem {
@@ -35,6 +36,8 @@ interface NavItem {
   label: string
   icon: React.ElementType
   roles?: Profile['role'][]
+  /** Slug do módulo de gating. Ausente → item de infra (sempre visível). */
+  modulo?: Modulo
   isSubItem?: boolean
   exactMatch?: boolean
   parentHref?: string
@@ -47,29 +50,34 @@ const navItems: NavItem[] = [
     label: 'Dashboard',
     icon: LayoutDashboard,
     tourSlug: 'dashboard',
+    // sem modulo → infra, sempre visível
   },
   {
     href: '/solucoes',
     label: 'Soluções',
     icon: Package,
+    modulo: 'solucoes',
     tourSlug: 'solucoes',
   },
   {
     href: '/parceiros',
     label: 'Parceiros',
     icon: Handshake,
+    modulo: 'parceiros',
     tourSlug: 'parceiros',
   },
   {
     href: '/clientes',
     label: 'Clientes',
     icon: Users,
+    modulo: 'clientes',
     tourSlug: 'clientes',
   },
   {
     href: '/pipeline',
     label: 'Pipeline',
     icon: TrendingUp,
+    modulo: 'pipeline',
     exactMatch: true,
     tourSlug: 'pipeline',
   },
@@ -77,6 +85,7 @@ const navItems: NavItem[] = [
     href: '/pipeline/historico-perdidos',
     label: 'Hist. Perdidos',
     icon: TrendingDown,
+    modulo: 'pipeline',
     isSubItem: true,
     parentHref: '/pipeline',
   },
@@ -84,18 +93,21 @@ const navItems: NavItem[] = [
     href: '/onboarding',
     label: 'Onboarding',
     icon: GitBranch,
+    modulo: 'fluxos',
     tourSlug: 'onboarding',
   },
   {
     href: '/calendario',
     label: 'Calendário',
     icon: CalendarDays,
+    modulo: 'calendario',
     tourSlug: 'calendario',
   },
   {
     href: '/financeiro',
     label: 'Financeiro',
     icon: DollarSign,
+    modulo: 'financeiro',
     exactMatch: true,
     tourSlug: 'financeiro',
   },
@@ -103,6 +115,7 @@ const navItems: NavItem[] = [
     href: '/financeiro/bancos',
     label: 'Bancos',
     icon: Landmark,
+    modulo: 'financeiro',
     roles: ['admin', 'socio'],
     isSubItem: true,
     parentHref: '/financeiro',
@@ -111,12 +124,14 @@ const navItems: NavItem[] = [
     href: '/contratos',
     label: 'Contratos',
     icon: FileText,
+    modulo: 'contratos',
     tourSlug: 'contratos',
   },
   {
     href: '/estoque',
     label: 'Estoque',
     icon: Boxes,
+    modulo: 'estoque',
     roles: ['admin', 'socio'],
     tourSlug: 'estoque',
   },
@@ -124,6 +139,7 @@ const navItems: NavItem[] = [
     href: '/rh',
     label: 'RH',
     icon: IdCard,
+    modulo: 'rh',
     roles: ['admin'],
     tourSlug: 'rh',
   },
@@ -131,6 +147,7 @@ const navItems: NavItem[] = [
     href: '/automacoes',
     label: 'Automações',
     icon: Zap,
+    modulo: 'automacoes',
     roles: ['admin'],
     tourSlug: 'automacoes',
   },
@@ -144,16 +161,22 @@ const roleLabel: Record<Profile['role'], string> = {
 
 interface SidebarProps {
   profile: Profile
+  /** Array de slugs de módulos efetivos para esta empresa (calculado no layout). */
+  modulosAtivos: string[]
 }
 
-export function Sidebar({ profile }: SidebarProps) {
+export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const prefersReduced = useReducedMotion()
 
   const visibleItems = navItems.filter((item) => {
+    // Filtro de role (AND com filtro de módulo)
     if (item.roles && !item.roles.includes(profile.role)) return false
+    // Sub-itens só aparecem quando o pai está ativo
     if (item.parentHref && !pathname.startsWith(item.parentHref)) return false
+    // Filtro de módulo: item sem módulo → infra (sempre aparece)
+    if (item.modulo && !modulosAtivos.includes(item.modulo)) return false
     return true
   })
 
