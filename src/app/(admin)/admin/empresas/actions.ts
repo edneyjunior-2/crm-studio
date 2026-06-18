@@ -200,6 +200,33 @@ export async function gerarApiKey(
 }
 
 // ---------------------------------------------------------------------------
+// Gerar link de primeiro acesso (recovery) — admin copia e envia ao cliente
+// ---------------------------------------------------------------------------
+
+export async function gerarLinkAcesso(
+  userId: string,
+): Promise<{ error: string } | { link: string; email: string }> {
+  await getAuthPlatformAdmin()
+
+  const db = createAdminClient()
+
+  const { data: userData } = await db.auth.admin.getUserById(userId)
+  const email = userData.user?.email ?? ''
+  if (!email) return { error: 'Usuário não encontrado.' }
+
+  const { data, error } = await db.auth.admin.generateLink({
+    type:  'recovery',
+    email,
+  })
+
+  if (error || !data?.properties?.action_link) {
+    return { error: error?.message ?? 'Não foi possível gerar o link.' }
+  }
+
+  return { link: data.properties.action_link, email }
+}
+
+// ---------------------------------------------------------------------------
 // Revogar API key
 // ---------------------------------------------------------------------------
 

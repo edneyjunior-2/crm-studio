@@ -1,25 +1,43 @@
-import { getAuthPlatformAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { atualizarEmpresa } from '../actions'
 import { ApiKeysSection } from './api-keys-section'
+import { UsuariosSection } from './usuarios-section'
 
-const PLANOS = ['free', 'starter', 'pro', 'business']
+const PLANOS   = ['interno', 'trial', 'free', 'starter', 'pro', 'business']
 const STATUSES = ['trial', 'ativo', 'pendente', 'atrasado', 'suspenso', 'cancelado']
+
+const PLANO_LABEL: Record<string, string> = {
+  interno:  'Interno (sem cobrança)',
+  trial:    'Trial — 7 dias',
+  free:     'Free',
+  starter:  'Starter — R$ 149/mês',
+  pro:      'Pro — R$ 449/mês',
+  business: 'Business — R$ 990/mês',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  trial:    'Trial',
+  ativo:    'Ativo',
+  pendente: 'Pendente',
+  atrasado: 'Atrasado',
+  suspenso: 'Suspenso',
+  cancelado:'Cancelado',
+}
 
 export default async function EmpresaDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  await getAuthPlatformAdmin()
+  // Layout já faz getAuthPlatformAdmin() — não precisamos chamar de novo
 
   const { id } = await params
   const db = createAdminClient()
 
-  const [{ data: empresa }, { data: apiKeys }] = await Promise.all([
+  const [{ data: empresa }, { data: apiKeys }, { data: profiles }] = await Promise.all([
     db
       .from('empresas')
       .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos')
@@ -30,9 +48,22 @@ export default async function EmpresaDetailPage({
       .select('id, label, created_at')
       .eq('empresa_id', id)
       .order('created_at', { ascending: false }),
+    db
+      .from('profiles')
+      .select('id, full_name, role, created_at')
+      .eq('empresa_id', id)
+      .order('created_at'),
   ])
 
   if (!empresa) notFound()
+
+  // Busca e-mails dos usuários via Auth (service role)
+  const usuariosComEmail = await Promise.all(
+    (profiles ?? []).map(async (p) => {
+      const { data } = await db.auth.admin.getUserById(p.id)
+      return { ...p, email: data.user?.email ?? '—' }
+    })
+  )
 
   const atualizarComId = atualizarEmpresa.bind(null, id)
 
@@ -49,7 +80,7 @@ export default async function EmpresaDetailPage({
 
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{empresa.nome}</h1>
-        <p className="mt-1 text-xs text-muted-foreground font-mono">{empresa.id}</p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">{empresa.id}</p>
       </div>
 
       {/* Info + ações */}
@@ -66,9 +97,7 @@ export default async function EmpresaDetailPage({
             className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40"
           >
             {STATUSES.map((s) => (
-              <option key={s} value={s} className="capitalize">
-                {s}
-              </option>
+              <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>
             ))}
           </select>
           <button
@@ -91,9 +120,7 @@ export default async function EmpresaDetailPage({
             className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40"
           >
             {PLANOS.map((p) => (
-              <option key={p} value={p} className="capitalize">
-                {p}
-              </option>
+              <option key={p} value={p}>{PLANO_LABEL[p] ?? p}</option>
             ))}
           </select>
           <button
@@ -133,6 +160,9 @@ export default async function EmpresaDetailPage({
           </div>
         </dl>
       </div>
+
+      {/* Usuários da empresa + botão de link de acesso */}
+      <UsuariosSection usuarios={usuariosComEmail} />
 
       {/* API Keys */}
       <ApiKeysSection empresaId={id} apiKeys={apiKeys ?? []} />
