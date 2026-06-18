@@ -7,46 +7,46 @@ import {
   Users,
   CalendarDays,
   Package,
-  UserSquare2,
+  Layers,
 } from 'lucide-react'
 import { EASE_OUT, Tilt, BorderTrail } from './motion'
 
 const FEATURES = [
   {
     icon: TrendingUp,
-    title: 'Pipeline de vendas',
-    desc: 'Funil visual do primeiro contato ao fechado, com previsão de receita por etapa e alertas de SLA.',
+    title: 'Gestão comercial',
+    desc: 'Funil de vendas visual, carteira de clientes e portfólio de produtos ou serviços. Do primeiro contato ao fechamento, tudo registrado.',
     accent: false,
   },
   {
     icon: Landmark,
-    title: 'Financeiro nativo',
-    desc: 'Contas a pagar e a receber nascem das vendas. Multi-moeda, comissões e fluxo de caixa automático.',
+    title: 'Financeiro integrado',
+    desc: 'Contas a pagar e a receber conectadas às operações. Fluxo de caixa atualizado em tempo real, sem dupla entrada em nenhum lugar.',
     accent: true,
   },
   {
     icon: Users,
-    title: 'Clientes e parceiros',
-    desc: 'Carteira protegida por território, busca de CNPJ automática e comissão de indicação integrada.',
+    title: 'Clientes e relacionamentos',
+    desc: 'Histórico completo de cada cliente, contatos e atividades organizados por empresa. Busca automática de CNPJ incluída.',
     accent: false,
   },
   {
     icon: CalendarDays,
-    title: 'Calendário da equipe',
-    desc: 'Reuniões sincronizadas com o Google Calendar de cada vendedor, sem sair do CRM.',
+    title: 'Agenda e atividades',
+    desc: 'Reuniões, tarefas e lembretes sincronizados com o Google Calendar de cada usuário. Nunca perca um compromisso.',
     accent: false,
   },
   {
     icon: Package,
-    title: 'Estoque',
-    desc: 'Produtos, saldo e movimentações ligados diretamente às vendas. Sem separação de sistema.',
+    title: 'Estoque e operações',
+    desc: 'Controle de produtos, saldo e movimentações conectados diretamente às operações do negócio. Sem sistema separado.',
     soon: true,
     accent: false,
   },
   {
-    icon: UserSquare2,
-    title: 'Recursos humanos',
-    desc: 'Equipe, cargos e folha simplificada integrada ao financeiro da empresa.',
+    icon: Layers,
+    title: 'Módulos por setor',
+    desc: 'Em construção: módulos para engenharia, saúde, jurídico, construção civil e mais. Ative o que o seu setor exige.',
     soon: true,
     accent: false,
   },
@@ -67,12 +67,12 @@ export function FeaturesGrid() {
           transition={{ duration: 0.6, ease: EASE_OUT }}
         >
           <h2 className="text-[clamp(1.9rem,4vw,3rem)] font-bold leading-[1.04] tracking-[-0.03em]">
-            Tudo que o seu comercial precisa,{' '}
-            <span className="text-muted-foreground">sem mais um sistema separado.</span>
+            Tudo que a sua empresa precisa,{' '}
+            <span className="text-muted-foreground">num só sistema.</span>
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            Seis frentes que normalmente moram em quatro ferramentas diferentes,
-            conversando entre si num só lugar.
+            Ative os módulos que fazem sentido para o seu negócio. Quando uma
+            área cresce, você adiciona o módulo — sem trocar de sistema.
           </p>
         </motion.div>
 

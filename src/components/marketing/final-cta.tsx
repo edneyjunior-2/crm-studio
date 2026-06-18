@@ -37,17 +37,17 @@ export function FinalCta() {
           transition={{ duration: 0.65, ease: EASE_OUT }}
         >
           <h2 className="mx-auto max-w-3xl text-[clamp(2.2rem,5vw,4rem)] font-bold leading-[1.01] tracking-[-0.035em]">
-            Comece a organizar suas vendas{' '}
+            Comece a organizar seu negócio{' '}
             <span className="text-accent">hoje.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-md text-[17px] leading-relaxed text-primary-foreground/70">
-            Configuração guiada em menos de 30 minutos. Sem cartão para começar.
-            Cancele quando quiser.
+            Ative os módulos que você precisa. Configuração em menos de 30 minutos.
+            Sem cartão para começar.
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
-              href="/login"
+              href="/cadastro"
               className="group inline-flex items-center justify-center gap-2 rounded-full bg-accent px-9 py-4 text-[15px] font-semibold text-white shadow-[0_4px_28px_rgba(232,145,91,0.4)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_36px_rgba(232,145,91,0.5)]"
             >
               Começar grátis
@@ -57,13 +57,13 @@ export function FinalCta() {
               href="/contato"
               className="inline-flex items-center justify-center rounded-full border border-white/25 px-9 py-4 text-[15px] font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/10"
             >
-              Falar com vendas
+              Falar com a gente
             </Link>
           </div>
 
           {/* Sub-garantia */}
           <p className="mt-6 text-sm text-primary-foreground/50">
-            14 dias grátis - sem cartão - suporte em PT-BR
+            7 dias grátis - sem cartão - suporte em PT-BR
           </p>
         </motion.div>
       </div>

@@ -38,7 +38,7 @@ export function Hero() {
                 }
               />
               <TextShimmer className="text-[13px] font-medium text-accent">
-                CRM completo para PMEs brasileiras
+                Plataforma modular para PMEs brasileiras
               </TextShimmer>
             </div>
           </Enter>
@@ -46,20 +46,13 @@ export function Hero() {
           {/* Headline animada palavra por palavra */}
           <h1 className="text-[clamp(2.6rem,6vw,5rem)] font-bold leading-[0.97] tracking-[-0.04em]">
             <StaggerText
-              text="A venda que fecha"
+              text="Organize toda a operação,"
               delay={0.08}
               staggerDelay={0.055}
             />
             <br />
             <StaggerText
-              text="vira"
-              wordClassName="text-accent"
-              delay={0.08 + 3 * 0.055}
-              staggerDelay={0.055}
-            />
-            {' '}
-            <StaggerText
-              text="dinheiro no caixa."
+              text="do seu jeito."
               wordClassName="text-accent"
               delay={0.08 + 4 * 0.055}
               staggerDelay={0.055}
@@ -69,8 +62,9 @@ export function Hero() {
           {/* Subtexto */}
           <Enter delay={0.44}>
             <p className="mt-7 max-w-[36rem] text-lg leading-relaxed text-muted-foreground sm:text-xl">
-              Pipeline de vendas, financeiro e equipe num só lugar. O que você fecha
-              no funil já entra no fluxo de caixa, sem planilha, sem duplicar dados.
+              Módulos para cada área do seu negócio — comercial, financeiro,
+              contratos, RH e mais. Ative só o que você precisa, tudo integrado,
+              sem duplicar dados entre sistemas.
             </p>
           </Enter>
 
@@ -78,7 +72,7 @@ export function Hero() {
           <Enter delay={0.54}>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
-                href="/login"
+                href="/cadastro"
                 className="group inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-8 py-4 text-[15px] font-semibold text-background shadow-[0_4px_24px_rgba(22,24,29,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(22,24,29,0.22)]"
               >
                 Começar grátis
@@ -88,7 +82,7 @@ export function Hero() {
                 href="/contato"
                 className="inline-flex items-center justify-center rounded-full border border-border px-8 py-4 text-[15px] font-semibold text-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-muted hover:-translate-y-0.5"
               >
-                Falar com vendas
+                Falar com a gente
               </Link>
             </div>
           </Enter>

@@ -20,13 +20,13 @@ export function FinancialSpotlight() {
             transition={{ duration: 0.65, ease: EASE_OUT }}
           >
             <h2 className="text-[clamp(2rem,4vw,3.25rem)] font-bold leading-[1.02] tracking-[-0.03em]">
-              Quando você fecha,{' '}
+              Quando algo acontece,{' '}
               <span className="text-accent">o financeiro já sabe.</span>
             </h2>
             <p className="mt-6 max-w-md text-lg leading-relaxed text-primary-foreground/70">
-              Todo negócio ganho no funil cria a conta a receber, calcula a comissão
-              e entra na previsão de caixa, na hora. Ninguém digita a mesma venda
-              duas vezes, e o número que você vê é o número de verdade.
+              Uma venda fechada, um serviço entregue, uma compra feita — o sistema
+              registra e atualiza o financeiro na hora. Ninguém digita a mesma
+              informação duas vezes. O número que você vê é o número real.
             </p>
             <Link
               href="/produto"
@@ -45,16 +45,16 @@ export function FinancialSpotlight() {
             transition={{ duration: 0.65, ease: EASE_OUT, delay: 0.1 }}
             className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
           >
-            {/* Negócio ganho */}
+            {/* Evento registrado */}
             <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold">Negócio ganho</span>
+                <span className="text-sm font-semibold">Operação registrada</span>
                 <span className="font-mono text-sm font-semibold tabular-nums text-chart-5">
                   R$ 22.000
                 </span>
               </div>
               <p className="mt-1 text-xs text-primary-foreground/50">
-                Plano anual - fechado hoje
+                Serviço entregue · registrado agora
               </p>
             </div>
 
@@ -71,8 +71,8 @@ export function FinancialSpotlight() {
             {/* Resultados automáticos */}
             <div className="flex flex-col gap-2.5">
               {[
-                { label: 'Conta a receber', value: 'R$ 22.000', tone: '' },
-                { label: 'Comissão do vendedor', value: 'R$ 1.760', tone: '' },
+                { label: 'Conta a receber', value: 'R$ 22.000' },
+                { label: 'Comissão do responsável', value: 'R$ 1.760' },
               ].map((row, i) => (
                 <motion.div
                   key={row.label}

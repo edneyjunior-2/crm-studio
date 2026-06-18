@@ -2,27 +2,27 @@
 
 import { motion, useReducedMotion, useInView } from 'motion/react'
 import { useRef } from 'react'
-import { UserPlus, GitMerge, BadgeDollarSign } from 'lucide-react'
+import { UserPlus, Layers, Zap } from 'lucide-react'
 import { EASE_OUT } from './motion'
 
 const STEPS = [
   {
     n: '01',
     icon: UserPlus,
-    title: 'Cadastre sua equipe',
-    desc: 'Convide vendedores, defina territórios e perfis de acesso em minutos. Sem planilha de onboarding.',
+    title: 'Configure sua empresa',
+    desc: 'Cadastre sua equipe, defina perfis de acesso e permissões por área. Sem planilha de onboarding, sem configuração complexa.',
   },
   {
     n: '02',
-    icon: GitMerge,
-    title: 'Monte seu funil',
-    desc: 'Crie etapas do jeito que sua operação funciona. Arraste negócios, adicione atividades e acompanhe o SLA.',
+    icon: Layers,
+    title: 'Ative seus módulos',
+    desc: 'Escolha os módulos que a sua operação usa hoje. Cada área tem as ferramentas certas — ative mais quando precisar.',
   },
   {
     n: '03',
-    icon: BadgeDollarSign,
-    title: 'Venda e receba',
-    desc: 'Quando o negócio fecha, a conta a receber e a comissão já aparecem no financeiro. Zero dupla entrada.',
+    icon: Zap,
+    title: 'Gerencie tudo junto',
+    desc: 'Todas as áreas conectadas num só lugar. O que acontece em vendas já aparece no financeiro. Zero dupla entrada.',
   },
 ]
 
@@ -60,7 +60,7 @@ export function HowItWorks() {
             Três passos para estar no ar
           </h2>
           <p className="mx-auto mt-4 max-w-md text-lg leading-relaxed text-muted-foreground">
-            Da conta criada à primeira venda registrada, menos de 30 minutos.
+            Da conta criada à operação rodando, menos de 30 minutos.
           </p>
         </motion.div>
 

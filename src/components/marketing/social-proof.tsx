@@ -8,8 +8,8 @@ const STATS = [
     prefix: '',
     value: 100,
     suffix: '%',
-    label: 'das vendas registradas',
-    sub: 'nenhuma venda fora do sistema desde o dia 1',
+    label: 'das áreas integradas',
+    sub: 'financeiro, comercial e contratos no mesmo sistema',
   },
   {
     prefix: 'R$ ',
@@ -20,17 +20,17 @@ const STATS = [
   },
   {
     prefix: '',
-    value: 4,
-    suffix: ' pessoas',
-    label: 'usam todo dia',
-    sub: 'equipe completa da Aurum Tax Advisory',
+    value: 30,
+    suffix: ' min',
+    label: 'para estar no ar',
+    sub: 'da conta criada ao primeiro registro no sistema',
   },
   {
     prefix: '',
-    value: 5,
-    suffix: ' min',
-    label: 'para estar no ar',
-    sub: 'da conta criada ao primeiro negócio no funil',
+    value: 7,
+    suffix: ' dias',
+    label: 'de trial gratuito',
+    sub: 'sem cartão de crédito para começar',
   },
 ]
 
@@ -49,11 +49,11 @@ export function SocialProof() {
           transition={{ duration: 0.6, ease: EASE_OUT }}
         >
           <p className="text-[clamp(1.3rem,2.8vw,2rem)] font-semibold leading-[1.2] tracking-[-0.02em] text-balance">
-            &ldquo;Rodamos toda a operação comercial e o financeiro no CRM Studio antes dele
-            virar produto. Saber que cada venda fechada já está no caixa mudou a nossa rotina.&rdquo;
+            &ldquo;Toda a operação da empresa num só lugar. Sem planilha, sem sistema
+            separado para cada área — financeiro sempre em dia e equipe alinhada.&rdquo;
           </p>
           <footer className="mt-5 text-sm text-muted-foreground">
-            Equipe comercial - Aurum Tax Advisory
+            Equipe de gestão — CRM Studio
           </footer>
         </motion.blockquote>
 

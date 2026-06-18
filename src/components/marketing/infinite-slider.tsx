@@ -3,14 +3,14 @@
 import { useReducedMotion } from 'motion/react'
 
 const ITEMS = [
-  'Pipeline → Financeiro → Caixa',
-  'Sem planilha. Sem duplicar dados.',
-  'CRM feito para PMEs brasileiras',
-  'Vendas + Financeiro num só lugar',
-  'Pipeline visual com previsão de receita',
+  'Módulos para cada área do negócio',
+  'Sem duplicar dados entre sistemas',
+  'CRM para qualquer tipo de empresa',
+  'Ative só o que a sua operação precisa',
+  'Comercial · Financeiro · Contratos · RH',
   'Integração nativa com Google Calendar',
   'Multi-empresa, multi-usuário',
-  '14 dias grátis · Setup em 30 min',
+  '7 dias grátis · Setup em 30 min',
 ]
 
 export function InfiniteSlider({ className }: { className?: string }) {
