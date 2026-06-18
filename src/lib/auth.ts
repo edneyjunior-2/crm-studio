@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 type Role = 'admin' | 'socio' | 'comercial'
-export type PlanoEmpresa = 'free' | 'starter' | 'pro' | 'business'
+export type PlanoEmpresa = 'free' | 'trial' | 'interno' | 'starter' | 'pro' | 'business'
 export type StatusEmpresa = 'trial' | 'ativo' | 'pendente' | 'atrasado' | 'suspenso' | 'cancelado'
 
 export interface AuthResult {
@@ -13,6 +13,8 @@ export interface AuthResult {
   empresaId: string | null
   plano: PlanoEmpresa
   status: StatusEmpresa
+  /** ISO string de expiração do trial; null quando não aplicável. */
+  trialEndsAt: string | null
 }
 
 /** Verifica auth e retorna supabase + user + role + contexto do tenant. Redireciona para /login se não autenticado. */
@@ -23,11 +25,15 @@ export async function getAuthUser(): Promise<AuthResult> {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, empresa_id, empresas(plano, status)')
+    .select('role, empresa_id, empresas(plano, status, trial_ends_at)')
     .eq('id', user.id)
     .single()
 
-  const empresa = (profile?.empresas ?? null) as { plano?: string; status?: string } | null
+  const empresa = (profile?.empresas ?? null) as {
+    plano?: string
+    status?: string
+    trial_ends_at?: string | null
+  } | null
 
   return {
     supabase,
@@ -36,6 +42,7 @@ export async function getAuthUser(): Promise<AuthResult> {
     empresaId: (profile?.empresa_id ?? null) as string | null,
     plano: (empresa?.plano ?? 'free') as PlanoEmpresa,
     status: (empresa?.status ?? 'trial') as StatusEmpresa,
+    trialEndsAt: empresa?.trial_ends_at ?? null,
   }
 }
 

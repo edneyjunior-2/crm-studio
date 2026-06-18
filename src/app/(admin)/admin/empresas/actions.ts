@@ -2,9 +2,20 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import { randomBytes, createHash } from 'crypto'
+import { createCustomer, createSubscription } from '@/lib/asaas'
+
+// ---------------------------------------------------------------------------
+// Validação
+// ---------------------------------------------------------------------------
+
+const planoSchema = z.enum(['interno', 'trial', 'starter', 'pro', 'business'])
+type Plano = z.infer<typeof planoSchema>
+
+const PLANOS_PAGOS: Plano[] = ['starter', 'pro', 'business']
 
 // ---------------------------------------------------------------------------
 // Criar empresa + usuário admin
@@ -19,9 +30,18 @@ export async function criarEmpresa(
   const nome      = (formData.get('nome') as string)?.trim()
   const email     = (formData.get('email') as string)?.trim()
   const nomeAdmin = (formData.get('nome_admin') as string)?.trim() || nome
-  const plano     = (formData.get('plano') as string) || 'starter'
+  const cnpj      = (formData.get('cnpj') as string)?.trim() || undefined
+  const planoRaw  = (formData.get('plano') as string) || 'trial'
 
-  if (!nome || !email) return { error: 'Nome e email são obrigatórios.' }
+  if (!nome || !email) return { error: 'Nome e e-mail são obrigatórios.' }
+
+  const planoResult = planoSchema.safeParse(planoRaw)
+  if (!planoResult.success) return { error: 'Modalidade inválida.' }
+  const plano = planoResult.data
+
+  if (PLANOS_PAGOS.includes(plano) && !cnpj) {
+    return { error: 'CNPJ é obrigatório para planos pagos.' }
+  }
 
   const db = createAdminClient()
 
@@ -38,26 +58,93 @@ export async function criarEmpresa(
 
   if (authErr) return { error: authErr.message }
 
+  const userId = authData.user.id
+
   // Aguarda o trigger propagar e recupera a empresa criada
   await new Promise((r) => setTimeout(r, 500))
 
   const { data: profile } = await db
     .from('profiles')
     .select('empresa_id')
-    .eq('id', authData.user.id)
+    .eq('id', userId)
     .single()
 
-  if (!profile?.empresa_id) return { error: 'Empresa não foi criada pelo trigger. Verifique o banco.' }
+  if (!profile?.empresa_id) {
+    await db.auth.admin.deleteUser(userId)
+    return { error: 'Empresa não foi criada pelo trigger. Verifique o banco.' }
+  }
 
-  // Aplica o plano escolhido (trigger cria com 'free' por padrão)
+  const empresaId = profile.empresa_id
 
-  // Aplica o plano escolhido (trigger cria com 'free' por padrão)
-  if (plano !== 'free') {
-    await db.from('empresas').update({ plano }).eq('id', profile.empresa_id)
+  // ── Path 1: Interno — ativo imediatamente, sem Asaas ───────────────────────
+  if (plano === 'interno') {
+    await db
+      .from('empresas')
+      .update({ plano: 'interno', status: 'ativo', trial_ends_at: null })
+      .eq('id', empresaId)
+
+    revalidatePath('/admin/empresas')
+    redirect(`/admin/empresas/${empresaId}`)
+  }
+
+  // ── Path 2: Trial 7 dias — sem Asaas ───────────────────────────────────────
+  if (plano === 'trial') {
+    const trialEnd = new Date()
+    trialEnd.setDate(trialEnd.getDate() + 7)
+    const trialEndAt = `${trialEnd.getFullYear()}-${String(trialEnd.getMonth() + 1).padStart(2, '0')}-${String(trialEnd.getDate()).padStart(2, '0')}T23:59:59Z`
+
+    await db
+      .from('empresas')
+      .update({ plano: 'trial', status: 'trial', trial_ends_at: trialEndAt })
+      .eq('id', empresaId)
+
+    revalidatePath('/admin/empresas')
+    redirect(`/admin/empresas/${empresaId}`)
+  }
+
+  // ── Path 3: Planos pagos — Asaas customer + subscription ───────────────────
+  try {
+    // Criar customer no Asaas
+    const customer = await createCustomer(empresaId, nome, email, cnpj)
+
+    // nextDueDate = hoje + 3 dias (prazo para o cliente pagar)
+    const dueDate = new Date()
+    dueDate.setDate(dueDate.getDate() + 3)
+    const nextDueDate = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`
+
+    // Criar subscription no Asaas (Asaas envia e-mail com link de pagamento)
+    const subscription = await createSubscription(customer.id, plano, nextDueDate)
+
+    // Atualizar empresa
+    await db
+      .from('empresas')
+      .update({
+        plano,
+        status:           'pendente',
+        trial_ends_at:    null,
+        asaas_customer_id: customer.id,
+      })
+      .eq('id', empresaId)
+
+    // Registrar assinatura
+    await db.from('assinaturas').insert({
+      empresa_id:            empresaId,
+      plano,
+      asaas_subscription_id: subscription.id,
+      status:                'pendente',
+      billing_type:          subscription.billingType,
+      cycle:                 'MONTHLY',
+      value:                 subscription.value,
+    })
+  } catch (err) {
+    // Rollback: remove user (cascade remove empresa + profile)
+    await db.auth.admin.deleteUser(userId)
+    const msg = err instanceof Error ? err.message : String(err)
+    return { error: `Erro ao criar cobrança no Asaas: ${msg}` }
   }
 
   revalidatePath('/admin/empresas')
-  redirect(`/admin/empresas/${profile.empresa_id}`)
+  redirect(`/admin/empresas/${empresaId}`)
 }
 
 // ---------------------------------------------------------------------------

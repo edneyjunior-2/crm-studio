@@ -57,19 +57,39 @@ export function NovaEmpresaForm() {
       </div>
 
       <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium" htmlFor="cnpj">
+          CNPJ{' '}
+          <span className="font-normal text-muted-foreground">
+            (obrigatório para planos pagos)
+          </span>
+        </label>
+        <input
+          id="cnpj"
+          name="cnpj"
+          placeholder="00.000.000/0001-00"
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium" htmlFor="plano">
-          Plano inicial
+          Modalidade
         </label>
         <select
           id="plano"
           name="plano"
-          defaultValue="starter"
+          defaultValue="trial"
           className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
         >
-          <option value="free">Trial — 7 dias grátis</option>
-          <option value="starter">Starter — R$ 149/mês</option>
-          <option value="pro">Pro — R$ 449/mês</option>
-          <option value="business">Business — R$ 990/mês</option>
+          <optgroup label="Sem cobrança">
+            <option value="interno">Interno (sem cobrança)</option>
+            <option value="trial">Trial — 7 dias grátis</option>
+          </optgroup>
+          <optgroup label="Planos pagos (cobra via Asaas)">
+            <option value="starter">Starter — R$ 149/mês</option>
+            <option value="pro">Pro — R$ 449/mês</option>
+            <option value="business">Business — R$ 990/mês</option>
+          </optgroup>
         </select>
       </div>
 

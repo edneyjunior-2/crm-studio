@@ -79,16 +79,18 @@ export interface AsaasPayment {
 /**
  * Cria um cliente no Asaas vinculado a uma empresa do CRM Studio.
  * Grava empresaId em externalReference para reconciliação.
+ * cnpj é opcional — omitido se vazio.
  */
 export async function createCustomer(
   empresaId: string,
   nome: string,
-  cnpj: string,
   email: string,
+  cnpj?: string,
 ): Promise<AsaasCustomer> {
+  const digits = cnpj?.replace(/\D/g, '') ?? ''
   return asaasRequest<AsaasCustomer>('POST', '/customers', {
     name:               nome,
-    cpfCnpj:            cnpj.replace(/\D/g, ''),
+    ...(digits ? { cpfCnpj: digits } : {}),
     email,
     externalReference:  empresaId,
     notificationDisabled: false,
@@ -97,6 +99,8 @@ export async function createCustomer(
 
 const PLANO_VALOR: Record<string, number> = {
   free:     0,
+  trial:    0,
+  interno:  0,
   starter:  149,
   pro:      449,
   business: 990,

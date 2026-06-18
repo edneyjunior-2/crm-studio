@@ -3,15 +3,18 @@ import { MODULOS_POR_PLANO, LIMITES_POR_PLANO, type Modulo } from '@/lib/modulos
 import type { PlanoEmpresa, StatusEmpresa } from '@/lib/auth'
 import { CheckCircle2, XCircle, Clock, AlertTriangle, CreditCard, Check, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { AssinaturaForm } from './assinatura-form'
 
 // ---------------------------------------------------------------------------
 // Dados de configuração (estáticos — nunca vêm do banco)
 // ---------------------------------------------------------------------------
 
-const PLANO_ORDER: PlanoEmpresa[] = ['free', 'starter', 'pro', 'business']
+const PLANO_ORDER: PlanoEmpresa[] = ['starter', 'pro', 'business']
 
 const PLANOS_CONFIG: Record<PlanoEmpresa, { label: string; price: string; tagline: string; trial?: boolean }> = {
-  free:     { label: 'Free',     price: 'Grátis',      tagline: '7 dias para explorar sem cartão de crédito.', trial: true },
+  free:     { label: 'Free',     price: 'Grátis',       tagline: '7 dias para explorar sem cartão de crédito.', trial: true },
+  trial:    { label: 'Trial',    price: 'Grátis',       tagline: '7 dias para explorar.', trial: true },
+  interno:  { label: 'Interno',  price: 'Sem cobrança', tagline: 'Conta interna da plataforma.' },
   starter:  { label: 'Starter',  price: 'R$ 149/mês',  tagline: 'Para o time pequeno vender mais.' },
   pro:      { label: 'Pro',      price: 'R$ 449/mês',  tagline: 'O comercial completo, com financeiro.' },
   business: { label: 'Business', price: 'R$ 990/mês',  tagline: 'Para a operação que precisa de tudo.' },
@@ -233,6 +236,11 @@ export default async function AssinaturaPage() {
             )
           })}
         </div>
+
+        {/* Form de assinatura — trial, suspenso, cancelado */}
+        {(['trial', 'suspenso', 'cancelado'] as StatusEmpresa[]).includes(status) && (
+          <AssinaturaForm />
+        )}
 
         {/* Voltar ao app (só se tiver acesso) */}
         {temAcesso && (

@@ -14,13 +14,23 @@ export default async function CRMLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, empresaId, plano, status, supabase } = await getAuthUser()
+  const { user, empresaId, plano, status, trialEndsAt, supabase } = await getAuthUser()
 
   // Conta sem empresa → fluxo de vinculação por código
   if (!empresaId) redirect('/entrar/empresa')
 
   // Assinatura suspensa/cancelada → paywall (sem loop: /assinatura fica fora deste grupo)
   if (!acessoLiberado(status)) redirect('/assinatura')
+
+  // Calcula dias restantes de trial (usando getFullYear/getMonth/getDate para evitar toISOString)
+  let diasRestantes: number | null = null
+  if (trialEndsAt && status === 'trial') {
+    const end = new Date(trialEndsAt)
+    const now = new Date()
+    const endMidnight = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    diasRestantes = Math.ceil((endMidnight.getTime() - todayMidnight.getTime()) / 86_400_000)
+  }
 
   // Carrega overrides/add-ons da empresa (sem service role — RLS garante acesso)
   const { data: empresaData } = await supabase
@@ -48,7 +58,7 @@ export default async function CRMLayout({
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       {/* Banner de aviso de assinatura (trial / pendente / atrasado) */}
-      <BannerAssinatura status={status} />
+      <BannerAssinatura status={status} diasRestantes={diasRestantes} />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar profile={profile as Profile} modulosAtivos={modulosAtivos} />

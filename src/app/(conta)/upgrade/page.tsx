@@ -14,6 +14,8 @@ const PLANO_ORDER: PlanoEmpresa[] = ['free', 'starter', 'pro', 'business']
 
 const planoLabel: Record<PlanoEmpresa, string> = {
   free:     'Free',
+  trial:    'Trial',
+  interno:  'Interno',
   starter:  'Starter',
   pro:      'Pro',
   business: 'Business',
