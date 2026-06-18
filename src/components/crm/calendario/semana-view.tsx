@@ -313,7 +313,8 @@ function EventoCard({
           </span>
         )}
         {organizerFirstName && (
-          <span className="ml-auto truncate text-[9px] text-muted-foreground/70">
+          <span className="flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground">
+            <User className="size-2.5 shrink-0" />
             {organizerFirstName}
           </span>
         )}

@@ -9,8 +9,8 @@ export function Spotlight({ className }: { className?: string }) {
 
   const mouseX = useMotionValue(0.5)
   const mouseY = useMotionValue(0.5)
-  const springX = useSpring(mouseX, { stiffness: 60, damping: 20 })
-  const springY = useSpring(mouseY, { stiffness: 60, damping: 20 })
+  const springX = useSpring(mouseX, { stiffness: 220, damping: 28 })
+  const springY = useSpring(mouseY, { stiffness: 220, damping: 28 })
 
   const background = useTransform(
     [springX, springY],

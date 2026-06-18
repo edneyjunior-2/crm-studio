@@ -16,8 +16,8 @@ export default async function CRMLayout({
 }) {
   const { user, empresaId, plano, status, supabase } = await getAuthUser()
 
-  // Conta sem empresa (órfã) → login
-  if (!empresaId) redirect('/login')
+  // Conta sem empresa → fluxo de vinculação por código
+  if (!empresaId) redirect('/entrar/empresa')
 
   // Assinatura suspensa/cancelada → paywall (sem loop: /assinatura fica fora deste grupo)
   if (!acessoLiberado(status)) redirect('/assinatura')

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, TrendingDown } from 'lucide-react'
+import { ArrowLeft, History } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
@@ -61,9 +61,8 @@ export default async function HistoricoPerdidosPage() {
       solucoes ( nome ),
       profiles ( full_name )
     `)
-    .eq('estagio', 'fechado_perdido')
-    // Registros com estagio_atualizado_em preenchido e anterior ao mês corrente
-    // OU sem estagio_atualizado_em mas com updated_at anterior ao mês corrente
+    // Ganhos e perdidos de meses anteriores
+    .in('estagio', ['fechado_ganho', 'fechado_perdido'])
     .or(
       `and(estagio_atualizado_em.not.is.null,estagio_atualizado_em.lt.${startOfMonth}),` +
       `and(estagio_atualizado_em.is.null,updated_at.lt.${startOfMonth})`
@@ -97,12 +96,12 @@ export default async function HistoricoPerdidosPage() {
       <div className="flex flex-col gap-6">
         <Header />
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-muted/30 py-16 text-center">
-          <TrendingDown className="size-10 text-muted-foreground/40" />
+          <History className="size-10 text-muted-foreground/40" />
           <p className="text-sm font-medium text-muted-foreground">
-            Nenhum negócio perdido em meses anteriores
+            Nenhum negócio fechado em meses anteriores
           </p>
           <p className="text-xs text-muted-foreground/60">
-            Os negócios marcados como perdidos no mês corrente aparecem no Pipeline principal
+            Negócios fechados (ganhos ou perdidos) no mês corrente aparecem no Pipeline principal
           </p>
         </div>
       </div>
@@ -156,10 +155,10 @@ function Header() {
     <div className="flex items-start justify-between gap-4">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
-          Histórico de Perdidos
+          Histórico de Fechados
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Negócios encerrados em meses anteriores.
+          Negócios ganhos e perdidos em meses anteriores.
         </p>
       </div>
       <Link
@@ -187,9 +186,15 @@ function NegocioCard({ negocio }: { negocio: NegocioComRelacoes }) {
           <span className="text-sm font-semibold text-foreground leading-snug truncate">
             {negocio.titulo}
           </span>
-          <Badge variant="destructive" className="shrink-0 text-[10px] px-1.5 py-0">
-            Perdido
-          </Badge>
+          {negocio.estagio === 'fechado_ganho' ? (
+            <Badge className="shrink-0 text-[10px] px-1.5 py-0 bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
+              Ganho
+            </Badge>
+          ) : (
+            <Badge variant="destructive" className="shrink-0 text-[10px] px-1.5 py-0">
+              Perdido
+            </Badge>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">

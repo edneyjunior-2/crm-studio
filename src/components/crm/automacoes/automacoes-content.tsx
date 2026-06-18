@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import {
-  Clock, Mail, BellRing, AlertTriangle, MessageCircle,
-  HelpCircle, CheckCircle2, Zap, Timer, CalendarClock, FileText,
+  HelpCircle, CheckCircle2, Zap, Timer,
+  MessageCircle, Banknote, BarChart3, FileWarning, ShieldAlert,
+  Hammer,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,143 +21,113 @@ interface Automacao {
   nome: string
   subtitulo: string
   categoria: 'admin' | 'vendas'
-  status: 'ativa' | 'em_breve'
+  status: 'ativa' | 'em_construcao'
   frequencia?: string
   icon: React.ElementType
   iconColor: string
   iconBg: string
   descricao_leiga: string
+  dependencias: string[]
   casos_de_uso: string[]
 }
 
 const AUTOMACOES: Automacao[] = [
-  // ── ADMIN ────────────────────────────────────────────────────────────────
-  {
-    id: 'marcar-contas-atrasadas',
-    nome: 'Marcar Contas Vencidas',
-    subtitulo: 'Atualiza sozinho o status de contas que passaram do prazo de pagamento',
-    categoria: 'admin',
-    status: 'ativa',
-    frequencia: 'Todo dia às 8h (horário de Brasília)',
-    icon: Clock,
-    iconColor: 'text-amber-600',
-    iconBg: 'bg-amber-500/10',
-    descricao_leiga:
-      'Todo dia de manhã, o sistema verifica se alguma conta a pagar passou da data de vencimento. Se passou e ainda não foi paga, ela é marcada automaticamente como "Atrasada". Você não precisa fazer nada — o sistema cuida disso sozinho.',
-    casos_de_uso: [
-      'Você esqueceu de atualizar o status de uma conta que venceu ontem',
-      'O financeiro precisa ver quais contas estão vencidas sem conferir uma por uma',
-      'Os relatórios sempre mostram o status real das contas sem intervenção manual',
-      'O KPI de "A Pagar" fica sempre correto, incluindo as contas em atraso',
-    ],
-  },
-  {
-    id: 'relatorio-financeiro-semanal',
-    nome: 'Relatório Financeiro Semanal',
-    subtitulo: 'Envia por e-mail um resumo financeiro toda segunda-feira de manhã',
-    categoria: 'admin',
-    status: 'em_breve',
-    frequencia: 'Toda segunda-feira às 8h',
-    icon: FileText,
-    iconColor: 'text-blue-600',
-    iconBg: 'bg-blue-500/10',
-    descricao_leiga:
-      'Toda segunda-feira cedo, você recebe no e-mail um resumo completo do financeiro: quanto tem a receber na semana, quanto tem a pagar, quais contas estão atrasadas e o saldo atual de cada conta bancária. Tudo organizado, sem precisar abrir o sistema.',
-    casos_de_uso: [
-      'Você quer ter uma visão geral do financeiro sem precisar abrir o CRM toda semana',
-      'Quer compartilhar o resumo financeiro da semana com os sócios automaticamente',
-      'Preparação rápida para reuniões semanais de gestão',
-    ],
-  },
-  {
-    id: 'alerta-conta-vencendo',
-    nome: 'Alerta de Conta Vencendo',
-    subtitulo: 'Avisa por e-mail 3 dias antes de uma conta a pagar vencer',
-    categoria: 'admin',
-    status: 'em_breve',
-    frequencia: '3 dias antes do vencimento',
-    icon: BellRing,
-    iconColor: 'text-orange-600',
-    iconBg: 'bg-orange-500/10',
-    descricao_leiga:
-      'O sistema avisa você por e-mail 3 dias antes de qualquer conta a pagar vencer. Assim você tem tempo de organizar o pagamento antes de atrasar e evita multas e juros desnecessários.',
-    casos_de_uso: [
-      'Você não quer ser pego de surpresa com uma conta vencendo amanhã',
-      'Quer ter tempo de providenciar o pagamento com antecedência',
-      'Evitar multas e juros por atraso, que aparecem no "Preço Real Pago"',
-    ],
-  },
-  {
-    id: 'relatorio-comissoes-mensal',
-    nome: 'Relatório de Comissões do Mês',
-    subtitulo: 'Envia para cada comercial o resumo das comissões do mês fechado',
-    categoria: 'admin',
-    status: 'em_breve',
-    frequencia: 'Todo primeiro dia do mês',
-    icon: Mail,
-    iconColor: 'text-violet-600',
-    iconBg: 'bg-violet-500/10',
-    descricao_leiga:
-      'No início de cada mês, o sistema calcula automaticamente as comissões de cada membro da equipe comercial com base nos negócios fechados no mês anterior e envia um e-mail personalizado para cada um com o total a receber.',
-    casos_de_uso: [
-      'Você quer que cada vendedor receba automaticamente o extrato das próprias comissões',
-      'Evitar calcular comissões na mão todo mês',
-      'Dar transparência para o time sobre quanto cada um vai receber',
-    ],
-  },
-
   // ── VENDAS ───────────────────────────────────────────────────────────────
   {
-    id: 'negocio-parado-pipeline',
-    nome: 'Negócio Parado no Pipeline',
-    subtitulo: 'Alerta o responsável quando um negócio fica dias sem nenhuma atividade',
+    id: 'cadencia-followup-whatsapp',
+    nome: 'Cadência de Follow-up via WhatsApp',
+    subtitulo: 'Avisa o vendedor quando um negócio fica dias parado sem atividade',
     categoria: 'vendas',
-    status: 'em_breve',
-    icon: AlertTriangle,
-    iconColor: 'text-purple-600',
-    iconBg: 'bg-purple-500/10',
-    descricao_leiga:
-      'Se um negócio no pipeline ficar parado — sem nenhuma atividade registrada por um número de dias que você define — o sistema manda um lembrete para o responsável. Assim nenhum cliente em negociação fica esquecido no meio do funil.',
-    casos_de_uso: [
-      'Um vendedor esqueceu de dar follow-up em uma proposta enviada há 4 dias',
-      'Um cliente está esperando um retorno da equipe e ninguém percebeu',
-      'Garantir que nenhum negócio fique parado mais de 5 dias em qualquer etapa',
-      'Identificar negócios "frios" antes que o cliente desista',
-    ],
-  },
-  {
-    id: 'lembrete-followup-proposta',
-    nome: 'Lembrete de Follow-up de Proposta',
-    subtitulo: 'Lembra o vendedor de entrar em contato 2 dias após avançar para "Proposta"',
-    categoria: 'vendas',
-    status: 'em_breve',
-    frequencia: '2 dias após mover para Proposta',
-    icon: CalendarClock,
+    status: 'em_construcao',
+    frequencia: 'Todo dia — varredura de negócios parados',
+    icon: MessageCircle,
     iconColor: 'text-emerald-600',
     iconBg: 'bg-emerald-500/10',
     descricao_leiga:
-      'Quando um negócio avança para a etapa "Proposta" no pipeline, o sistema agenda automaticamente um lembrete para o responsável entrar em contato com o cliente 2 dias depois. O follow-up vira um processo automático — não depende mais da memória do vendedor.',
+      'Se um negócio no pipeline ficar X dias sem nenhuma atividade registrada, o sistema manda uma mensagem WhatsApp direto para o vendedor responsável: qual cliente, qual valor está em jogo, quando foi o último contato e um link para abrir o negócio no CRM. Nenhum cliente é esquecido no meio do funil.',
+    dependencias: ['Evolution API (WhatsApp)'],
     casos_de_uso: [
-      'Você enviou uma proposta e quer ser lembrado de ligar para o cliente',
-      'Garantir que todo cliente que recebeu proposta seja contactado dentro de 48h',
-      'Manter o ritmo de follow-up sem depender de post-it ou planilha paralela',
+      'Um vendedor esqueceu de dar follow-up em uma proposta enviada há 4 dias',
+      'Um cliente está esperando retorno e ninguém percebeu',
+      'Garantir que nenhum negócio fique parado mais de 5 dias em qualquer etapa',
+    ],
+  },
+
+  // ── ADMIN ────────────────────────────────────────────────────────────────
+  {
+    id: 'cobranca-ao-fechar-negocio',
+    nome: 'Cobrança Automática ao Fechar Negócio',
+    subtitulo: 'Cria a conta a receber e envia o boleto/PIX ao cliente quando o negócio fecha',
+    categoria: 'admin',
+    status: 'em_construcao',
+    frequencia: 'Instantâneo — acionado ao mover negócio para "Fechado Ganho"',
+    icon: Banknote,
+    iconColor: 'text-blue-600',
+    iconBg: 'bg-blue-500/10',
+    descricao_leiga:
+      'No momento em que um negócio é marcado como "Fechado Ganho", o sistema cria automaticamente a conta a receber no financeiro e envia um e-mail para o cliente com o boleto ou link de pagamento. O representante fecha o negócio e o cliente já recebe a cobrança — sem ninguém precisar tocar em nada.',
+    dependencias: ['Asaas (cobrança)', 'Resend (e-mail)'],
+    casos_de_uso: [
+      'Eliminar o passo manual de criar a cobrança depois de fechar a venda',
+      'Garantir que o cliente receba a cobrança no mesmo dia do fechamento',
+      'Manter o financeiro sempre em sincronia com o pipeline de vendas',
     ],
   },
   {
-    id: 'notificacao-whatsapp-pipeline',
-    nome: 'Notificação WhatsApp de Avanço',
-    subtitulo: 'Avisa no WhatsApp quando um negócio muda de etapa no pipeline',
-    categoria: 'vendas',
-    status: 'em_breve',
-    icon: MessageCircle,
-    iconColor: 'text-green-600',
-    iconBg: 'bg-green-500/10',
+    id: 'relatorio-comissoes-whatsapp',
+    nome: 'Relatório de Comissões por WhatsApp',
+    subtitulo: 'Envia para cada vendedor o resultado individual da semana todo domingo',
+    categoria: 'admin',
+    status: 'em_construcao',
+    frequencia: 'Todo domingo às 18h',
+    icon: BarChart3,
+    iconColor: 'text-violet-600',
+    iconBg: 'bg-violet-500/10',
     descricao_leiga:
-      'Quando um negócio avança ou recua de etapa no pipeline, o responsável recebe uma mensagem no WhatsApp com o que mudou. Você fica sabendo em tempo real, mesmo que não esteja com o computador aberto.',
+      'Todo domingo, cada membro da equipe recebe no WhatsApp um resumo personalizado da semana: negócios fechados, valor total, comissões estimadas e o cliente destaque. O time chega na segunda já sabendo onde estão e o que precisam bater.',
+    dependencias: ['Evolution API (WhatsApp)'],
     casos_de_uso: [
-      'Um sócio quer ser avisado no WhatsApp quando um negócio grande for fechado',
-      'O vendedor quer saber na hora quando a proposta dele for aprovada',
-      'Acompanhar o pipeline pelo celular sem precisar abrir o CRM',
+      'Criar senso de urgência no time sem o gestor precisar fazer reunião toda semana',
+      'Dar transparência individual sobre comissões sem planilha manual',
+      'Celebrar resultados e manter o engajamento do comercial',
+    ],
+  },
+  {
+    id: 'alerta-contrato-vencendo',
+    nome: 'Alerta de Contrato Vencendo + PDF de Renovação',
+    subtitulo: 'Envia ao representante um PDF pronto para renovar contratos próximos do vencimento',
+    categoria: 'admin',
+    status: 'em_construcao',
+    frequencia: '30, 15 e 7 dias antes do vencimento',
+    icon: FileWarning,
+    iconColor: 'text-amber-600',
+    iconBg: 'bg-amber-500/10',
+    descricao_leiga:
+      'Com 30, 15 e 7 dias de antecedência, o sistema gera um PDF com os termos do contrato atual pré-preenchidos para renovação e envia por e-mail ao representante responsável — não para o cliente. Ele chega na reunião com o documento pronto.',
+    dependencias: ['Resend (e-mail)', 'Supabase Storage (PDF)'],
+    casos_de_uso: [
+      'Nunca perder um contrato por esquecimento de renovação',
+      'Chegar na reunião com o cliente já com a proposta de renovação em mãos',
+      'Ter visibilidade antecipada de quais contratos precisam de atenção',
+    ],
+  },
+  {
+    id: 'inadimplencia-automatica',
+    nome: 'Sinalização Automática de Inadimplência',
+    subtitulo: 'Marca clientes com conta vencida e alerta o responsável no WhatsApp',
+    categoria: 'admin',
+    status: 'em_construcao',
+    frequencia: 'Instantâneo — acionado quando uma conta passa do prazo',
+    icon: ShieldAlert,
+    iconColor: 'text-red-600',
+    iconBg: 'bg-red-500/10',
+    descricao_leiga:
+      'Quando um cliente passa a ter conta a receber em atraso, o sistema sinaliza automaticamente todos os negócios ativos desse cliente com um indicador vermelho no pipeline e manda WhatsApp para o responsável. Quando o pagamento é recebido, o indicador some sozinho.',
+    dependencias: ['Evolution API (WhatsApp)'],
+    casos_de_uso: [
+      'Saber imediatamente quando um cliente importante está em atraso',
+      'Evitar avançar negócios de clientes que ainda têm dívida pendente',
+      'Ter o pipeline sempre refletindo a saúde financeira de cada cliente',
     ],
   },
 ]
@@ -173,7 +144,7 @@ function AutomacaoCard({ automacao }: { automacao: Automacao }) {
       <div
         className={cn(
           'flex items-start gap-4 rounded-xl border border-border bg-card p-4 transition-colors',
-          !isAtiva && 'opacity-55'
+          !isAtiva && 'opacity-70'
         )}
       >
         <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', automacao.iconBg)}>
@@ -189,15 +160,16 @@ function AutomacaoCard({ automacao }: { automacao: Automacao }) {
                 Ativa
               </Badge>
             ) : (
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                Em breve
+              <Badge className="border-amber-500/20 bg-amber-500/10 px-1.5 py-0 text-[10px] text-amber-700">
+                <Hammer className="mr-1 size-2.5" />
+                Em construção
               </Badge>
             )}
           </div>
 
           <p className="text-xs leading-relaxed text-muted-foreground">{automacao.subtitulo}</p>
 
-          {automacao.frequencia && isAtiva && (
+          {automacao.frequencia && (
             <div className="flex items-center gap-1.5 mt-0.5">
               <Timer className="size-3 text-muted-foreground/50" />
               <span className="text-[11px] text-muted-foreground/60">{automacao.frequencia}</span>
@@ -243,7 +215,7 @@ function AutomacaoCard({ automacao }: { automacao: Automacao }) {
 
             <div className="flex flex-col gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Quando usar
+                Casos de uso
               </p>
               <ul className="flex flex-col gap-2">
                 {automacao.casos_de_uso.map((caso, i) => (
@@ -255,13 +227,19 @@ function AutomacaoCard({ automacao }: { automacao: Automacao }) {
               </ul>
             </div>
 
-            {automacao.status === 'em_breve' && (
-              <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5">
-                <p className="text-xs text-muted-foreground">
-                  Esta automação está no roadmap e será implementada em breve.
-                </p>
-              </div>
-            )}
+            <div className="flex flex-col gap-1.5 rounded-lg border border-dashed border-amber-300/60 bg-amber-50/50 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                Dependências para construir
+              </p>
+              <ul className="flex flex-col gap-1">
+                {automacao.dependencias.map((dep, i) => (
+                  <li key={i} className="flex items-center gap-1.5 text-xs text-amber-700/80">
+                    <span className="size-1 rounded-full bg-amber-500 shrink-0" />
+                    {dep}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -284,7 +262,7 @@ export function AutomacoesContent() {
             Automações
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Processos que o sistema executa automaticamente para você e sua equipe.
+            Processos que o sistema executa automaticamente — sem intervenção manual.
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 shrink-0">
@@ -298,45 +276,43 @@ export function AutomacoesContent() {
         </div>
       </div>
 
-      {/* Automações do Sistema */}
+      {/* Automações de Vendas */}
       <section className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <div className="flex size-5 items-center justify-center rounded bg-amber-500/10">
-              <Zap className="size-3 text-amber-600" />
+            <div className="flex size-5 items-center justify-center rounded bg-emerald-500/10">
+              <Zap className="size-3 text-emerald-600" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">Automações do Sistema</h3>
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">Admin</Badge>
+            <h3 className="text-sm font-semibold text-foreground">Automações de Vendas</h3>
+            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">Comercial</Badge>
           </div>
           <p className="pl-7 text-xs text-muted-foreground">
-            Processos internos que mantêm os dados sempre corretos e atualizados — sem você precisar fazer nada.
+            Lembretes e alertas que ajudam o time comercial a nunca perder um follow-up.
           </p>
         </div>
-
         <div className="grid gap-3 lg:grid-cols-2">
-          {adminAutomacoes.map((a) => (
+          {vendasAutomacoes.map((a) => (
             <AutomacaoCard key={a.id} automacao={a} />
           ))}
         </div>
       </section>
 
-      {/* Automações de Vendas */}
+      {/* Automações do Sistema */}
       <section className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <div className="flex size-5 items-center justify-center rounded bg-purple-500/10">
-              <Zap className="size-3 text-purple-600" />
+            <div className="flex size-5 items-center justify-center rounded bg-blue-500/10">
+              <Zap className="size-3 text-blue-600" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">Automações da Equipe de Vendas</h3>
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">Vendas</Badge>
+            <h3 className="text-sm font-semibold text-foreground">Automações do Sistema</h3>
+            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">Admin</Badge>
           </div>
           <p className="pl-7 text-xs text-muted-foreground">
-            Lembretes e alertas que ajudam o time comercial a nunca perder um follow-up ou oportunidade.
+            Processos que ligam financeiro, contratos e clientes sem intervenção manual.
           </p>
         </div>
-
         <div className="grid gap-3 lg:grid-cols-2">
-          {vendasAutomacoes.map((a) => (
+          {adminAutomacoes.map((a) => (
             <AutomacaoCard key={a.id} automacao={a} />
           ))}
         </div>

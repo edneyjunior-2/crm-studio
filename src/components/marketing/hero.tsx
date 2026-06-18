@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { Enter, StaggerText, TextShimmer } from './motion'
 import { HeroBg } from './hero-bg'
 import { Spotlight } from './spotlight'
+import { AppDemo } from './app-demo'
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const
 
@@ -20,9 +21,9 @@ export function Hero() {
       {/* Spotlight que segue o cursor */}
       <Spotlight />
 
-      {/* Conteúdo do hero — alinhado à esquerda */}
-      <div className="relative mx-auto flex max-w-[1180px] flex-col px-6 pb-24 pt-36 sm:px-8 sm:pt-40 lg:pt-44">
-        <div className="max-w-[820px]">
+      {/* Conteúdo do hero — grid 2 colunas no desktop */}
+      <div className="relative mx-auto grid max-w-[1280px] grid-cols-1 items-center gap-12 px-6 pb-24 pt-36 sm:px-8 sm:pt-40 lg:grid-cols-[1fr_460px] lg:pt-44">
+        <div>
           {/* Badge pill */}
           <Enter delay={0}>
             <div className="mb-8 inline-flex items-center gap-2.5 rounded-full border border-accent/25 bg-accent/8 px-4 py-1.5">
@@ -37,13 +38,13 @@ export function Hero() {
                 }
               />
               <TextShimmer className="text-[13px] font-medium text-accent">
-                Feito no Brasil para quem vende
+                CRM completo para PMEs brasileiras
               </TextShimmer>
             </div>
           </Enter>
 
           {/* Headline animada palavra por palavra */}
-          <h1 className="text-[clamp(2.6rem,7vw,5.5rem)] font-bold leading-[0.97] tracking-[-0.04em]">
+          <h1 className="text-[clamp(2.6rem,6vw,5rem)] font-bold leading-[0.97] tracking-[-0.04em]">
             <StaggerText
               text="A venda que fecha"
               delay={0.08}
@@ -52,7 +53,7 @@ export function Hero() {
             <br />
             <StaggerText
               text="vira"
-              wordClassName="text-foreground"
+              wordClassName="text-accent"
               delay={0.08 + 3 * 0.055}
               staggerDelay={0.055}
             />
@@ -95,7 +96,7 @@ export function Hero() {
           {/* Stat strip */}
           <Enter delay={0.64}>
             <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2">
-              {['14 dias grátis', 'Sem cartão de crédito', 'Setup em 30 min'].map(
+              {['7 dias grátis', 'Sem cartão de crédito', 'Setup em 30 min'].map(
                 (item, i) => (
                   <span
                     key={item}
@@ -115,6 +116,13 @@ export function Hero() {
             </div>
           </Enter>
         </div>
+
+        {/* Demo do app — só desktop */}
+        <Enter delay={0.3}>
+          <div className="hidden lg:flex lg:justify-end">
+            <AppDemo />
+          </div>
+        </Enter>
 
         {/* Seta de scroll hint — discreta, sem label */}
         {!reduce && (

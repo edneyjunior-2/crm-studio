@@ -27,7 +27,7 @@ const STATS = [
   },
   {
     prefix: '',
-    value: 30,
+    value: 5,
     suffix: ' min',
     label: 'para estar no ar',
     sub: 'da conta criada ao primeiro negócio no funil',

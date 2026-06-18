@@ -374,7 +374,7 @@ function BloqueioDetailDialog({
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Remover bloqueio?</AlertDialogTitle>
-                    <AlertDialogDescription>O bloqueio &ldquo;{bloqueio.titulo}&rdquo; sera removido do calendario.</AlertDialogDescription>
+                    <AlertDialogDescription>O bloqueio &ldquo;{bloqueio.titulo}&rdquo; será removido do calendário.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -623,7 +623,7 @@ export function MesView({
                             {item.hora && <span className="shrink-0 opacity-70">{item.hora}</span>}
                             <span className="min-w-0 truncate">{ev.summary ?? '(sem título)'}</span>
                             {(meetLink || ev.location) && <Video className="ml-0.5 size-2.5 shrink-0 opacity-60" />}
-                            {criador && <span className="ml-auto shrink-0 text-[9px] text-primary/60">{criador}</span>}
+                            {criador && <span className="ml-auto shrink-0 text-[9px] font-semibold text-primary/80">{criador}</span>}
                           </button>
                         )
                       })}

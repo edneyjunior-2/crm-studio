@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { Settings, LayoutDashboard } from 'lucide-react'
+import { Settings, LayoutDashboard, KeyRound } from 'lucide-react'
+import { CodigoAcesso } from '@/components/crm/configuracoes/codigo-acesso'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { UsuariosTable } from '@/components/crm/configuracoes/usuarios-table'
@@ -34,7 +35,7 @@ export default async function ConfiguracoesPage() {
     empresaId
       ? supabase
           .from('empresas')
-          .select('encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos')
+          .select('encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso')
           .eq('id', empresaId)
           .single()
       : Promise.resolve({ data: null, error: null }),
@@ -62,6 +63,7 @@ export default async function ConfiguracoesPage() {
     plano: PlanoEmpresa | null
     modulos_ativos: string[] | null
     modulos_ocultos: string[] | null
+    codigo_acesso: string | null
   } | null
 
   const modulosDisponiveis = Array.from(
@@ -105,18 +107,34 @@ export default async function ConfiguracoesPage() {
         )}
       </section>
 
-      <section className="flex flex-col gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <LayoutDashboard className="size-4 text-muted-foreground" />
-            <h3 className="text-base font-medium text-foreground">Personalizar menu</h3>
+      <section>
+        <details className="group rounded-xl border border-border">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 marker:hidden">
+            <div className="flex items-center gap-2">
+              <LayoutDashboard className="size-4 text-muted-foreground" />
+              <span className="text-base font-medium text-foreground">Personalizar menu</span>
+            </div>
+            <svg
+              className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+              xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </summary>
+          <div className="flex flex-col gap-4 border-t border-border px-5 pb-5 pt-4">
+            <p className="text-sm text-muted-foreground">
+              Oculte módulos que sua empresa não usa. O acesso pela URL continua disponível.
+            </p>
+            <MenuToggles modulosDisponiveis={modulosDisponiveis} modulosOcultos={modulosOcultos} />
           </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Oculte módulos que sua empresa não usa. O acesso pela URL continua disponível.
-          </p>
-        </div>
-        <MenuToggles modulosDisponiveis={modulosDisponiveis} modulosOcultos={modulosOcultos} />
+        </details>
       </section>
+
+      {empresa?.codigo_acesso && (
+        <section>
+          <CodigoAcesso codigo={empresa.codigo_acesso} />
+        </section>
+      )}
 
       <section className="flex flex-col gap-4">
         <PrivacidadeDados

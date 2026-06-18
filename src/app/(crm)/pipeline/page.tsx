@@ -12,6 +12,9 @@ export default async function PipelinePage() {
   if (!user) redirect('/login')
 
   // Todas as queries em paralelo — profile incluído no mesmo Promise.all
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
   const [negociosResult, clientesResult, solucoesResult, profileResult, profileGoogleResult] = await Promise.all([
     supabase
       .from('negocios')
@@ -21,7 +24,12 @@ export default async function PipelinePage() {
         solucoes ( nome ),
         profiles ( full_name )
       `)
-      .neq('estagio', 'fechado_perdido')
+      // Pipeline mostra: negócios não-fechados + fechados (ganho OU perdido) do mês corrente
+      .or(
+        `estagio.not.in.(fechado_ganho,fechado_perdido),` +
+        `and(estagio.in.(fechado_ganho,fechado_perdido),estagio_atualizado_em.gte.${startOfMonth}),` +
+        `and(estagio.in.(fechado_ganho,fechado_perdido),estagio_atualizado_em.is.null,updated_at.gte.${startOfMonth})`
+      )
       .order('created_at', { ascending: false }),
     supabase.from('clientes').select('id, razao_social').order('razao_social'),
     supabase.from('solucoes').select('id, nome').eq('ativo', true).order('nome'),

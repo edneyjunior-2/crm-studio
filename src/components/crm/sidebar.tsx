@@ -188,21 +188,23 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
       )}
     >
       {/* Header */}
-      <div
-        className={cn(
-          'flex items-center border-b border-border',
-          collapsed ? 'justify-center px-0 py-4' : 'gap-3 px-5 py-4'
-        )}
-      >
-        {collapsed ? (
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-logo text-sm font-extrabold text-sidebar">
-            CS
-          </span>
-        ) : (
+      <div className={cn(
+        'flex items-center border-b border-border',
+        collapsed ? 'justify-center px-2 py-4' : 'justify-between px-4 py-4'
+      )}>
+        {!collapsed && (
           <span className="font-logo text-base font-extrabold tracking-[-0.03em] text-sidebar-foreground">
             CRM Studio<span className="text-sidebar-primary">.</span>
           </span>
         )}
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          className="rounded-lg p-1.5 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+        >
+          {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+        </button>
       </div>
 
       {/* Nav */}
@@ -379,25 +381,6 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
           </button>
         </form>
 
-        {/* Toggle collapse */}
-        <button
-          type="button"
-          onClick={() => setCollapsed((v) => !v)}
-          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          className={cn(
-            'mt-1 flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
-            collapsed ? 'justify-center px-0' : 'gap-2.5'
-          )}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="size-4 shrink-0" />
-          ) : (
-            <>
-              <PanelLeftClose className="size-4 shrink-0" />
-              <span>Recolher</span>
-            </>
-          )}
-        </button>
       </div>
     </aside>
   )

@@ -74,7 +74,7 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('full_name, role')
+      .select('full_name, role, empresa_id')
       .eq('id', user.id)
       .single(),
     supabase.from('clientes').select('*', { count: 'exact', head: true }),
@@ -85,11 +85,15 @@ export default async function DashboardPage() {
       .limit(200),
   ])
 
+  const { data: empresa } = profile?.empresa_id
+    ? await supabase.from('empresas').select('nome').eq('id', profile.empresa_id).single()
+    : { data: null }
+
   const firstName = profile?.full_name?.split(' ')[0] ?? 'time'
   const isFinanceiro = profile?.role === 'admin' || profile?.role === 'socio'
 
   const hora = new Date().getHours()
-  const saudacao = hora < 12 ? 'dia' : hora < 18 ? 'tarde' : 'noite'
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
   const dataHeader = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   // Segundo Promise.all: queries que dependem do role
@@ -236,10 +240,10 @@ export default async function DashboardPage() {
       <div className="flex flex-col gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground capitalize">
-            {dataHeader}
+            {dataHeader}{empresa?.nome ? ` · ${empresa.nome}` : ''}
           </p>
           <h2 className="mt-1 font-[family-name:var(--font-heading)] text-2xl font-bold tracking-tight text-foreground">
-            Bom {saudacao}, {firstName}
+            {saudacao}, {firstName}
           </h2>
         </div>
         {reunioesHoje.length > 0 && (
