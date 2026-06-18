@@ -10,8 +10,8 @@ import Link from 'next/link'
 
 const PLANO_ORDER: PlanoEmpresa[] = ['free', 'starter', 'pro', 'business']
 
-const PLANOS_CONFIG: Record<PlanoEmpresa, { label: string; price: string; tagline: string }> = {
-  free:     { label: 'Free',     price: 'Grátis',      tagline: 'Para começar a organizar o funil.' },
+const PLANOS_CONFIG: Record<PlanoEmpresa, { label: string; price: string; tagline: string; trial?: boolean }> = {
+  free:     { label: 'Free',     price: 'Grátis',      tagline: '7 dias para explorar sem cartão de crédito.', trial: true },
   starter:  { label: 'Starter',  price: 'R$ 149/mês',  tagline: 'Para o time pequeno vender mais.' },
   pro:      { label: 'Pro',      price: 'R$ 449/mês',  tagline: 'O comercial completo, com financeiro.' },
   business: { label: 'Business', price: 'R$ 990/mês',  tagline: 'Para a operação que precisa de tudo.' },
@@ -149,6 +149,8 @@ export default async function AssinaturaPage() {
             const planoIdx = PLANO_ORDER.indexOf(plano)
             const atualIdx = PLANO_ORDER.indexOf(planoAtual)
             const isUpgrade = planoIdx > atualIdx
+            const prevModulos = planoIdx > 0 ? MODULOS_POR_PLANO[PLANO_ORDER[planoIdx - 1]] : []
+            const isNovo = (m: Modulo) => planoIdx > 0 && !prevModulos.includes(m)
 
             return (
               <div
@@ -172,7 +174,10 @@ export default async function AssinaturaPage() {
                 <div className="mb-4">
                   <h2 className="text-base font-semibold text-foreground">{cfg.label}</h2>
                   <p className="mt-1 text-xs text-muted-foreground">{cfg.tagline}</p>
-                  <p className="mt-3 text-2xl font-bold text-foreground">{cfg.price}</p>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <p className="text-2xl font-bold text-foreground">{cfg.price}</p>
+                    {cfg.trial && <span className="text-xs text-muted-foreground">por 7 dias</span>}
+                  </div>
                 </div>
 
                 {/* Limites */}
@@ -193,12 +198,15 @@ export default async function AssinaturaPage() {
 
                 {/* Módulos incluídos */}
                 <ul className="mb-6 flex-1 space-y-2">
-                  {modulos.map((modulo) => (
-                    <li key={modulo} className="flex items-center gap-2 text-xs text-foreground">
-                      <Check className="size-3.5 shrink-0 text-primary" aria-hidden />
-                      {MODULO_LABEL[modulo]}
-                    </li>
-                  ))}
+                  {modulos.map((modulo) => {
+                    const novo = isNovo(modulo)
+                    return (
+                      <li key={modulo} className={`flex items-center gap-2 text-xs ${novo ? 'font-semibold text-accent' : 'text-foreground'}`}>
+                        <Check className={`size-3.5 shrink-0 ${novo ? 'text-accent' : 'text-primary'}`} aria-hidden />
+                        {MODULO_LABEL[modulo]}
+                      </li>
+                    )
+                  })}
                 </ul>
 
                 {/* CTA */}

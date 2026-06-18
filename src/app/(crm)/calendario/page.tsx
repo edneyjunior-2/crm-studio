@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, AlertTriangle, CalendarDays, LayoutGrid } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, LayoutGrid } from 'lucide-react'
+import { GoogleCalendarConnect } from '@/components/crm/google/google-calendar-connect'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listCalendarEvents, listEvents, isConfigured, CALENDAR_ID } from '@/lib/google-calendar'
@@ -100,6 +101,8 @@ export default async function CalendarioPage({
         )
 
   const configured = isConfigured()
+  const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token').eq('id', user.id).single()
+  const isGoogleConnected = !!myProfile?.google_refresh_token
   let events: Awaited<ReturnType<typeof listEvents>> = []
 
   const admin = createAdminClient()
@@ -262,21 +265,30 @@ export default async function CalendarioPage({
         )}
       </div>
 
-      {/* Banner não configurado */}
+      {/* Conectar Google Calendar */}
       {!configured && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
+        <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
           <div>
-            <p className="text-sm font-medium text-amber-600">Calendário não configurado</p>
+            <h2 className="text-base font-semibold">Conecte seu Google Calendar</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Adicione as variáveis de ambiente para ativar:
+              Sincronize reuniões e compromissos em 3 passos — leva menos de 1 minuto.
             </p>
-            <ul className="mt-2 space-y-0.5 font-mono text-xs text-muted-foreground">
-              <li>GOOGLE_SERVICE_ACCOUNT_EMAIL</li>
-              <li>GOOGLE_PRIVATE_KEY</li>
-              <li>GOOGLE_CALENDAR_ID</li>
-            </ul>
           </div>
+          <ol className="flex flex-col gap-2 text-sm text-muted-foreground">
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">1</span>
+              Clique em <strong className="text-foreground">Conectar Google Calendar</strong> abaixo
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">2</span>
+              Autorize o acesso na janela do Google que vai abrir
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">3</span>
+              Pronto — seus eventos aparecem aqui automaticamente
+            </li>
+          </ol>
+          <GoogleCalendarConnect isConnected={isGoogleConnected} />
         </div>
       )}
 

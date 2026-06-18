@@ -1,10 +1,14 @@
 import { redirect } from 'next/navigation'
-import { Settings } from 'lucide-react'
+import { Settings, LayoutDashboard } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { UsuariosTable } from '@/components/crm/configuracoes/usuarios-table'
 import { InviteUserForm } from '@/components/crm/configuracoes/invite-user-form'
+import { MenuToggles } from '@/components/crm/configuracoes/menu-toggles'
 import { PrivacidadeDados } from '@/components/crm/privacidade-dados'
+import { modulosEfetivos } from '@/lib/modulos'
+import type { Modulo } from '@/lib/modulos'
+import type { PlanoEmpresa } from '@/lib/auth'
 import type { Profile, Role } from '@/types'
 
 export default async function ConfiguracoesPage() {
@@ -30,7 +34,7 @@ export default async function ConfiguracoesPage() {
     empresaId
       ? supabase
           .from('empresas')
-          .select('encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em')
+          .select('encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos')
           .eq('id', empresaId)
           .single()
       : Promise.resolve({ data: null, error: null }),
@@ -55,7 +59,15 @@ export default async function ConfiguracoesPage() {
     encarregado_telefone: string | null
     aceite_termos_versao: string | null
     aceite_termos_em: string | null
+    plano: PlanoEmpresa | null
+    modulos_ativos: string[] | null
+    modulos_ocultos: string[] | null
   } | null
+
+  const modulosDisponiveis = Array.from(
+    modulosEfetivos(empresa?.plano ?? 'free', empresa?.modulos_ativos ?? [])
+  ) as Modulo[]
+  const modulosOcultos: string[] = empresa?.modulos_ocultos ?? []
 
   return (
     <div className="flex flex-col gap-8">
@@ -91,6 +103,19 @@ export default async function ConfiguracoesPage() {
         ) : (
           <UsuariosTable usuarios={usuarios} currentUserId={user.id} />
         )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="size-4 text-muted-foreground" />
+            <h3 className="text-base font-medium text-foreground">Personalizar menu</h3>
+          </div>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Oculte módulos que sua empresa não usa. O acesso pela URL continua disponível.
+          </p>
+        </div>
+        <MenuToggles modulosDisponiveis={modulosDisponiveis} modulosOcultos={modulosOcultos} />
       </section>
 
       <section className="flex flex-col gap-4">

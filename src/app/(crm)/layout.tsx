@@ -25,14 +25,16 @@ export default async function CRMLayout({
   // Carrega overrides/add-ons da empresa (sem service role — RLS garante acesso)
   const { data: empresaData } = await supabase
     .from('empresas')
-    .select('modulos_ativos')
+    .select('modulos_ativos, modulos_ocultos')
     .eq('id', empresaId)
     .single()
 
   const modulosAtivosExtras: string[] = empresaData?.modulos_ativos ?? []
+  const modulosOcultos: string[] = empresaData?.modulos_ocultos ?? []
 
-  // Conjunto efetivo de módulos para esta empresa (como string[] para a Sidebar)
+  // Conjunto efetivo de módulos para esta empresa, subtraindo os que o admin optou por ocultar
   const modulosAtivos = Array.from(modulosEfetivos(plano, modulosAtivosExtras))
+    .filter((m) => !modulosOcultos.includes(m))
 
   // Busca o profile completo para Sidebar/Topbar
   const { data: profile } = await supabase

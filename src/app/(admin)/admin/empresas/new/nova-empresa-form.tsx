@@ -66,7 +66,7 @@ export function NovaEmpresaForm() {
           defaultValue="starter"
           className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
         >
-          <option value="free">Free</option>
+          <option value="free">Trial — 7 dias grátis</option>
           <option value="starter">Starter — R$ 149/mês</option>
           <option value="pro">Pro — R$ 449/mês</option>
           <option value="business">Business — R$ 990/mês</option>

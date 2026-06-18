@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { getAuthAdmin } from '@/lib/auth'
 import { encarregadoSchema } from '@/lib/schemas'
 
@@ -87,6 +88,45 @@ export async function salvarEncarregado(
   if (error) return { error: error.message }
 
   revalidatePath('/configuracoes')
+  return {}
+}
+
+export async function toggleModuloVisibilidade(
+  modulo: string,
+  ocultar: boolean,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autorizado' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, empresa_id')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') return { error: 'Sem permissão' }
+
+  const empresaId = profile.empresa_id as string
+  const { data: empresa } = await supabase
+    .from('empresas')
+    .select('modulos_ocultos')
+    .eq('id', empresaId)
+    .single()
+
+  const atual: string[] = empresa?.modulos_ocultos ?? []
+  const novo = ocultar
+    ? [...new Set([...atual, modulo])]
+    : atual.filter((m) => m !== modulo)
+
+  const { error } = await supabase
+    .from('empresas')
+    .update({ modulos_ocultos: novo })
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/', 'layout')
   return {}
 }
 
