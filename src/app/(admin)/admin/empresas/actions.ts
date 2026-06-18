@@ -27,14 +27,17 @@ export async function criarEmpresa(
 ): Promise<{ error: string } | null> {
   await getAuthPlatformAdmin()
 
-  const nome       = (formData.get('nome') as string)?.trim()
-  const email      = (formData.get('email') as string)?.trim()
-  const nomeAdmin  = (formData.get('nome_admin') as string)?.trim() || nome
-  const tipoPessoa = ((formData.get('tipo_pessoa') as string) || 'pj') as 'pj' | 'pf'
-  const cnpj       = (formData.get('cnpj') as string)?.trim() || undefined
-  const cpf        = (formData.get('cpf') as string)?.trim() || undefined
-  const documento  = tipoPessoa === 'pj' ? cnpj : cpf
-  const planoRaw   = (formData.get('plano') as string) || 'trial'
+  const nome        = (formData.get('nome') as string)?.trim()
+  const email       = (formData.get('email') as string)?.trim()
+  const nomeAdmin   = (formData.get('nome_admin') as string)?.trim() || nome
+  const tipoPessoa  = ((formData.get('tipo_pessoa') as string) || 'pj') as 'pj' | 'pf'
+  const cnpj        = (formData.get('cnpj') as string)?.trim() || undefined
+  const cpf         = (formData.get('cpf') as string)?.trim() || undefined
+  const documento   = tipoPessoa === 'pj' ? cnpj : cpf
+  const planoRaw    = (formData.get('plano') as string) || 'trial'
+  const tipoAtuacao = (formData.get('tipo_atuacao') as string) || 'vendas'
+  // Módulos extras ativados por tipo de atuação
+  const modulosExtras = tipoAtuacao === 'advocacia' ? ['processos'] : []
 
   if (!nome || !email) return { error: 'Nome e e-mail são obrigatórios.' }
 
@@ -86,7 +89,7 @@ export async function criarEmpresa(
   if (plano === 'interno') {
     await db
       .from('empresas')
-      .update({ plano: 'interno', status: 'ativo', trial_ends_at: null })
+      .update({ plano: 'interno', status: 'ativo', trial_ends_at: null, ...(modulosExtras.length ? { modulos_ativos: modulosExtras } : {}) })
       .eq('id', empresaId)
 
     revalidatePath('/admin/empresas')
@@ -101,7 +104,7 @@ export async function criarEmpresa(
 
     await db
       .from('empresas')
-      .update({ plano: 'trial', status: 'trial', trial_ends_at: trialEndAt })
+      .update({ plano: 'trial', status: 'trial', trial_ends_at: trialEndAt, ...(modulosExtras.length ? { modulos_ativos: modulosExtras } : {}) })
       .eq('id', empresaId)
 
     revalidatePath('/admin/empresas')
@@ -126,9 +129,10 @@ export async function criarEmpresa(
       .from('empresas')
       .update({
         plano,
-        status:           'pendente',
-        trial_ends_at:    null,
+        status:            'pendente',
+        trial_ends_at:     null,
         asaas_customer_id: customer.id,
+        ...(modulosExtras.length ? { modulos_ativos: modulosExtras } : {}),
       })
       .eq('id', empresaId)
 

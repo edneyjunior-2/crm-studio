@@ -4,9 +4,15 @@ import { useState } from 'react'
 import { useActionState } from 'react'
 import { criarEmpresa } from '../actions'
 
+const TIPOS_ATUACAO = [
+  { value: 'vendas',    label: 'CRM de Vendas',  desc: 'Pipeline, clientes, financeiro, contratos' },
+  { value: 'advocacia', label: 'CRM Advocacia',   desc: 'Tudo + Processos Jurídicos (DataJud)' },
+]
+
 export function NovaEmpresaForm() {
   const [state, action, isPending] = useActionState(criarEmpresa, null)
-  const [tipoPessoa, setTipoPessoa] = useState<'pj' | 'pf'>('pj')
+  const [tipoPessoa,  setTipoPessoa]  = useState<'pj' | 'pf'>('pj')
+  const [tipoAtuacao, setTipoAtuacao] = useState<string>('vendas')
 
   const inputClass =
     'rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10'
@@ -50,6 +56,31 @@ export function NovaEmpresaForm() {
 
       {/* Hidden: tipo_pessoa */}
       <input type="hidden" name="tipo_pessoa" value={tipoPessoa} />
+      <input type="hidden" name="tipo_atuacao" value={tipoAtuacao} />
+
+      {/* Tipo de atuação */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Tipo de atuação</label>
+        <div className="grid grid-cols-2 gap-2">
+          {TIPOS_ATUACAO.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setTipoAtuacao(t.value)}
+              className={`flex flex-col gap-0.5 rounded-lg border p-3 text-left transition-colors ${
+                tipoAtuacao === t.value
+                  ? 'border-foreground bg-foreground/5'
+                  : 'border-border hover:border-foreground/30'
+              }`}
+            >
+              <span className={`text-sm font-semibold ${tipoAtuacao === t.value ? 'text-foreground' : 'text-muted-foreground'}`}>
+                {t.label}
+              </span>
+              <span className="text-xs text-muted-foreground">{t.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium" htmlFor="nome">

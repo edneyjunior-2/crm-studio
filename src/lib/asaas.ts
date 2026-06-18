@@ -1,11 +1,15 @@
 import 'server-only'
 
-const BASE_URL    = process.env.ASAAS_BASE_URL!
-const API_KEY     = process.env.ASAAS_API_KEY!
-const USER_AGENT  = 'crm-studio'
+const USER_AGENT = 'crm-studio'
 
-if (!BASE_URL || !API_KEY) {
-  throw new Error('ASAAS_BASE_URL e ASAAS_API_KEY são obrigatórios.')
+// Validação lazy — só falha quando chamado, nunca em build/import
+function getConfig() {
+  const BASE_URL = process.env.ASAAS_BASE_URL
+  const API_KEY  = process.env.ASAAS_API_KEY
+  if (!BASE_URL || !API_KEY) {
+    throw new Error('ASAAS_BASE_URL e ASAAS_API_KEY são obrigatórios.')
+  }
+  return { BASE_URL, API_KEY }
 }
 
 // ---------------------------------------------------------------------------
@@ -17,6 +21,7 @@ async function asaasRequest<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
+  const { BASE_URL, API_KEY } = getConfig()
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: {
