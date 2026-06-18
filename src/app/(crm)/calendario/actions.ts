@@ -120,9 +120,16 @@ export async function editarEvento(
     .eq('event_id', eventId)
     .single()
 
-  const calendarId = eventoRegistrado?.calendar_id ?? CALENDAR_ID
-  const organizerEmail = eventoRegistrado?.organizer_email ?? undefined
-  const organizerUserId = eventoRegistrado?.organizer_user_id ?? null
+  // Autorização: só o organizador pode editar o evento. As tabelas de calendário
+  // têm RLS USING(true), então sem este check qualquer autenticado com o event_id
+  // poderia editar eventos de outros usuários/tenants.
+  if (!eventoRegistrado || eventoRegistrado.organizer_user_id !== user.id) {
+    return { error: 'Evento não encontrado ou sem permissão' }
+  }
+
+  const calendarId = eventoRegistrado.calendar_id ?? CALENDAR_ID
+  const organizerEmail = eventoRegistrado.organizer_email ?? undefined
+  const organizerUserId = eventoRegistrado.organizer_user_id ?? null
 
   try {
     await updateEvent(calendarId, eventId, {
@@ -270,47 +277,25 @@ export async function excluirEvento(eventId: string) {
 
   const { data: eventoRegistrado } = await admin
     .from('calendario_eventos')
-    .select('calendar_id, organizer_email')
+    .select('calendar_id, organizer_email, organizer_user_id')
     .eq('event_id', eventId)
     .single()
 
-  if (eventoRegistrado) {
-    // Evento rastreado: calendarId e subject conhecidos
-    try {
-      await deleteEvent(eventoRegistrado.calendar_id, eventId, eventoRegistrado.organizer_email)
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Erro ao excluir evento' }
-    }
-    await admin.from('calendario_eventos').delete().eq('event_id', eventId)
-    revalidatePath('/calendario')
-    return { success: true }
+  // Autorização: só o organizador pode excluir. Sem registro próprio, recusa —
+  // as tabelas têm RLS USING(true) e o fallback legado por força-bruta permitia
+  // excluir eventos de qualquer usuário/tenant que se soubesse o event_id.
+  if (!eventoRegistrado || eventoRegistrado.organizer_user_id !== user.id) {
+    return { error: 'Evento não encontrado ou sem permissão' }
   }
 
-  // Evento legado (sem registro) — tenta todas as combinações possíveis de calendarId + subject.
-  // Eventos antigos podem estar em CALENDAR_ID ou no primary de qualquer membro do time.
-  const defaultSubject = process.env.GOOGLE_IMPERSONATE_EMAIL ?? ''
-  const { data: authUsers } = await admin.auth.admin.listUsers()
-  const teamEmails = (authUsers?.users ?? [])
-    .map((u) => u.email)
-    .filter((e): e is string => !!e)
-
-  const targets: Array<{ calendarId: string; subject: string }> = [
-    { calendarId: CALENDAR_ID, subject: defaultSubject || (user.email ?? '') },
-    { calendarId: 'primary', subject: user.email ?? '' },
-    ...teamEmails.map((email) => ({ calendarId: 'primary', subject: email })),
-  ].filter((t) => !!t.subject)
-
-  for (const target of targets) {
-    try {
-      await deleteEvent(target.calendarId, eventId, target.subject)
-      revalidatePath('/calendario')
-      return { success: true }
-    } catch {
-      // tenta próxima combinação
-    }
+  try {
+    await deleteEvent(eventoRegistrado.calendar_id, eventId, eventoRegistrado.organizer_email)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Erro ao excluir evento' }
   }
-
-  return { error: 'Evento não encontrado em nenhum calendário' }
+  await admin.from('calendario_eventos').delete().eq('event_id', eventId)
+  revalidatePath('/calendario')
+  return { success: true }
 }
 
 export async function criarBloqueio(formData: FormData): Promise<{ error?: string; success?: boolean }> {

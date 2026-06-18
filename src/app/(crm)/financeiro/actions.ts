@@ -317,8 +317,7 @@ export async function uploadComprovante(
   contaId: string,
   formData: FormData
 ): Promise<{ error?: string; url?: string }> {
-  const supabase = await getAuthFinanceiro()
-  const { user } = supabase
+  const { supabase, user } = await getAuthFinanceiro()
 
   const file = formData.get('comprovante') as File | null
   if (!file || file.size === 0) return { error: 'Nenhum arquivo selecionado' }
@@ -341,12 +340,17 @@ export async function uploadComprovante(
 
   const { data: { publicUrl } } = admin.storage.from('comprovantes').getPublicUrl(fileName)
 
-  const { error: updateError } = await admin
+  // UPDATE via cliente com RLS (não admin): garante que só contas da empresa do
+  // usuário sejam atualizadas, impedindo sobrescrita cross-tenant pelo contaId.
+  const { data: updated, error: updateError } = await supabase
     .from('contas_pagar')
     .update({ comprovante_url: publicUrl })
     .eq('id', contaId)
+    .select('id')
+    .single()
 
   if (updateError) return { error: updateError.message }
+  if (!updated) return { error: 'Conta não encontrada' }
 
   revalidatePath('/financeiro')
   return { url: publicUrl }

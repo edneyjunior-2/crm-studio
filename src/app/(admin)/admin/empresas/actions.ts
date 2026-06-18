@@ -114,7 +114,7 @@ export async function revogarApiKey(keyId: string, empresaId: string) {
   await getAuthPlatformAdmin()
 
   const db = createAdminClient()
-  await db.from('api_keys').delete().eq('id', keyId)
+  await db.from('api_keys').delete().eq('id', keyId).eq('empresa_id', empresaId)
 
   revalidatePath(`/admin/empresas/${empresaId}`)
 }

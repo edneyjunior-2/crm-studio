@@ -5,6 +5,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthAdmin } from '@/lib/auth'
 import { encarregadoSchema } from '@/lib/schemas'
+import { z } from 'zod'
+
+const roleSchema = z.enum(['admin', 'socio', 'comercial'])
 
 export async function createUser(
   email: string,
@@ -14,6 +17,10 @@ export async function createUser(
 ): Promise<{ error?: string }> {
   const { empresaId } = await getAuthAdmin()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const roleResult = roleSchema.safeParse(role)
+  if (!roleResult.success) return { error: 'Role inválido' }
+  role = roleResult.data
 
   const admin = createAdminClient()
 
@@ -52,6 +59,10 @@ export async function updateUserRole(
   const adminId = adminUser.id
 
   if (userId === adminId) return { error: 'Não é possível alterar o próprio perfil.' }
+
+  const roleResult = roleSchema.safeParse(role)
+  if (!roleResult.success) return { error: 'Role inválido' }
+  role = roleResult.data
 
   const { error } = await supabase
     .from('profiles')
@@ -135,6 +146,20 @@ export async function deleteUser(userId: string): Promise<{ error?: string }> {
   const adminId = adminUser.id
 
   if (userId === adminId) return { error: 'Não é possível excluir a própria conta.' }
+
+  const { empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const supabase = await createClient()
+  const { data: target } = await supabase
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', userId)
+    .single()
+
+  if (!target || target.empresa_id !== empresaId) {
+    return { error: 'Usuário não pertence a esta empresa' }
+  }
 
   const admin = createAdminClient()
 

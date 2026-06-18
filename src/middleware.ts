@@ -1,10 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Rotas públicas — o website institucional (marketing), acessível sem login.
-// Retornam antes de criar o cliente Supabase, então renderizam mesmo
-// sem envs configuradas e sem custo de auth.
+// Rotas públicas — marketing, acessíveis sem login
 const PUBLIC_ROUTES = ['/', '/produto', '/precos', '/contato', '/cadastro', '/termos', '/contrato-operador', '/privacidade']
+
+// Rotas que só fazem sentido no site de marketing (www)
+const MARKETING_ONLY = ['/', '/precos', '/produto', '/contato', '/termos', '/contrato-operador', '/privacidade']
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some(
@@ -13,7 +14,38 @@ function isPublicRoute(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  if (isPublicRoute(request.nextUrl.pathname)) {
+  const hostname = request.headers.get('host') ?? ''
+  const pathname = request.nextUrl.pathname
+
+  const isWww = hostname === 'www.crmstudio.com.br'
+  const isApp = hostname === 'app.crmstudio.com.br'
+
+  // ── Roteamento por domínio (só em produção) ───────────────────────────────
+
+  if (isWww) {
+    // No www: rotas do CRM redirecionam para app
+    if (!isPublicRoute(pathname) && !pathname.startsWith('/api')) {
+      return NextResponse.redirect(
+        new URL(`https://app.crmstudio.com.br${pathname}${request.nextUrl.search}`)
+      )
+    }
+    // Rotas de marketing passam sem checar auth
+    return NextResponse.next({ request })
+  }
+
+  if (isApp) {
+    // No app: rotas de marketing puro redirecionam para www
+    if (MARKETING_ONLY.some((r) => pathname === r || pathname.startsWith(`${r}/`))) {
+      return NextResponse.redirect(
+        new URL(`https://www.crmstudio.com.br${pathname}${request.nextUrl.search}`)
+      )
+    }
+    // /login no app: tudo certo, continua para a lógica de auth abaixo
+  }
+
+  // ── Lógica de auth (localhost, app.* e URL do Vercel) ────────────────────
+
+  if (isPublicRoute(pathname)) {
     return NextResponse.next({ request })
   }
 
@@ -31,16 +63,24 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              httpOnly: true,
+              secure: process.env.NODE_ENV === 'production',
+            })
           )
         },
+      },
+      cookieOptions: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
       },
     }
   )
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const pathname = request.nextUrl.pathname
   const isAuthRoute =
     pathname.startsWith('/login') ||
     pathname.startsWith('/esqueci-senha') ||
@@ -48,15 +88,19 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api')
 
   if (!user && !isAuthRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    const loginUrl = isApp
+      ? new URL(`https://app.crmstudio.com.br/login`)
+      : request.nextUrl.clone()
+    if (!isApp) loginUrl.pathname = '/login'
+    return NextResponse.redirect(loginUrl)
   }
 
   if (user && pathname === '/login') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+    const dashUrl = isApp
+      ? new URL(`https://app.crmstudio.com.br/dashboard`)
+      : request.nextUrl.clone()
+    if (!isApp) dashUrl.pathname = '/dashboard'
+    return NextResponse.redirect(dashUrl)
   }
 
   return supabaseResponse
