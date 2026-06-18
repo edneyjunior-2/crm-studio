@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 import { TrendingUp, DollarSign, BarChart3, CalendarClock, Star, ArrowRight } from 'lucide-react'
 import { PipelineChart } from '@/components/crm/dashboard/pipeline-chart'
 import { FollowupsWidget } from '@/components/crm/dashboard/followups-widget'
@@ -8,6 +8,7 @@ import { ConversaoFunil } from '@/components/crm/dashboard/conversao-funil'
 import { ReunioesWidget } from '@/components/crm/dashboard/reunioes-widget'
 import { MetricasAnimadas, type MetricaCard } from '@/components/crm/dashboard/metricas-animadas'
 import { listEvents, isConfigured } from '@/lib/google-calendar'
+import { unstable_cache } from 'next/cache'
 import type { EstagioNegocio, NegocioComRelacoes, Followup } from '@/types'
 
 const BRL = (v: number) =>
@@ -54,8 +55,8 @@ const ESTAGIO_COLOR: Record<EstagioNegocio, string> = {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // Usa o cache do layout — zero round-trip extra ao Supabase Auth
+  const { supabase, user, role, empresaId } = await getAuthUser()
   if (!user) redirect('/login')
 
   const today = todayISO()
@@ -66,15 +67,18 @@ export default async function DashboardPage() {
   const proximoMes = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const mesAtualFim = `${proximoMes.getFullYear()}-${String(proximoMes.getMonth() + 1).padStart(2, '0')}-01`
 
-  // Primeiro Promise.all: profile + queries independentes de role
+  const isFinanceiro = role === 'admin' || role === 'socio'
+
+  // Tudo em paralelo — uma única rodada de queries
   const [
     { data: profile },
     { count: totalClientes },
     { data: negocios },
+    { data: empresa },
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('full_name, role, empresa_id')
+      .select('full_name')
       .eq('id', user.id)
       .single(),
     supabase.from('clientes').select('*', { count: 'exact', head: true }),
@@ -83,14 +87,12 @@ export default async function DashboardPage() {
       .select('*, clientes(razao_social), solucoes(nome), profiles!responsavel_id(full_name)')
       .order('updated_at', { ascending: false })
       .limit(200),
+    empresaId
+      ? supabase.from('empresas').select('nome').eq('id', empresaId).single()
+      : Promise.resolve({ data: null }),
   ])
 
-  const { data: empresa } = profile?.empresa_id
-    ? await supabase.from('empresas').select('nome').eq('id', profile.empresa_id).single()
-    : { data: null }
-
   const firstName = profile?.full_name?.split(' ')[0] ?? 'time'
-  const isFinanceiro = profile?.role === 'admin' || profile?.role === 'socio'
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -132,10 +134,11 @@ export default async function DashboardPage() {
       .eq('ativo', true)
       .limit(4),
     isConfigured()
-      ? listEvents(
-          `${today}T00:00:00-03:00`,
-          `${plusDaysISO(1)}T23:59:59-03:00`,
-        ).catch(() => [])
+      ? unstable_cache(
+          () => listEvents(`${today}T00:00:00-03:00`, `${plusDaysISO(1)}T23:59:59-03:00`).catch(() => []),
+          [`gcal-eventos-${today}`],
+          { revalidate: 300 }, // cache por 5 minutos
+        )()
       : Promise.resolve([]),
   ])
 

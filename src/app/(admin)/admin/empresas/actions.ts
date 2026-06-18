@@ -27,11 +27,14 @@ export async function criarEmpresa(
 ): Promise<{ error: string } | null> {
   await getAuthPlatformAdmin()
 
-  const nome      = (formData.get('nome') as string)?.trim()
-  const email     = (formData.get('email') as string)?.trim()
-  const nomeAdmin = (formData.get('nome_admin') as string)?.trim() || nome
-  const cnpj      = (formData.get('cnpj') as string)?.trim() || undefined
-  const planoRaw  = (formData.get('plano') as string) || 'trial'
+  const nome       = (formData.get('nome') as string)?.trim()
+  const email      = (formData.get('email') as string)?.trim()
+  const nomeAdmin  = (formData.get('nome_admin') as string)?.trim() || nome
+  const tipoPessoa = ((formData.get('tipo_pessoa') as string) || 'pj') as 'pj' | 'pf'
+  const cnpj       = (formData.get('cnpj') as string)?.trim() || undefined
+  const cpf        = (formData.get('cpf') as string)?.trim() || undefined
+  const documento  = tipoPessoa === 'pj' ? cnpj : cpf
+  const planoRaw   = (formData.get('plano') as string) || 'trial'
 
   if (!nome || !email) return { error: 'Nome e e-mail são obrigatórios.' }
 
@@ -39,8 +42,8 @@ export async function criarEmpresa(
   if (!planoResult.success) return { error: 'Modalidade inválida.' }
   const plano = planoResult.data
 
-  if (PLANOS_PAGOS.includes(plano) && !cnpj) {
-    return { error: 'CNPJ é obrigatório para planos pagos.' }
+  if (PLANOS_PAGOS.includes(plano) && !documento) {
+    return { error: tipoPessoa === 'pj' ? 'CNPJ é obrigatório para planos pagos.' : 'CPF é obrigatório para planos pagos.' }
   }
 
   const db = createAdminClient()
@@ -53,6 +56,9 @@ export async function criarEmpresa(
       empresa_nome: nome,
       full_name:    nomeAdmin,
       role:         'admin',
+      tipo_pessoa:  tipoPessoa,
+      ...(tipoPessoa === 'pj' && cnpj ? { cnpj } : {}),
+      ...(tipoPessoa === 'pf' && cpf  ? { cpf  } : {}),
     },
   })
 
@@ -104,8 +110,8 @@ export async function criarEmpresa(
 
   // ── Path 3: Planos pagos — Asaas customer + subscription ───────────────────
   try {
-    // Criar customer no Asaas
-    const customer = await createCustomer(empresaId, nome, email, cnpj)
+    // Criar customer no Asaas (cpfCnpj aceita tanto CPF quanto CNPJ)
+    const customer = await createCustomer(empresaId, nome, email, documento)
 
     // nextDueDate = hoje + 3 dias (prazo para o cliente pagar)
     const dueDate = new Date()

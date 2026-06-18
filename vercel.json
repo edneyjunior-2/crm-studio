@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/atualizar-processos",
+      "schedule": "0 11 * * *"
+    }
+  ]
+}

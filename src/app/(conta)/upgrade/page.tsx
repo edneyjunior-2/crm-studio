@@ -34,6 +34,7 @@ const moduloLabel: Record<Modulo, string> = {
   automacoes: 'Automações',
   estoque:    'Estoque',
   rh:         'RH',
+  processos:  'Processos Jurídicos',
 }
 
 // Módulos que estarão disponíveis no futuro (em breve)

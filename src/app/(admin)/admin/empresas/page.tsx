@@ -1,4 +1,3 @@
-import { getAuthPlatformAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
@@ -17,8 +16,6 @@ export default async function EmpresasPage({
 }: {
   searchParams: Promise<{ status?: string; q?: string }>
 }) {
-  await getAuthPlatformAdmin()
-
   const { status: filtroStatus, q: busca } = await searchParams
 
   const db = createAdminClient()

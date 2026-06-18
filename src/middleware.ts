@@ -89,7 +89,9 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getSession() lê o JWT do cookie sem round-trip de rede (~0ms vs ~500ms do getUser).
+  // Segurança real é garantida por getUser() nos Server Components via React.cache + RLS no banco.
+  const { data: { session } } = await supabase.auth.getSession()
 
   const isAuthRoute =
     pathname.startsWith('/login') ||
@@ -97,7 +99,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/api')
 
-  if (!user && !isAuthRoute) {
+  if (!session && !isAuthRoute) {
     const loginUrl = isApp
       ? new URL(`https://app.crmstudio.com.br/login`)
       : request.nextUrl.clone()
@@ -105,7 +107,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (user && pathname === '/login') {
+  if (session && pathname === '/login') {
     const dashUrl = isApp
       ? new URL(`https://app.crmstudio.com.br/dashboard`)
       : request.nextUrl.clone()

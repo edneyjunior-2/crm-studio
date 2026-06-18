@@ -62,12 +62,12 @@ export function AssinaturaForm() {
       {/* CNPJ opcional */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-muted-foreground" htmlFor="cnpj-form">
-          CNPJ <span className="font-normal">(opcional)</span>
+          CPF ou CNPJ <span className="font-normal">(opcional)</span>
         </label>
         <input
           id="cnpj-form"
           name="cnpj"
-          placeholder="00.000.000/0001-00"
+          placeholder="000.000.000-00 ou 00.000.000/0001-00"
           className="max-w-xs rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
         />
       </div>

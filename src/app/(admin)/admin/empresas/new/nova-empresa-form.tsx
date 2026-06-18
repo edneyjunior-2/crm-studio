@@ -1,10 +1,15 @@
 'use client'
 
+import { useState } from 'react'
 import { useActionState } from 'react'
 import { criarEmpresa } from '../actions'
 
 export function NovaEmpresaForm() {
   const [state, action, isPending] = useActionState(criarEmpresa, null)
+  const [tipoPessoa, setTipoPessoa] = useState<'pj' | 'pf'>('pj')
+
+  const inputClass =
+    'rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10'
 
   return (
     <form
@@ -17,16 +22,45 @@ export function NovaEmpresaForm() {
         </div>
       )}
 
+      {/* Toggle PJ / PF */}
+      <div className="flex rounded-lg border border-border p-1">
+        <button
+          type="button"
+          onClick={() => setTipoPessoa('pj')}
+          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+            tipoPessoa === 'pj'
+              ? 'bg-foreground text-background'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Pessoa Jurídica (CNPJ)
+        </button>
+        <button
+          type="button"
+          onClick={() => setTipoPessoa('pf')}
+          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+            tipoPessoa === 'pf'
+              ? 'bg-foreground text-background'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Pessoa Física (CPF)
+        </button>
+      </div>
+
+      {/* Hidden: tipo_pessoa */}
+      <input type="hidden" name="tipo_pessoa" value={tipoPessoa} />
+
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium" htmlFor="nome">
-          Nome da empresa *
+          {tipoPessoa === 'pj' ? 'Nome da empresa' : 'Nome completo'} *
         </label>
         <input
           id="nome"
           name="nome"
           required
-          placeholder="Saturnino & Coelho Advogados"
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+          placeholder={tipoPessoa === 'pj' ? 'Saturnino & Coelho Advogados' : 'Ex.: Ana Paula Ferreira'}
+          className={inputClass}
         />
       </div>
 
@@ -40,36 +74,54 @@ export function NovaEmpresaForm() {
           type="email"
           required
           placeholder="admin@empresa.com.br"
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+          className={inputClass}
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium" htmlFor="nome_admin">
-          Nome do admin
+          {tipoPessoa === 'pj' ? 'Nome do admin' : 'Nome completo (confirmar)'}
         </label>
         <input
           id="nome_admin"
           name="nome_admin"
-          placeholder="Ex.: Aislene Saturnino"
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+          placeholder={tipoPessoa === 'pj' ? 'Ex.: Aislene Saturnino' : 'Ex.: Ana Paula Ferreira'}
+          className={inputClass}
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium" htmlFor="cnpj">
-          CNPJ{' '}
-          <span className="font-normal text-muted-foreground">
-            (obrigatório para planos pagos)
-          </span>
-        </label>
-        <input
-          id="cnpj"
-          name="cnpj"
-          placeholder="00.000.000/0001-00"
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
-        />
-      </div>
+      {/* Documento: CNPJ (PJ) ou CPF (PF) */}
+      {tipoPessoa === 'pj' ? (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium" htmlFor="cnpj">
+            CNPJ{' '}
+            <span className="font-normal text-muted-foreground">
+              (obrigatório para planos pagos)
+            </span>
+          </label>
+          <input
+            id="cnpj"
+            name="cnpj"
+            placeholder="00.000.000/0001-00"
+            className={inputClass}
+          />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium" htmlFor="cpf">
+            CPF{' '}
+            <span className="font-normal text-muted-foreground">
+              (obrigatório para planos pagos)
+            </span>
+          </label>
+          <input
+            id="cpf"
+            name="cpf"
+            placeholder="000.000.000-00"
+            className={inputClass}
+          />
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium" htmlFor="plano">
@@ -79,7 +131,7 @@ export function NovaEmpresaForm() {
           id="plano"
           name="plano"
           defaultValue="trial"
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10"
+          className={inputClass}
         >
           <optgroup label="Sem cobrança">
             <option value="interno">Interno (sem cobrança)</option>

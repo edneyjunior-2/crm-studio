@@ -1,6 +1,8 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { useTheme } from 'next-themes'
+import { Sun, Moon } from 'lucide-react'
 import type { Profile } from '@/types'
 
 const pageTitles: Record<string, string> = {
@@ -39,6 +41,7 @@ interface TopbarProps {
 export function Topbar({ profile }: TopbarProps) {
   const pathname = usePathname()
   const title = getPageTitle(pathname)
+  const { resolvedTheme, setTheme } = useTheme()
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/95 px-6 backdrop-blur-sm">
@@ -47,6 +50,18 @@ export function Topbar({ profile }: TopbarProps) {
       </h1>
 
       <div className="flex items-center gap-3">
+        {/* Dark / Light toggle */}
+        <button
+          type="button"
+          onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+          className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          aria-label={resolvedTheme === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+        >
+          {resolvedTheme === 'dark'
+            ? <Sun className="size-4" />
+            : <Moon className="size-4" />}
+        </button>
+
         <div className="hidden flex-col items-end sm:flex">
           <span className="text-sm font-medium text-foreground leading-tight">
             {profile.full_name}

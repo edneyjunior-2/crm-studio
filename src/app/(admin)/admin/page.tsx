@@ -1,4 +1,3 @@
-import { getAuthPlatformAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -20,8 +19,6 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default async function AdminDashboardPage() {
-  await getAuthPlatformAdmin()
-
   const db = createAdminClient()
   const { data: empresas } = await db
     .from('empresas')

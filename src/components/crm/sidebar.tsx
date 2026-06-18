@@ -25,6 +25,7 @@ import {
   CalendarDays,
   Boxes,
   IdCard,
+  Scale,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
@@ -119,6 +120,13 @@ const navItems: NavItem[] = [
     roles: ['admin', 'socio'],
     isSubItem: true,
     parentHref: '/financeiro',
+  },
+  {
+    href: '/processos',
+    label: 'Processos',
+    icon: Scale,
+    modulo: 'processos',
+    tourSlug: 'processos',
   },
   {
     href: '/contratos',

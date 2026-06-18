@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -17,8 +18,8 @@ export interface AuthResult {
   trialEndsAt: string | null
 }
 
-/** Verifica auth e retorna supabase + user + role + contexto do tenant. Redireciona para /login se não autenticado. */
-export async function getAuthUser(): Promise<AuthResult> {
+/** Memoizado por request (React cache) — layout + página compartilham o mesmo resultado sem novo round-trip. */
+export const getAuthUser = cache(async (): Promise<AuthResult> => {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -44,7 +45,7 @@ export async function getAuthUser(): Promise<AuthResult> {
     status: (empresa?.status ?? 'trial') as StatusEmpresa,
     trialEndsAt: empresa?.trial_ends_at ?? null,
   }
-}
+})
 
 /** Apenas admin e sócio. Redireciona para /dashboard caso contrário. */
 export async function getAuthFinanceiro(): Promise<AuthResult> {
@@ -61,9 +62,9 @@ export async function getAuthAdmin(): Promise<AuthResult> {
 }
 
 /** Apenas platform admins (tabela platform_admins). Redireciona para /dashboard. */
-export async function getAuthPlatformAdmin(): Promise<AuthResult> {
+export const getAuthPlatformAdmin = cache(async (): Promise<AuthResult> => {
   const auth = await getAuthUser()
   const { data: isPlatformAdmin } = await auth.supabase.rpc('is_platform_admin')
   if (!isPlatformAdmin) redirect('/dashboard')
   return auth
-}
+})

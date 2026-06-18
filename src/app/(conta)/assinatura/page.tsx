@@ -33,6 +33,7 @@ const MODULO_LABEL: Record<Modulo, string> = {
   automacoes: 'Automações de funil',
   estoque:    'Gestão de estoque',
   rh:         'Recursos Humanos',
+  processos:  'Processos Jurídicos',
 }
 
 type StatusConfig = {

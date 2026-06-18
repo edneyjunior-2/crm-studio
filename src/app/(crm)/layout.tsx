@@ -32,12 +32,21 @@ export default async function CRMLayout({
     diasRestantes = Math.ceil((endMidnight.getTime() - todayMidnight.getTime()) / 86_400_000)
   }
 
-  // Carrega overrides/add-ons da empresa (sem service role — RLS garante acesso)
-  const { data: empresaData } = await supabase
-    .from('empresas')
-    .select('modulos_ativos, modulos_ocultos')
-    .eq('id', empresaId)
-    .single()
+  // Paralelize as duas queries independentes
+  const [{ data: empresaData }, { data: profile }] = await Promise.all([
+    supabase
+      .from('empresas')
+      .select('modulos_ativos, modulos_ocultos')
+      .eq('id', empresaId)
+      .single(),
+    supabase
+      .from('profiles')
+      .select('id, full_name, role, created_at')
+      .eq('id', user.id)
+      .single(),
+  ])
+
+  if (!profile) redirect('/login')
 
   const modulosAtivosExtras: string[] = empresaData?.modulos_ativos ?? []
   const modulosOcultos: string[] = empresaData?.modulos_ocultos ?? []
@@ -45,15 +54,6 @@ export default async function CRMLayout({
   // Conjunto efetivo de módulos para esta empresa, subtraindo os que o admin optou por ocultar
   const modulosAtivos = Array.from(modulosEfetivos(plano, modulosAtivosExtras))
     .filter((m) => !modulosOcultos.includes(m))
-
-  // Busca o profile completo para Sidebar/Topbar
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, full_name, role, created_at')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) redirect('/login')
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">

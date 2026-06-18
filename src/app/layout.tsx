@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Archivo, Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
+import { ThemeProvider } from 'next-themes'
 import './globals.css'
 
 // Tipografia CRM Studio:
@@ -52,7 +53,11 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${archivo.variable} ${spaceGrotesk.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   )
 }
