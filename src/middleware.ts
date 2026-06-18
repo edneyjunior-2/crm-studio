@@ -17,8 +17,9 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') ?? ''
   const pathname = request.nextUrl.pathname
 
-  const isWww = hostname === 'www.crmstudio.com.br'
-  const isApp = hostname === 'app.crmstudio.com.br'
+  const isWww   = hostname === 'www.crmstudio.com.br'
+  const isApp   = hostname === 'app.crmstudio.com.br'
+  const isAdmin = hostname === 'admin.crmstudio.com.br'
 
   // ── Roteamento por domínio (só em produção) ───────────────────────────────
 
@@ -31,6 +32,15 @@ export async function middleware(request: NextRequest) {
     }
     // Rotas de marketing passam sem checar auth
     return NextResponse.next({ request })
+  }
+
+  if (isAdmin) {
+    // No admin: só rotas /admin/** são válidas
+    // Raiz e qualquer rota fora de /admin → redireciona para /admin
+    if (!pathname.startsWith('/admin') && !pathname.startsWith('/api') && !pathname.startsWith('/login')) {
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
+    // Cai na lógica de auth abaixo (getUser + redirect para /login se não autenticado)
   }
 
   if (isApp) {
