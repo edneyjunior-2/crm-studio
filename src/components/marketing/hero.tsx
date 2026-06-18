@@ -14,7 +14,7 @@ export function Hero() {
   const reduce = useReducedMotion()
 
   return (
-    <section className="relative min-h-[100dvh] overflow-hidden">
+    <section className="relative overflow-hidden">
       {/* Fundo animado — grid de linhas + blob pulsante */}
       <HeroBg />
 
@@ -124,24 +124,6 @@ export function Hero() {
           </div>
         </Enter>
 
-        {/* Seta de scroll hint — discreta, sem label */}
-        {!reduce && (
-          <motion.div
-            className="absolute bottom-8 left-1/2 -translate-x-1/2"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.2, duration: 0.6 }}
-            aria-hidden="true"
-          >
-            <motion.div
-              className="flex h-8 w-5 items-start justify-center rounded-full border border-border/60 pt-1.5"
-              animate={{ y: [0, 4, 0] }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <span className="block h-1.5 w-px rounded-full bg-muted-foreground" />
-            </motion.div>
-          </motion.div>
-        )}
       </div>
     </section>
   )
