@@ -96,9 +96,12 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
   free: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
   ],
-  // trial = mesmos módulos do free (acesso básico durante o período de avaliação)
+  // trial = acesso total por 7 dias (cliente experimenta o produto completo)
   trial: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
+    'parceiros', 'fluxos', 'contratos',
+    'financeiro', 'comissoes', 'automacoes',
+    'estoque', 'rh',
   ],
   // interno = acesso total (empresas internas da plataforma)
   interno: [
@@ -156,7 +159,7 @@ export const LIMITES_POR_PLANO: Record<
   { usuarios: number; funis: number; solucoes: number }
 > = {
   free:     { usuarios: 1,  funis: 1,  solucoes: 3  },
-  trial:    { usuarios: 1,  funis: 1,  solucoes: 3  },
+  trial:    { usuarios: -1, funis: -1, solucoes: -1 },
   interno:  { usuarios: -1, funis: -1, solucoes: -1 },
   starter:  { usuarios: 3,  funis: 1,  solucoes: 10 },
   pro:      { usuarios: 10, funis: 3,  solucoes: -1 },
