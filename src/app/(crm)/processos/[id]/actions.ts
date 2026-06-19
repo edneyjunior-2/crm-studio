@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createEvent } from '@/lib/google-calendar'
+import { parseValorBR } from '@/lib/honorarios'
 
 const STATUS_VALIDOS = ['ativo', 'encerrado', 'suspenso', 'arquivado']
 
@@ -50,7 +51,7 @@ export async function atualizarProcesso(
   const vara       = (formData.get('vara') as string)?.trim() || null
   const comarca    = (formData.get('comarca') as string)?.trim() || null
   const valorRaw   = (formData.get('valor_causa') as string)?.trim()
-  const valorNum   = valorRaw ? parseFloat(valorRaw.replace(',', '.')) : null
+  const valorNum   = valorRaw ? parseValorBR(valorRaw) : null
   const valor      = valorNum != null && !Number.isNaN(valorNum) ? valorNum : null
 
   const honTipoRaw  = (formData.get('honorarios_tipo') as string)?.trim()

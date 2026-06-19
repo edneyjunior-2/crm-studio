@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { criarProcesso, buscarProcesso, criarClienteInline } from './actions'
 import type { BuscarProcessoResult } from './actions'
+import { mascararMilhar, parseValorBR } from '@/lib/honorarios'
 
 interface Cliente { id: string; razao_social: string }
 
@@ -51,7 +52,7 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
   const [honTipo, setHonTipo]       = useState<'percentual' | 'fixo'>('percentual')
   const [honValor, setHonValor]     = useState('')
 
-  const valorCausaNum = parseFloat((valorCausa || '').replace(',', '.'))
+  const valorCausaNum = parseValorBR(valorCausa)
   const honValorNum   = parseFloat((honValor || '').replace(',', '.'))
   const honorarioCalc =
     honTipo === 'percentual' && !Number.isNaN(valorCausaNum) && !Number.isNaN(honValorNum)
@@ -237,12 +238,11 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
           <input
             id="valor_causa"
             name="valor_causa"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="numeric"
             value={valorCausa}
-            onChange={(e) => setValorCausa(e.target.value)}
-            placeholder="0,00"
+            onChange={(e) => setValorCausa(mascararMilhar(e.target.value))}
+            placeholder="Ex.: 80.000"
             className={inputClass}
           />
           <p className="text-xs text-muted-foreground">Valor total da causa (mantido p/ relatórios).</p>

@@ -9,6 +9,7 @@ import {
   normalizarNumeroCNJ,
   mensagemErroDataJud,
 } from '@/lib/datajud'
+import { parseValorBR } from '@/lib/honorarios'
 
 export interface BuscarProcessoResult {
   numeroProcesso:   string
@@ -120,7 +121,8 @@ export async function criarProcesso(
   const vara       = (formData.get('vara') as string)?.trim() || null
   const comarca    = (formData.get('comarca') as string)?.trim() || null
   const valorRaw   = (formData.get('valor_causa') as string)?.trim()
-  const valor      = valorRaw ? parseFloat(valorRaw.replace(',', '.')) : null
+  const valorNum   = valorRaw ? parseValorBR(valorRaw) : null
+  const valor      = valorNum != null && !Number.isNaN(valorNum) ? valorNum : null
 
   const honTipoRaw   = (formData.get('honorarios_tipo') as string)?.trim()
   const honTipo      = honTipoRaw === 'fixo' || honTipoRaw === 'percentual' ? honTipoRaw : null

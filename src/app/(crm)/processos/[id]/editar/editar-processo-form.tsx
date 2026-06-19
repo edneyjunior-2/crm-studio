@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { atualizarProcesso } from '../actions'
+import { mascararMilhar, parseValorBR, valorParaMascara } from '@/lib/honorarios'
 
 interface ProcessoEdit {
   id: string
@@ -43,13 +44,13 @@ const brl = (v: number) =>
 export function EditarProcessoForm({ processo, clientes, advogados }: Props) {
   const [state, action, isPending] = useActionState(atualizarProcesso, null)
 
-  const [valorCausa, setValorCausa] = useState(processo.valor_causa != null ? String(processo.valor_causa) : '')
+  const [valorCausa, setValorCausa] = useState(valorParaMascara(processo.valor_causa))
   const [honTipo, setHonTipo] = useState<'percentual' | 'fixo'>(
     processo.honorarios_tipo === 'fixo' ? 'fixo' : 'percentual',
   )
   const [honValor, setHonValor] = useState(processo.honorarios_valor != null ? String(processo.honorarios_valor) : '')
 
-  const valorCausaNum = parseFloat((valorCausa || '').replace(',', '.'))
+  const valorCausaNum = parseValorBR(valorCausa)
   const honValorNum   = parseFloat((honValor || '').replace(',', '.'))
   const honorarioCalc =
     honTipo === 'percentual' && !Number.isNaN(valorCausaNum) && !Number.isNaN(honValorNum)
@@ -94,9 +95,9 @@ export function EditarProcessoForm({ processo, clientes, advogados }: Props) {
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="valor_causa">Valor da causa (R$)</label>
           <input
-            id="valor_causa" name="valor_causa" type="number" step="0.01" min="0"
-            value={valorCausa} onChange={(e) => setValorCausa(e.target.value)}
-            placeholder="0,00" className={inputClass}
+            id="valor_causa" name="valor_causa" type="text" inputMode="numeric"
+            value={valorCausa} onChange={(e) => setValorCausa(mascararMilhar(e.target.value))}
+            placeholder="Ex.: 80.000" className={inputClass}
           />
           <p className="text-xs text-muted-foreground">Valor total da causa (mantido p/ relatórios).</p>
         </div>

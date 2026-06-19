@@ -281,13 +281,31 @@ function extrairVaraComarca(orgao: string): { vara: string; comarca: string } {
   return { vara: orgao.trim(), comarca: '' }
 }
 
+// "tipo_de_documento" → "Tipo de documento"
+function humanizarCampo(campo: string): string {
+  const s = campo.replace(/_/g, ' ').trim()
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+}
+
 function extrairComplemento(movimento: Record<string, unknown>): string {
-  const tabelados    = (movimento.complementosTabelados as { descricao?: string }[] | undefined) ?? []
-  const naoTabelados = (movimento.complementosNaoTabelados as { descricao?: string }[] | undefined) ?? []
-  return [...tabelados, ...naoTabelados]
-    .map((c) => c.descricao ?? '')
-    .filter(Boolean)
-    .join('; ')
+  const tabelados    = (movimento.complementosTabelados as { nome?: string; descricao?: string }[] | undefined) ?? []
+  const naoTabelados = (movimento.complementosNaoTabelados as { nome?: string; descricao?: string }[] | undefined) ?? []
+
+  const partes: string[] = []
+  for (const c of tabelados) {
+    // No complemento TABELADO, o valor real está em `nome` (ex.: "Decisão");
+    // `descricao` é só o nome do campo (ex.: "tipo_de_documento").
+    const valor = (c.nome ?? '').trim()
+    const campo = humanizarCampo(c.descricao ?? '')
+    if (valor && campo) partes.push(`${campo}: ${valor}`)
+    else if (valor) partes.push(valor)
+  }
+  for (const c of naoTabelados) {
+    // Não-tabelado = texto livre (em `nome` ou `descricao`).
+    const txt = (c.nome ?? c.descricao ?? '').trim()
+    if (txt) partes.push(txt)
+  }
+  return partes.join('; ')
 }
 
 // ---------------------------------------------------------------------------
