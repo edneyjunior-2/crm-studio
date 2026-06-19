@@ -61,6 +61,14 @@ function formatCnpj(value: string): string {
     .replace(/(\d{4})(\d)/, '$1-$2')
 }
 
+function formatCpf(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  return digits
+    .replace(/^(\d{3})(\d)/, '$1.$2')
+    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4')
+}
+
 function formatTelefone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11)
   if (digits.length <= 10) {
@@ -79,13 +87,16 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
   const [isBuscandoCnpj, setIsBuscandoCnpj] = useState(false)
   const [isVerificandoCnpj, setIsVerificandoCnpj] = useState(false)
 
+  const [tipoPessoa, setTipoPessoa] = useState<'pj' | 'pf'>(cliente?.tipo_pessoa ?? 'pj')
   const [cnpj, setCnpj] = useState(cliente?.cnpj ?? '')
+  const [cpf, setCpf] = useState(cliente?.cpf ?? '')
   const [telefone, setTelefone] = useState(cliente?.contato_telefone ?? '')
   const [razaoSocial, setRazaoSocial] = useState(cliente?.razao_social ?? '')
   const [segmento, setSegmento] = useState(cliente?.segmento ?? '')
   const [email, setEmail] = useState(cliente?.contato_email ?? '')
   const [contatoNome, setContatoNome] = useState(cliente?.contato_nome ?? '')
   const [areaTipo, setAreaTipo] = useState<'publica' | 'privada'>('publica')
+  const [bloqueioAtivo, setBloqueioAtivo] = useState<boolean>(cliente?.bloqueio_exclusividade ?? true)
 
   // Estado de verificação de CNPJ
   const [cnpjStatus, setCnpjStatus] = useState<VerificarCnpjResult | null>(null)
@@ -125,6 +136,7 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
 
   // Verificar duplicidade de CNPJ automaticamente ao completar 14 dígitos (apenas no cadastro)
   useEffect(() => {
+    if (tipoPessoa !== 'pj') return
     if (isEdicao) return
 
     const digits = cnpj.replace(/\D/g, '')
@@ -142,7 +154,7 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
       .then((result) => setCnpjStatus(result))
       .catch(() => setCnpjStatus({ status: 'erro', message: 'Erro ao verificar CNPJ.' }))
       .finally(() => setIsVerificandoCnpj(false))
-  }, [cnpj, isEdicao])
+  }, [cnpj, isEdicao, tipoPessoa])
 
   function handleOpenChange(nextOpen: boolean) {
     if (!isPending) setOpen(nextOpen)
@@ -208,8 +220,8 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
-    // Bloquear envio se CNPJ está bloqueado por território
-    if (!isEdicao && cnpjStatus?.status === 'bloqueado') {
+    // Bloquear envio se CNPJ está bloqueado por território (apenas PJ)
+    if (tipoPessoa === 'pj' && !isEdicao && cnpjStatus?.status === 'bloqueado') {
       toast.error('Este CNPJ está bloqueado. Aguarde a expiração do período.')
       return
     }
@@ -222,15 +234,18 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
     formData.set('contato_nome', contatoNome)
     formData.set('contato_email', email)
     formData.set('contato_telefone', telefone)
-    formData.set('cnpj', cnpj)
+    formData.set('tipo_pessoa', tipoPessoa)
+    formData.set('cnpj', tipoPessoa === 'pj' ? cnpj : '')
+    formData.set('cpf', tipoPessoa === 'pf' ? cpf : '')
     formData.set('origem_tipo', origemTipo ?? '')
     formData.set('parceiro_id', origemTipo === 'parceiro' ? (parceiroId ?? '') : '')
     formData.set('indicado_por', origemTipo === 'indicacao_interna' ? (indicadoPor ?? '') : '')
     formData.set('area_tipo', areaTipo)
+    formData.set('bloqueio_exclusividade', String(bloqueioAtivo))
 
     startTransition(async () => {
-      // Se o CNPJ está livre para assumir, chamar assumirCliente em vez de criar novo
-      if (!isEdicao && cnpjStatus?.status === 'livre_para_assumir') {
+      // Se o CNPJ está livre para assumir, chamar assumirCliente em vez de criar novo (apenas PJ)
+      if (tipoPessoa === 'pj' && !isEdicao && cnpjStatus?.status === 'livre_para_assumir') {
         const result = await assumirCliente(cnpjStatus.clienteId)
         if (result.error) {
           toast.error(result.error)
@@ -263,7 +278,9 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
 
   function resetForm(form: HTMLFormElement) {
     form.reset()
+    setTipoPessoa('pj')
     setCnpj('')
+    setCpf('')
     setTelefone('')
     setRazaoSocial('')
     setSegmento('')
@@ -274,6 +291,7 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
     setIndicadoPor(null)
     setCnpjStatus(null)
     setAreaTipo('publica')
+    setBloqueioAtivo(true)
     verificacaoCnpjRef.current = ''
     manuallyEdited.current.clear()
   }
@@ -281,9 +299,9 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
   const cnpjDigits = cnpj.replace(/\D/g, '')
   const cnpjCompleto = cnpjDigits.length === 14
 
-  // Definir se o submit é possível
-  const submitBloqueado = !isEdicao && cnpjStatus?.status === 'bloqueado'
-  const isAssumindo = !isEdicao && cnpjStatus?.status === 'livre_para_assumir'
+  // Definir se o submit é possível (bloqueio só se aplica a PJ)
+  const submitBloqueado = tipoPessoa === 'pj' && !isEdicao && cnpjStatus?.status === 'bloqueado'
+  const isAssumindo = tipoPessoa === 'pj' && !isEdicao && cnpjStatus?.status === 'livre_para_assumir'
 
   return (
     <>
@@ -301,6 +319,36 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
 
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-1">
+            {/* Tipo de pessoa: Jurídica (CNPJ) ou Física (CPF) */}
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm font-medium text-foreground">Tipo de pessoa</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTipoPessoa('pj')}
+                  className={`flex flex-1 items-center justify-center gap-1 rounded-lg border p-3 text-sm transition-colors ${
+                    tipoPessoa === 'pj'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-border text-muted-foreground hover:border-primary/40'
+                  }`}
+                >
+                  <span className="font-medium">Pessoa Jurídica</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoPessoa('pf')}
+                  className={`flex flex-1 items-center justify-center gap-1 rounded-lg border p-3 text-sm transition-colors ${
+                    tipoPessoa === 'pf'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-border text-muted-foreground hover:border-primary/40'
+                  }`}
+                >
+                  <span className="font-medium">Pessoa Física</span>
+                </button>
+              </div>
+            </div>
+
+            {tipoPessoa === 'pj' ? (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="cnpj">CNPJ</Label>
               <div className="flex gap-2">
@@ -378,10 +426,23 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
                 </div>
               )}
             </div>
+            ) : (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cpf">CPF</Label>
+              <Input
+                id="cpf"
+                name="cpf"
+                value={cpf}
+                onChange={(e) => setCpf(formatCpf(e.target.value))}
+                placeholder="000.000.000-00"
+              />
+            </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="razao_social">
-                Razão Social <span className="text-destructive">*</span>
+                {tipoPessoa === 'pf' ? 'Nome completo' : 'Razão Social'}{' '}
+                <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="razao_social"
@@ -392,7 +453,7 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
                   setRazaoSocial(e.target.value)
                   markManual('razao_social')
                 }}
-                placeholder="Nome da empresa"
+                placeholder={tipoPessoa === 'pf' ? 'Nome da pessoa' : 'Nome da empresa'}
               />
             </div>
 
@@ -472,36 +533,62 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
             {/* Tipo de Área — apenas no cadastro, não na edição */}
             {!isEdicao && (
               <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-                <p className="text-sm font-medium text-foreground">Tipo de Área</p>
-                <p className="text-xs text-muted-foreground">
-                  Define o período de exclusividade do responsável pelo cliente.
-                </p>
-                <div className="flex gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-medium text-foreground">Bloqueio de exclusividade</p>
+                    <p className="text-xs text-muted-foreground">
+                      Define o período de exclusividade do responsável pelo cliente.
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setAreaTipo('publica')}
-                    className={`flex flex-1 flex-col items-center gap-1 rounded-lg border p-3 text-sm transition-colors ${
-                      areaTipo === 'publica'
-                        ? 'border-primary bg-primary/5 text-primary'
-                        : 'border-border text-muted-foreground hover:border-primary/40'
+                    role="switch"
+                    aria-checked={bloqueioAtivo}
+                    aria-label="Bloqueio de exclusividade"
+                    onClick={() => setBloqueioAtivo((v) => !v)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                      bloqueioAtivo ? 'bg-primary' : 'bg-muted-foreground/30'
                     }`}
                   >
-                    <span className="font-medium">Pública</span>
-                    <span className="text-xs opacity-70">Bloqueio de 90 dias</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAreaTipo('privada')}
-                    className={`flex flex-1 flex-col items-center gap-1 rounded-lg border p-3 text-sm transition-colors ${
-                      areaTipo === 'privada'
-                        ? 'border-primary bg-primary/5 text-primary'
-                        : 'border-border text-muted-foreground hover:border-primary/40'
-                    }`}
-                  >
-                    <span className="font-medium">Privada</span>
-                    <span className="text-xs opacity-70">Bloqueio de 30 dias</span>
+                    <span
+                      className={`inline-block size-5 rounded-full bg-white shadow-sm transition-transform ${
+                        bloqueioAtivo ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    />
                   </button>
                 </div>
+                {bloqueioAtivo ? (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAreaTipo('publica')}
+                      className={`flex flex-1 flex-col items-center gap-1 rounded-lg border p-3 text-sm transition-colors ${
+                        areaTipo === 'publica'
+                          ? 'border-primary bg-primary/5 text-primary'
+                          : 'border-border text-muted-foreground hover:border-primary/40'
+                      }`}
+                    >
+                      <span className="font-medium">Pública</span>
+                      <span className="text-xs opacity-70">Bloqueio de 90 dias</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAreaTipo('privada')}
+                      className={`flex flex-1 flex-col items-center gap-1 rounded-lg border p-3 text-sm transition-colors ${
+                        areaTipo === 'privada'
+                          ? 'border-primary bg-primary/5 text-primary'
+                          : 'border-border text-muted-foreground hover:border-primary/40'
+                      }`}
+                    >
+                      <span className="font-medium">Privada</span>
+                      <span className="text-xs opacity-70">Bloqueio de 30 dias</span>
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Sem bloqueio de exclusividade — qualquer responsável pode assumir este cliente.
+                  </p>
+                )}
               </div>
             )}
 

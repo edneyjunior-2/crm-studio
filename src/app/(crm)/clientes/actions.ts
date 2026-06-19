@@ -36,7 +36,7 @@ export async function verificarCnpj(cnpj: string): Promise<VerificarCnpjResult> 
   // Buscar cliente com esse CNPJ, incluindo nome do responsável via join
   const { data: cliente, error } = await supabase
     .from('clientes')
-    .select('id, razao_social, area_tipo, responsavel_id, responsavel_desde, profiles!responsavel_id(full_name)')
+    .select('id, razao_social, area_tipo, bloqueio_exclusividade, responsavel_id, responsavel_desde, profiles!responsavel_id(full_name)')
     .eq('cnpj', cnpj)
     .maybeSingle()
 
@@ -44,6 +44,9 @@ export async function verificarCnpj(cnpj: string): Promise<VerificarCnpjResult> 
 
   // CNPJ não existe — pode criar
   if (!cliente) return { status: 'disponivel' }
+
+  // Cliente sem bloqueio de exclusividade — qualquer responsável pode assumir
+  if (cliente.bloqueio_exclusividade === false) return { status: 'disponivel' }
 
   const areaTipo = (cliente.area_tipo as 'publica' | 'privada') ?? 'publica'
   const diasBloqueio = areaTipo === 'privada' ? 30 : 90
@@ -127,10 +130,15 @@ export async function createCliente(formData: FormData): Promise<{ error?: strin
   const indicadoPor = (formData.get('indicado_por') as string) || null
   const areaTipo = (formData.get('area_tipo') as string) || 'publica'
   const cnpjRaw = (formData.get('cnpj') as string) || null
+  const tipoPessoa = (formData.get('tipo_pessoa') as string) === 'pf' ? 'pf' : 'pj'
+  const cpf = (formData.get('cpf') as string) || null
+  const bloqueioExclusividade = (formData.get('bloqueio_exclusividade') as string) !== 'false'
 
   const { error } = await supabase.from('clientes').insert({
     razao_social: formData.get('razao_social') as string,
-    cnpj: cnpjRaw || null,
+    tipo_pessoa: tipoPessoa,
+    cnpj: tipoPessoa === 'pj' ? (cnpjRaw || null) : null,
+    cpf: tipoPessoa === 'pf' ? (cpf || null) : null,
     contato_nome: (formData.get('contato_nome') as string) || null,
     contato_email: (formData.get('contato_email') as string) || null,
     contato_telefone: (formData.get('contato_telefone') as string) || null,
@@ -140,6 +148,7 @@ export async function createCliente(formData: FormData): Promise<{ error?: strin
     parceiro_id: origemTipo === 'parceiro' ? parceiroId : null,
     indicado_por: origemTipo === 'indicacao_interna' ? indicadoPor : null,
     area_tipo: areaTipo as 'publica' | 'privada',
+    bloqueio_exclusividade: bloqueioExclusividade,
     responsavel_id: user.id,
     responsavel_desde: new Date().toISOString(),
     created_by: user.id,
@@ -162,12 +171,18 @@ export async function updateCliente(
   const origemTipo = (formData.get('origem_tipo') as string) || null
   const parceiroId = (formData.get('parceiro_id') as string) || null
   const indicadoPor = (formData.get('indicado_por') as string) || null
+  const tipoPessoa = (formData.get('tipo_pessoa') as string) === 'pf' ? 'pf' : 'pj'
+  const cnpjRaw = (formData.get('cnpj') as string) || null
+  const cpf = (formData.get('cpf') as string) || null
+  const bloqueioExclusividade = (formData.get('bloqueio_exclusividade') as string) !== 'false'
 
   const { error } = await supabase
     .from('clientes')
     .update({
       razao_social: formData.get('razao_social') as string,
-      cnpj: (formData.get('cnpj') as string) || null,
+      tipo_pessoa: tipoPessoa,
+      cnpj: tipoPessoa === 'pj' ? (cnpjRaw || null) : null,
+      cpf: tipoPessoa === 'pf' ? (cpf || null) : null,
       contato_nome: (formData.get('contato_nome') as string) || null,
       contato_email: (formData.get('contato_email') as string) || null,
       contato_telefone: (formData.get('contato_telefone') as string) || null,
@@ -176,6 +191,7 @@ export async function updateCliente(
       origem_tipo: origemTipo as 'prospeccao_direta' | 'parceiro' | 'indicacao_interna' | null,
       parceiro_id: origemTipo === 'parceiro' ? parceiroId : null,
       indicado_por: origemTipo === 'indicacao_interna' ? indicadoPor : null,
+      bloqueio_exclusividade: bloqueioExclusividade,
     })
     .eq('id', id)
 

@@ -45,7 +45,10 @@ export interface Parceiro {
 export interface Cliente {
   id: string
   razao_social: string
+  tipo_pessoa?: 'pj' | 'pf'
   cnpj: string | null
+  cpf?: string | null
+  bloqueio_exclusividade?: boolean
   contato_nome: string | null
   contato_email: string | null
   contato_telefone: string | null
