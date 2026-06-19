@@ -7,6 +7,7 @@ import { ApiKeysSection } from './api-keys-section'
 import { UsuariosSection } from './usuarios-section'
 import { AreaAtuacaoSection } from './area-atuacao-section'
 import { EditarNomeEmpresa } from './editar-nome'
+import { ConfigSdrSection } from './config-sdr-section'
 
 const PLANOS   = ['interno', 'trial', 'free', 'starter', 'pro', 'business']
 const STATUSES = ['trial', 'ativo', 'pendente', 'atrasado', 'suspenso', 'cancelado']
@@ -39,7 +40,7 @@ export default async function EmpresaDetailPage({
   const { id } = await params
   const db = createAdminClient()
 
-  const [{ data: empresa }, { data: apiKeys }, { data: profiles }] = await Promise.all([
+  const [{ data: empresa }, { data: apiKeys }, { data: profiles }, { data: configSdr }] = await Promise.all([
     db
       .from('empresas')
       .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos')
@@ -55,6 +56,11 @@ export default async function EmpresaDetailPage({
       .select('id, full_name, role, created_at')
       .eq('empresa_id', id)
       .order('created_at'),
+    db
+      .from('clientes_sdr')
+      .select('wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz')
+      .eq('empresa_id', id)
+      .maybeSingle(),
   ])
 
   if (!empresa) notFound()
@@ -172,7 +178,10 @@ export default async function EmpresaDetailPage({
       {/* Usuários da empresa + botão de link de acesso */}
       <UsuariosSection usuarios={usuariosComEmail} />
 
-      {/* API Keys */}
+      {/* Configuração do robô SDR (persona + tom de voz) */}
+      <ConfigSdrSection empresaId={id} config={configSdr ?? null} />
+
+      {/* API Keys / Integração SDR */}
       <ApiKeysSection empresaId={id} apiKeys={apiKeys ?? []} />
     </div>
   )

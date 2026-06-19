@@ -239,6 +239,53 @@ export async function atualizarNomeEmpresa(
 }
 
 // ---------------------------------------------------------------------------
+// Config do SDR por empresa (agenda multi-cliente): persona + tom de voz + número
+// ---------------------------------------------------------------------------
+
+export async function salvarConfigSdr(
+  empresaId: string,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const waPhone   = (formData.get('wa_phone_number_id') as string)?.trim()
+  const escritorio = (formData.get('nome_escritorio') as string)?.trim() || null
+  const assistente = (formData.get('nome_assistente') as string)?.trim() || 'Leila'
+  const tom        = (formData.get('tom_de_voz') as string)?.trim() || null
+
+  if (!waPhone) return { error: 'Informe o número/ID do WhatsApp (ou um placeholder até a Meta liberar).' }
+
+  const db = createAdminClient()
+
+  // upsert manual: 1 config por empresa
+  const { data: existente } = await db
+    .from('clientes_sdr')
+    .select('id')
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+
+  const campos = {
+    wa_phone_number_id: waPhone,
+    nome_escritorio:    escritorio,
+    nome_assistente:    assistente,
+    tom_de_voz:         tom,
+    updated_at:         new Date().toISOString(),
+  }
+
+  const { error } = existente?.id
+    ? await db.from('clientes_sdr').update(campos).eq('id', existente.id)
+    : await db.from('clientes_sdr').insert({ empresa_id: empresaId, ...campos })
+
+  if (error) {
+    if (error.code === '23505') return { error: 'Este número de WhatsApp já está vinculado a outra empresa.' }
+    return { error: error.message }
+  }
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  return {}
+}
+
+// ---------------------------------------------------------------------------
 // Trocar a área de atuação (CRM Vendas <-> CRM Advocacia)
 // Advocacia = módulo 'processos' ativo em modulos_ativos. Vendas = sem ele.
 // ---------------------------------------------------------------------------
@@ -289,6 +336,13 @@ export async function gerarApiKey(
     .insert({ empresa_id: empresaId, key_hash: keyHash, label })
 
   if (error) return { error: error.message }
+
+  // Linka a chave na agenda do SDR (se já houver config p/ esta empresa) — assim
+  // o robô usa a chave certa no handoff. Best-effort.
+  await db
+    .from('clientes_sdr')
+    .update({ crm_api_key: token, updated_at: new Date().toISOString() })
+    .eq('empresa_id', empresaId)
 
   revalidatePath(`/admin/empresas/${empresaId}`)
   return { token }

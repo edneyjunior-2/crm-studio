@@ -9,26 +9,26 @@ import { Inbox, type Conversa, type Mensagem } from './inbox'
  * de usuário comum). Por isso lemos via admin client (service_role). A rota é
  * protegida por getAuthUser (redirect /login se não autenticado).
  *
- * Multi-tenant TODO: `conversations` ainda não tem `empresa_id`. Por ora a aba
- * mostra TODAS as conversas (estágio single-client). Quando a coluna existir,
- * filtrar por `auth.empresaId` aqui e nas server actions.
+ * Multi-tenant: filtra as conversas por `empresa_id` (a agenda do SDR carimba a
+ * empresa via phone_number_id). Cada tenant vê só as conversas dele.
  */
 export default async function AtendimentoPage({
   searchParams,
 }: {
   searchParams: Promise<{ c?: string }>
 }) {
-  await getAuthUser() // redireciona para /login se não autenticado
+  const { empresaId } = await getAuthUser() // redireciona para /login se não autenticado
   const { c: selecionadaId } = await searchParams
 
   const admin = createAdminClient()
 
-  // Lista de conversas: mais recentes primeiro (last_inbound_at, com fallback em updated_at).
+  // Conversas DESTA empresa, mais recentes primeiro (last_inbound_at, fallback updated_at).
   const { data: conversas, error: convErr } = await admin
     .from('conversations')
     .select(
       'id, wa_number, etapa, ia_ativa, encaminhado, status, assignee_id, last_inbound_at, unread_count, snooze_until, labels, created_at, updated_at'
     )
+    .eq('empresa_id', empresaId)
     .order('last_inbound_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false })
     .limit(100)
