@@ -7,6 +7,38 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import { randomBytes, createHash } from 'crypto'
 import { createCustomer, createSubscription } from '@/lib/asaas'
+import { sendInviteEmail } from '@/lib/email'
+
+// ---------------------------------------------------------------------------
+// Convite de primeiro acesso por e-mail (best-effort — nunca bloqueia a criação)
+// Gera o link de recovery (mesmo do botão "Link de acesso") e envia via Resend.
+// ---------------------------------------------------------------------------
+async function enviarConvitePrimeiroAcesso(
+  db: ReturnType<typeof createAdminClient>,
+  email: string,
+  nome: string,
+  empresaNome: string,
+): Promise<void> {
+  try {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+    const { data, error } = await db.auth.admin.generateLink({
+      type:    'recovery',
+      email,
+      options: { redirectTo: `${siteUrl}/reset-password` },
+    })
+    const link = data?.properties?.action_link
+    if (error || !link) {
+      console.error('[admin] não foi possível gerar o link de convite:', error?.message)
+      return
+    }
+    const res = await sendInviteEmail({ to: email, nome, empresaNome, linkAcesso: link })
+    if (!res.sent) {
+      console.warn(`[admin] convite não enviado para ${email}: ${res.reason ?? 'desconhecido'}`)
+    }
+  } catch (err) {
+    console.error('[admin] erro ao enviar convite de primeiro acesso:', err)
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Validação
@@ -92,6 +124,7 @@ export async function criarEmpresa(
       .update({ plano: 'interno', status: 'ativo', trial_ends_at: null, ...(modulosExtras.length ? { modulos_ativos: modulosExtras } : {}) })
       .eq('id', empresaId)
 
+    await enviarConvitePrimeiroAcesso(db, email, nomeAdmin, nome)
     revalidatePath('/admin/empresas')
     redirect(`/admin/empresas/${empresaId}`)
   }
@@ -107,6 +140,7 @@ export async function criarEmpresa(
       .update({ plano: 'trial', status: 'trial', trial_ends_at: trialEndAt, ...(modulosExtras.length ? { modulos_ativos: modulosExtras } : {}) })
       .eq('id', empresaId)
 
+    await enviarConvitePrimeiroAcesso(db, email, nomeAdmin, nome)
     revalidatePath('/admin/empresas')
     redirect(`/admin/empresas/${empresaId}`)
   }
@@ -153,6 +187,8 @@ export async function criarEmpresa(
     return { error: `Erro ao criar cobrança no Asaas: ${msg}` }
   }
 
+  // Asaas OK → envia o convite de primeiro acesso (após o rollback ser descartado)
+  await enviarConvitePrimeiroAcesso(db, email, nomeAdmin, nome)
   revalidatePath('/admin/empresas')
   redirect(`/admin/empresas/${empresaId}`)
 }
