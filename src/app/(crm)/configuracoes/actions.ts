@@ -1,11 +1,197 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthAdmin } from '@/lib/auth'
+import type { StatusEmpresa } from '@/lib/auth'
+import { cancelSubscription } from '@/lib/asaas'
 import { encarregadoSchema } from '@/lib/schemas'
 import { z } from 'zod'
+
+// ---------------------------------------------------------------------------
+// Exclusão de conta (gated por pagamento)
+// ---------------------------------------------------------------------------
+
+/** Status de empresa que bloqueiam a exclusão (pendência de pagamento). */
+const STATUS_BLOQUEIA_EXCLUSAO: StatusEmpresa[] = ['pendente', 'atrasado', 'suspenso']
+
+/**
+ * Status de faturas em aberto. O CHECK do banco usa 'vencida' (não 'atrasada'),
+ * mas mantemos 'atrasada' por robustez (não casa nenhuma linha → inócuo).
+ */
+const FATURA_EM_ABERTO = ['pendente', 'vencida', 'atrasada']
+
+export interface StatusPagamento {
+  /** true se a conta está EM DIA e pode ser excluída. */
+  podeExcluir: boolean
+  /** Motivo do bloqueio (null quando podeExcluir === true). */
+  motivo: string | null
+  status: StatusEmpresa
+  plano: string
+  /** Qtde de faturas em aberto (pendente/vencida/atrasada). */
+  faturasEmAberto: number
+}
+
+/**
+ * Avalia se uma empresa pode ser excluída, com base no status e nas faturas
+ * em aberto. Usa o admin client (bypassa RLS) para garantir leitura completa.
+ *
+ * Regra:
+ *  - plano 'interno' (sem cobrança) → sempre pode.
+ *  - status ∈ (ativo, trial) E sem fatura em aberto → pode.
+ *  - status ∈ (pendente, atrasado, suspenso) OU fatura em aberto → bloqueia.
+ *  - status 'cancelado' → já cancelado, sem cobrança ativa → pode (idempotente).
+ */
+export async function avaliarPagamento(empresaId: string): Promise<StatusPagamento> {
+  const db = createAdminClient()
+
+  const { data: empresa, error: empresaError } = await db
+    .from('empresas')
+    .select('plano, status')
+    .eq('id', empresaId)
+    .single()
+
+  if (empresaError || !empresa) {
+    throw new Error(empresaError?.message ?? 'Empresa não encontrada.')
+  }
+
+  const status = empresa.status as StatusEmpresa
+  const plano = empresa.plano as string
+
+  // Plano interno não tem cobrança — sempre liberado.
+  if (plano === 'interno') {
+    return { podeExcluir: true, motivo: null, status, plano, faturasEmAberto: 0 }
+  }
+
+  const { count, error: faturasError } = await db
+    .from('faturas')
+    .select('id', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId)
+    .in('status', FATURA_EM_ABERTO)
+
+  if (faturasError) {
+    throw new Error(faturasError.message)
+  }
+
+  const faturasEmAberto = count ?? 0
+
+  if (STATUS_BLOQUEIA_EXCLUSAO.includes(status)) {
+    return {
+      podeExcluir: false,
+      motivo: 'Sua conta possui uma pendência de pagamento. Regularize o pagamento pendente antes de excluir a conta.',
+      status,
+      plano,
+      faturasEmAberto,
+    }
+  }
+
+  if (faturasEmAberto > 0) {
+    return {
+      podeExcluir: false,
+      motivo: `Há ${faturasEmAberto} ${faturasEmAberto === 1 ? 'fatura em aberto' : 'faturas em aberto'}. Regularize o pagamento pendente antes de excluir a conta.`,
+      status,
+      plano,
+      faturasEmAberto,
+    }
+  }
+
+  return { podeExcluir: true, motivo: null, status, plano, faturasEmAberto: 0 }
+}
+
+/**
+ * Exclui (cancela) a conta da empresa do admin autenticado.
+ *
+ * Segurança: a regra de pagamento é RE-VALIDADA aqui no servidor — o client
+ * só faz UX. Confirmação forte (nome da empresa) também é re-checada.
+ *
+ * Estratégia: soft-cancel (status='cancelado'), NÃO hard-delete. As FKs das
+ * tabelas de domínio (clientes, negocios, profiles, rh…) referenciam
+ * empresas(id) com NO ACTION (sem ON DELETE CASCADE), então um DELETE direto
+ * falharia com violação de chave estrangeira. Cancelar a assinatura no Asaas
+ * (best-effort) interrompe cobranças; o status 'cancelado' derruba o acesso
+ * (acessoLiberado → false → paywall).
+ */
+export async function excluirConta(
+  confirmacaoNome: string,
+): Promise<{ error?: string }> {
+  const { empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const db = createAdminClient()
+
+  const { data: empresa, error: empresaError } = await db
+    .from('empresas')
+    .select('nome, asaas_customer_id')
+    .eq('id', empresaId)
+    .single()
+
+  if (empresaError) return { error: empresaError.message }
+  if (!empresa) return { error: 'Empresa não encontrada.' }
+
+  // Confirmação forte: o nome digitado deve bater com o da empresa.
+  if (confirmacaoNome.trim() !== (empresa.nome as string).trim()) {
+    return { error: 'O nome digitado não confere com o nome da empresa.' }
+  }
+
+  // Re-valida a regra de pagamento NO SERVIDOR (nunca confiar só no client).
+  let avaliacao: StatusPagamento
+  try {
+    avaliacao = await avaliarPagamento(empresaId)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { error: `Erro ao verificar pagamento: ${msg}` }
+  }
+
+  if (!avaliacao.podeExcluir) {
+    return { error: avaliacao.motivo ?? 'Regularize o pagamento pendente antes de excluir a conta.' }
+  }
+
+  // Cancela a assinatura no Asaas (best-effort — não bloqueia a exclusão se falhar).
+  const { data: assinaturas, error: assinaturasError } = await db
+    .from('assinaturas')
+    .select('id, asaas_subscription_id')
+    .eq('empresa_id', empresaId)
+    .not('asaas_subscription_id', 'is', null)
+    .neq('status', 'cancelado')
+
+  if (assinaturasError) return { error: assinaturasError.message }
+
+  for (const a of assinaturas ?? []) {
+    if (!a.asaas_subscription_id) continue
+    try {
+      await cancelSubscription(a.asaas_subscription_id as string)
+    } catch (err) {
+      // Best-effort: registra mas segue (a assinatura pode já estar removida no Asaas).
+      console.error(`Falha ao cancelar assinatura Asaas ${a.asaas_subscription_id}:`, err)
+    }
+  }
+
+  // Marca assinaturas como canceladas (espelho local).
+  if ((assinaturas ?? []).length > 0) {
+    const { error: updAssinaturasError } = await db
+      .from('assinaturas')
+      .update({ status: 'cancelado', canceled_at: new Date().toISOString() })
+      .eq('empresa_id', empresaId)
+      .neq('status', 'cancelado')
+
+    if (updAssinaturasError) return { error: updAssinaturasError.message }
+  }
+
+  // Soft-cancel da empresa: status='cancelado' + ativo=false.
+  const { error: updEmpresaError } = await db
+    .from('empresas')
+    .update({ status: 'cancelado', ativo: false })
+    .eq('id', empresaId)
+
+  if (updEmpresaError) return { error: updEmpresaError.message }
+
+  // Desloga o usuário e redireciona para página pública.
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  redirect('/login?conta=excluida')
+}
 
 const roleSchema = z.enum(['admin', 'socio', 'comercial'])
 

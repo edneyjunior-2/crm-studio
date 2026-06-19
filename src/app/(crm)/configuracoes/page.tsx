@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { Settings, LayoutDashboard, KeyRound } from 'lucide-react'
+import { Settings, LayoutDashboard } from 'lucide-react'
 import { CodigoAcesso } from '@/components/crm/configuracoes/codigo-acesso'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -7,6 +7,8 @@ import { UsuariosTable } from '@/components/crm/configuracoes/usuarios-table'
 import { InviteUserForm } from '@/components/crm/configuracoes/invite-user-form'
 import { MenuToggles } from '@/components/crm/configuracoes/menu-toggles'
 import { PrivacidadeDados } from '@/components/crm/privacidade-dados'
+import { ExcluirConta } from '@/components/crm/configuracoes/excluir-conta'
+import { avaliarPagamento } from './actions'
 import { modulosEfetivos } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
 import type { PlanoEmpresa } from '@/lib/auth'
@@ -35,11 +37,17 @@ export default async function ConfiguracoesPage() {
     empresaId
       ? supabase
           .from('empresas')
-          .select('encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso')
+          .select('nome, status, encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso')
           .eq('id', empresaId)
           .single()
       : Promise.resolve({ data: null, error: null }),
   ])
+
+  // Status de pagamento (faturas em aberto + status da empresa) — calculado no
+  // server; o componente usa só para UX. A regra é re-validada no server action.
+  const pagamento = empresaId
+    ? await avaliarPagamento(empresaId).catch(() => null)
+    : null
 
   const profiles: Profile[] = (profilesResult.data ?? []) as Profile[]
   const authUsers = authUsersResult.data?.users ?? []
@@ -55,6 +63,8 @@ export default async function ConfiguracoesPage() {
   }))
 
   const empresa = empresaResult.data as {
+    nome: string
+    status: string
     encarregado_nome: string | null
     encarregado_email: string | null
     encarregado_telefone: string | null
@@ -146,6 +156,14 @@ export default async function ConfiguracoesPage() {
           role={profile?.role ?? 'admin'}
         />
       </section>
+
+      {empresa?.nome && (
+        <ExcluirConta
+          empresaNome={empresa.nome}
+          podeExcluir={pagamento?.podeExcluir ?? false}
+          motivo={pagamento?.motivo ?? 'Não foi possível verificar o status de pagamento. Tente novamente mais tarde.'}
+        />
+      )}
     </div>
   )
 }

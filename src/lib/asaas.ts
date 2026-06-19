@@ -137,3 +137,21 @@ export async function createSubscription(
 export async function getPayment(paymentId: string): Promise<AsaasPayment> {
   return asaasRequest<AsaasPayment>('GET', `/payments/${paymentId}`)
 }
+
+export interface AsaasDeletedSubscription {
+  id: string
+  deleted: boolean
+}
+
+/**
+ * Cancela (remove) uma assinatura recorrente no Asaas.
+ * Asaas: DELETE /v3/subscriptions/{id}. Interrompe cobranças futuras.
+ */
+export async function cancelSubscription(
+  asaasSubscriptionId: string,
+): Promise<AsaasDeletedSubscription> {
+  return asaasRequest<AsaasDeletedSubscription>(
+    'DELETE',
+    `/subscriptions/${asaasSubscriptionId}`,
+  )
+}
