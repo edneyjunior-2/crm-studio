@@ -116,7 +116,11 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
               </Label>
               <Select value={clienteId} onValueChange={setClienteId}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione um cliente..." />
+                  {clienteId ? (
+                    <span>{clientes.find((c) => c.id === clienteId)?.razao_social ?? '—'}</span>
+                  ) : (
+                    <span className="text-muted-foreground">Selecione um cliente...</span>
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   {clientes.map((c) => (
@@ -132,7 +136,11 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
               <Label>Negócio (Opcional)</Label>
               <Select value={negocioId ?? ''} onValueChange={(v) => setNegocioId(v || null)}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Vincular a um negócio..." />
+                  {negocioId ? (
+                    <span>{negocios.find((n) => n.id === negocioId)?.titulo ?? '—'}</span>
+                  ) : (
+                    <span className="text-muted-foreground">Vincular a um negócio...</span>
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   {negocios.map((n) => (

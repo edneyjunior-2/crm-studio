@@ -512,7 +512,13 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
                 </Label>
                 <Select value={clienteId} onValueChange={setClienteId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione..." />
+                    {clienteId ? (
+                      <span className="flex flex-1 truncate text-left">
+                        {clientes.find((c) => c.id === clienteId)?.razao_social ?? '—'}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Selecione...</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {clientes.map((c) => (
@@ -530,7 +536,13 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
                 </Label>
                 <Select value={solucaoId} onValueChange={setSolucaoId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione..." />
+                    {solucaoId ? (
+                      <span className="flex flex-1 truncate text-left">
+                        {solucoes.find((s) => s.id === solucaoId)?.nome ?? '—'}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Selecione...</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {solucoes.map((s) => (

@@ -146,7 +146,14 @@ function MarcarRecebidoDialog({ conta, bancos }: { conta: ContaReceberComRelacoe
               <Label>Conta bancária de crédito</Label>
               <Select value={bancoId ?? ''} onValueChange={(v) => setBancoId(v || null)}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione a conta..." />
+                  {bancoCurrent ? (
+                    <span className="flex flex-1 text-left line-clamp-1">
+                      {bancoCurrent.nome}
+                      {bancoCurrent.instituicao ? ` — ${bancoCurrent.instituicao}` : ''}
+                    </span>
+                  ) : (
+                    <SelectValue placeholder="Selecione a conta..." />
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   {bancos.map((b) => (

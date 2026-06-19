@@ -20,7 +20,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { createComissao } from '@/app/(crm)/financeiro/comissoes/actions'
 import type { ParceiroComissao } from '@/types'
@@ -158,7 +157,13 @@ export function ComissaoForm({ comerciais, negocios, parceiros = [], trigger }: 
                 </Label>
                 <Select value={comercialId} onValueChange={(v) => { if (v) setComercialId(v) }} required>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o colaborador..." />
+                    {comercialId ? (
+                      <span className="flex flex-1 truncate text-left">
+                        {comerciais.find((c) => c.id === comercialId)?.full_name ?? '—'}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Selecione o colaborador...</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {comerciais.map((c) => (
@@ -185,7 +190,11 @@ export function ComissaoForm({ comerciais, negocios, parceiros = [], trigger }: 
                   <>
                     <Select value={parceiroId} onValueChange={(v) => { if (v) setParceiroId(v) }}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Selecione o parceiro..." />
+                        {parceiroId ? (
+                          <span>{parceiroSelecionado?.nome ?? '—'}</span>
+                        ) : (
+                          <span className="text-muted-foreground">Selecione o parceiro...</span>
+                        )}
                       </SelectTrigger>
                       <SelectContent>
                         {parceiros.map((p) => (
@@ -267,7 +276,13 @@ export function ComissaoForm({ comerciais, negocios, parceiros = [], trigger }: 
               <Label>Negócio Relacionado</Label>
               <Select value={negocioId} onValueChange={(v) => { if (v) setNegocioId(v) }}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Opcional..." />
+                  {negocioId !== 'none' ? (
+                    <span className="flex flex-1 truncate text-left">
+                      {negocios.find((n) => n.id === negocioId)?.titulo ?? '—'}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Opcional...</span>
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhum</SelectItem>

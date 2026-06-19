@@ -19,7 +19,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { marcarPago } from '@/app/(crm)/financeiro/actions'
 import type { ContaPagar, Banco } from '@/types'
@@ -137,7 +136,14 @@ export function MarcarPagoDialog({ conta, bancos, trigger }: MarcarPagoDialogPro
               <Label>Conta bancária de débito</Label>
               <Select value={bancoId ?? ''} onValueChange={(v) => setBancoId(v || null)}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione a conta..." />
+                  {bancoCurrent ? (
+                    <span className="flex flex-1 truncate text-left">
+                      {bancoCurrent.nome}
+                      {bancoCurrent.instituicao ? ` — ${bancoCurrent.instituicao}` : ''}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Selecione a conta...</span>
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   {bancos.map((b) => (
