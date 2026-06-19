@@ -15,7 +15,7 @@ test.describe('Cadastro', () => {
 
     await page.locator('#razao_social').fill(`Empresa E2E Teste ${ts}`)
     await page.locator('#nome_responsavel').fill('Responsável Teste')
-    await page.locator('#email').fill(`e2e+${ts}@teste.crm`)
+    await page.locator('#email').fill(`playwright+${ts}@example.com`)
     await page.locator('#senha').fill('senhaSegura123!')
     await page.locator('#aceite_termo').check()
 

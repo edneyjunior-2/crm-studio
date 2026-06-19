@@ -22,9 +22,13 @@ test.describe('Autenticação', () => {
     await loginAs(page)
     await expect(page).toHaveURL(/\/dashboard/)
 
-    // O botão "Sair" fica na sidebar (form action={logout})
-    // force: true — o driver.js (tour de onboarding) pode sobrepor um overlay que intercepta o click
-    await page.getByRole('button', { name: 'Sair' }).click({ force: true })
+    // Submeter o form de logout via JS — bypassa qualquer overlay (driver.js, nextjs-portal)
+    // que interceptaria um click normal no botão "Sair"
+    await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button[type="submit"]'))
+      const sair = buttons.find(b => b.textContent?.includes('Sair'))
+      ;(sair?.closest('form') as HTMLFormElement | null)?.requestSubmit()
+    })
     await page.waitForURL(/\/login/, { timeout: 10_000 })
     await expect(page).toHaveURL(/\/login/)
   })
