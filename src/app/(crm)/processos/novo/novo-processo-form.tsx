@@ -3,11 +3,13 @@
 import { useState, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { criarProcesso, buscarProcesso } from './actions'
+import { criarProcesso, buscarProcesso, criarClienteInline } from './actions'
 import type { BuscarProcessoResult } from './actions'
 
+interface Cliente { id: string; razao_social: string }
+
 interface Props {
-  clientes:  { id: string; razao_social: string }[]
+  clientes:  Cliente[]
   advogados: { id: string; full_name: string }[]
 }
 
@@ -33,6 +35,40 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
   const [buscando, setBuscando]       = useState(false)
   const [dadosDJ, setDadosDJ]         = useState<BuscarProcessoResult | null>(null)
   const [erroDJ, setErroDJ]           = useState<string | null>(null)
+
+  // Cliente: lista mutável (p/ cadastro inline) + seleção controlada
+  const [clientesList, setClientesList] = useState<Cliente[]>(clientes)
+  const [clienteId, setClienteId]       = useState('')
+  const [novoClienteAberto, setNovoClienteAberto] = useState(false)
+  const [ncRazao, setNcRazao]     = useState('')
+  const [ncCnpj, setNcCnpj]       = useState('')
+  const [ncContato, setNcContato] = useState('')
+  const [ncLoading, setNcLoading] = useState(false)
+  const [ncErro, setNcErro]       = useState<string | null>(null)
+
+  async function handleCriarCliente() {
+    if (!ncRazao.trim()) { setNcErro('Informe a razão social.'); return }
+    setNcLoading(true)
+    setNcErro(null)
+    try {
+      const res = await criarClienteInline(ncRazao, ncCnpj, ncContato)
+      if (res.error || !res.cliente) {
+        setNcErro(res.error ?? 'Não foi possível criar o cliente.')
+        return
+      }
+      const novo = res.cliente
+      setClientesList((prev) =>
+        [...prev, novo].sort((a, b) => a.razao_social.localeCompare(b.razao_social, 'pt-BR')),
+      )
+      setClienteId(novo.id)
+      setNovoClienteAberto(false)
+      setNcRazao(''); setNcCnpj(''); setNcContato('')
+    } catch {
+      setNcErro('Erro inesperado ao criar o cliente.')
+    } finally {
+      setNcLoading(false)
+    }
+  }
 
   async function handleBuscar() {
     if (!numeroInput.trim()) return
@@ -197,15 +233,66 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
           />
         </div>
 
-        {/* Cliente */}
+        {/* Cliente (com cadastro inline) */}
         <div className="flex flex-col gap-1.5">
-          <label className={labelClass} htmlFor="cliente_id">Cliente</label>
-          <select id="cliente_id" name="cliente_id" className={inputClass}>
+          <div className="flex items-center justify-between">
+            <label className={labelClass} htmlFor="cliente_id">Cliente</label>
+            <button
+              type="button"
+              onClick={() => { setNovoClienteAberto((v) => !v); setNcErro(null) }}
+              className="text-xs font-medium text-primary transition-colors hover:underline"
+            >
+              {novoClienteAberto ? 'Cancelar' : '+ Novo cliente'}
+            </button>
+          </div>
+          <select
+            id="cliente_id"
+            name="cliente_id"
+            value={clienteId}
+            onChange={(e) => setClienteId(e.target.value)}
+            className={inputClass}
+          >
             <option value="">Nenhum</option>
-            {clientes.map((c) => (
+            {clientesList.map((c) => (
               <option key={c.id} value={c.id}>{c.razao_social}</option>
             ))}
           </select>
+
+          {novoClienteAberto && (
+            <div className="mt-1 flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+              <input
+                value={ncRazao}
+                onChange={(e) => setNcRazao(e.target.value)}
+                placeholder="Razão social *"
+                className={inputClass}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCriarCliente() } }}
+              />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={ncCnpj}
+                  onChange={(e) => setNcCnpj(e.target.value)}
+                  placeholder="CNPJ (opcional)"
+                  className={inputClass}
+                />
+                <input
+                  value={ncContato}
+                  onChange={(e) => setNcContato(e.target.value)}
+                  placeholder="Contato (opcional)"
+                  className={inputClass}
+                />
+              </div>
+              {ncErro && <p className="text-xs text-destructive">{ncErro}</p>}
+              <button
+                type="button"
+                onClick={handleCriarCliente}
+                disabled={ncLoading}
+                className="inline-flex items-center gap-1.5 self-start rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition-colors hover:bg-foreground/90 disabled:opacity-60"
+              >
+                {ncLoading && <Loader2 className="size-3.5 animate-spin" />}
+                {ncLoading ? 'Criando...' : 'Criar e selecionar'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Advogado responsável */}
