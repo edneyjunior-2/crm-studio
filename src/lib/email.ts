@@ -1,9 +1,8 @@
 import { Resend } from 'resend'
 
-// Remetente configurável: em produção use um domínio verificado no Resend
-// (ex.: noreply@crmstudio.com.br). Para testar sem verificar domínio, defina
-// EMAIL_FROM='CRM Studio <onboarding@resend.dev>'.
-const FROM = process.env.EMAIL_FROM ?? 'CRM Studio <noreply@crmstudio.com.br>'
+// Remetente configurável: em produção use um domínio verificado no Resend.
+// Para testar sem verificar domínio, defina EMAIL_FROM='CRM Studio <onboarding@resend.dev>'.
+const FROM = process.env.EMAIL_FROM ?? 'CRM Studio <nao-responda@crmstudio.com.br>'
 
 function getAppUrl(): string {
   const url = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.crmstudio.com.br'
@@ -201,7 +200,7 @@ function buildWelcomeHtml({
     <div style="background:#f9fafb;padding:20px 32px;text-align:center;border-top:1px solid #f3f4f6;">
       <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.6;">
         CRM Studio · Gerencie suas vendas com inteligência<br/>
-        Alguma dúvida? Responda este e-mail que chegará à nossa equipe.
+        Este é um e-mail automático — não é necessário responder.
       </p>
     </div>
 
