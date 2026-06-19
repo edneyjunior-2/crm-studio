@@ -122,6 +122,12 @@ export async function criarProcesso(
   const valorRaw   = (formData.get('valor_causa') as string)?.trim()
   const valor      = valorRaw ? parseFloat(valorRaw.replace(',', '.')) : null
 
+  const honTipoRaw   = (formData.get('honorarios_tipo') as string)?.trim()
+  const honTipo      = honTipoRaw === 'fixo' || honTipoRaw === 'percentual' ? honTipoRaw : null
+  const honValorRaw  = (formData.get('honorarios_valor') as string)?.trim()
+  const honValorNum  = honValorRaw ? parseFloat(honValorRaw.replace(',', '.')) : null
+  const honValor     = honTipo && honValorNum != null && !Number.isNaN(honValorNum) ? honValorNum : null
+
   if (!numero) return { error: 'Número do processo é obrigatório.' }
 
   const normalizado  = normalizarNumeroCNJ(numero)
@@ -139,7 +145,9 @@ export async function criarProcesso(
       assunto,
       vara,
       comarca,
-      valor_causa:     valor && !Number.isNaN(valor) ? valor : null,
+      valor_causa:      valor && !Number.isNaN(valor) ? valor : null,
+      honorarios_tipo:  honTipo,
+      honorarios_valor: honValor,
     })
     .select('id')
     .single()

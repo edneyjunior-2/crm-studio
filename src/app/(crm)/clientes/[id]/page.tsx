@@ -13,6 +13,7 @@ import {
   Scale,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { calcularHonorarios, formatarBRL } from '@/lib/honorarios'
 import { Button } from '@/components/ui/button'
 import { ClienteForm } from '@/components/crm/clientes/cliente-form'
 import { ClienteDeleteButton } from '@/components/crm/clientes/cliente-delete-button'
@@ -57,7 +58,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     // Processos jurídicos do cliente (módulo advocacia). Vazio p/ clientes sem processos.
     supabase
       .from('processos_juridicos')
-      .select('id, numero_processo, status, valor_causa')
+      .select('id, numero_processo, status, valor_causa, honorarios_tipo, honorarios_valor')
       .eq('cliente_id', id)
       .order('created_at', { ascending: false }),
   ])
@@ -69,15 +70,25 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   const cliente = clienteResult.data as Cliente
   const negocios = (negociosResult.data ?? []) as Negocio[]
 
-  // Previsão de ganho: soma do valor da causa dos processos EM ANDAMENTO (ativos).
-  // É um potencial — só se realiza quando o processo encerra. Nunca entra no caixa.
-  type ProcessoLite = { id: string; numero_processo: string; status: string; valor_causa: number | null }
+  // Previsão de ganho dos processos EM ANDAMENTO (ativos):
+  //  - "ganho" do escritório = HONORÁRIO (o que de fato é do advogado), potencial
+  //    que só se realiza no encerramento — nunca entra no caixa.
+  //  - "valor em causas" = soma dos valores das causas, mantido para RELATÓRIO
+  //    (é o total em disputa, não o ganho).
+  type ProcessoLite = {
+    id: string; numero_processo: string; status: string; valor_causa: number | null
+    honorarios_tipo: string | null; honorarios_valor: number | null
+  }
   const processos = (processosResult.data ?? []) as ProcessoLite[]
-  const previsaoAtivos = processos
-    .filter((p) => p.status === 'ativo' && p.valor_causa != null)
+  const ativos = processos.filter((p) => p.status === 'ativo')
+  const previsaoHonorarios = ativos.reduce(
+    (soma, p) => soma + (calcularHonorarios(p.honorarios_tipo, p.honorarios_valor, p.valor_causa) ?? 0),
+    0,
+  )
+  const valorEmCausas = ativos
+    .filter((p) => p.valor_causa != null)
     .reduce((soma, p) => soma + Number(p.valor_causa), 0)
-  const brl = (v: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+  const brl = formatarBRL
   const statusLabel: Record<string, string> = {
     ativo: 'Ativo', encerrado: 'Encerrado', suspenso: 'Suspenso', arquivado: 'Arquivado',
   }
@@ -194,18 +205,22 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                 </span>
               </div>
 
-              {/* Previsão de ganho — potencial, NÃO é caixa realizado */}
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                  Previsão de ganho (processos em andamento)
+              {/* Previsão de ganho (HONORÁRIOS) — potencial, NÃO é caixa realizado */}
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                  Previsão de ganho — honorários (processos ativos)
                 </p>
-                <p className="mt-0.5 text-lg font-bold text-amber-800 dark:text-amber-300">
-                  {brl(previsaoAtivos)}
+                <p className="mt-0.5 text-lg font-bold text-emerald-800 dark:text-emerald-300">
+                  {brl(previsaoHonorarios)}
                 </p>
-                <p className="mt-1 text-[11px] leading-snug text-amber-700/80 dark:text-amber-400/70">
-                  Valor potencial somado das causas ativas. Só se realiza quando o
-                  processo é encerrado — não entra no fluxo de caixa.
+                <p className="mt-1 text-[11px] leading-snug text-emerald-700/80 dark:text-emerald-400/70">
+                  Soma dos honorários do advogado nas causas ativas. Potencial — só
+                  se realiza no encerramento; não entra no fluxo de caixa.
                 </p>
+                <div className="mt-2 flex items-center justify-between border-t border-emerald-200/60 pt-2 dark:border-emerald-900/40">
+                  <span className="text-[11px] text-muted-foreground">Valor em causas (ativas)</span>
+                  <span className="text-xs font-semibold text-foreground">{brl(valorEmCausas)}</span>
+                </div>
               </div>
 
               <ul className="mt-3 flex flex-col gap-2">

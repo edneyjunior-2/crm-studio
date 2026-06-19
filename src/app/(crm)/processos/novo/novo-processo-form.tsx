@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useActionState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { criarProcesso, buscarProcesso, criarClienteInline } from './actions'
 import type { BuscarProcessoResult } from './actions'
@@ -45,6 +45,18 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
   const [ncContato, setNcContato] = useState('')
   const [ncLoading, setNcLoading] = useState(false)
   const [ncErro, setNcErro]       = useState<string | null>(null)
+
+  // Valor da causa (controlado p/ calcular o honorário em %) + honorários
+  const [valorCausa, setValorCausa] = useState('')
+  const [honTipo, setHonTipo]       = useState<'percentual' | 'fixo'>('percentual')
+  const [honValor, setHonValor]     = useState('')
+
+  const valorCausaNum = parseFloat((valorCausa || '').replace(',', '.'))
+  const honValorNum   = parseFloat((honValor || '').replace(',', '.'))
+  const honorarioCalc =
+    honTipo === 'percentual' && !Number.isNaN(valorCausaNum) && !Number.isNaN(honValorNum)
+      ? (valorCausaNum * honValorNum) / 100
+      : null
 
   async function handleCriarCliente() {
     if (!ncRazao.trim()) { setNcErro('Informe a razão social.'); return }
@@ -131,7 +143,7 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
           </button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Clique em "Buscar DataJud" para preencher automaticamente os dados do processo.
+          Clique em &quot;Buscar DataJud&quot; para preencher automaticamente os dados do processo.
         </p>
       </div>
 
@@ -228,9 +240,50 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
             type="number"
             step="0.01"
             min="0"
+            value={valorCausa}
+            onChange={(e) => setValorCausa(e.target.value)}
             placeholder="0,00"
             className={inputClass}
           />
+          <p className="text-xs text-muted-foreground">Valor total da causa (mantido p/ relatórios).</p>
+        </div>
+
+        {/* Honorários do advogado */}
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <label className={labelClass}>Honorários do advogado</label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <select
+              name="honorarios_tipo"
+              value={honTipo}
+              onChange={(e) => setHonTipo(e.target.value as 'percentual' | 'fixo')}
+              className={`${inputClass} sm:max-w-[220px]`}
+            >
+              <option value="percentual">Percentual da causa (%)</option>
+              <option value="fixo">Valor fixo (R$)</option>
+            </select>
+            <input
+              name="honorarios_valor"
+              type="number"
+              step="0.01"
+              min="0"
+              value={honValor}
+              onChange={(e) => setHonValor(e.target.value)}
+              placeholder={honTipo === 'percentual' ? 'Ex.: 20 (= 20%)' : 'Ex.: 5000,00'}
+              className={inputClass}
+            />
+          </div>
+          {honTipo === 'percentual' && (
+            honorarioCalc != null ? (
+              <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                Honorário previsto: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(honorarioCalc)}
+                {' '}({honValor}% de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorCausaNum)})
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Informe o valor da causa e a porcentagem para calcular o honorário.
+              </p>
+            )
+          )}
         </div>
 
         {/* Cliente (com cadastro inline) */}
@@ -315,12 +368,12 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
         >
           {isPending ? 'Salvando...' : 'Salvar processo'}
         </button>
-        <a
+        <Link
           href="/processos"
           className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           Cancelar
-        </a>
+        </Link>
       </div>
     </form>
   )

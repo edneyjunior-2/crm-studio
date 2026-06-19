@@ -30,6 +30,58 @@ export async function atualizarStatusProcesso(
   return {}
 }
 
+export interface EditarProcessoState { error?: string }
+
+export async function atualizarProcesso(
+  _prev: EditarProcessoState | null,
+  formData: FormData,
+): Promise<EditarProcessoState | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado.' }
+
+  const processoId = (formData.get('processo_id') as string)?.trim()
+  if (!processoId) return { error: 'Processo inválido.' }
+
+  const clienteId  = (formData.get('cliente_id') as string)?.trim() || null
+  const advogadoId = (formData.get('advogado_id') as string)?.trim() || null
+  const area       = (formData.get('area') as string)?.trim() || null
+  const assunto    = (formData.get('assunto') as string)?.trim() || null
+  const vara       = (formData.get('vara') as string)?.trim() || null
+  const comarca    = (formData.get('comarca') as string)?.trim() || null
+  const valorRaw   = (formData.get('valor_causa') as string)?.trim()
+  const valorNum   = valorRaw ? parseFloat(valorRaw.replace(',', '.')) : null
+  const valor      = valorNum != null && !Number.isNaN(valorNum) ? valorNum : null
+
+  const honTipoRaw  = (formData.get('honorarios_tipo') as string)?.trim()
+  const honTipo     = honTipoRaw === 'fixo' || honTipoRaw === 'percentual' ? honTipoRaw : null
+  const honValorRaw = (formData.get('honorarios_valor') as string)?.trim()
+  const honValorNum = honValorRaw ? parseFloat(honValorRaw.replace(',', '.')) : null
+  const honValor    = honTipo && honValorNum != null && !Number.isNaN(honValorNum) ? honValorNum : null
+
+  const { data, error } = await supabase
+    .from('processos_juridicos')
+    .update({
+      cliente_id:       clienteId,
+      advogado_id:      advogadoId,
+      area,
+      assunto,
+      vara,
+      comarca,
+      valor_causa:      valor,
+      honorarios_tipo:  honTipo,
+      honorarios_valor: honValor,
+    })
+    .eq('id', processoId)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data?.length) return { error: 'Você não tem permissão para editar este processo.' }
+
+  revalidatePath(`/processos/${processoId}`)
+  redirect(`/processos/${processoId}`)
+}
+
 export async function deletarProcesso(processoId: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

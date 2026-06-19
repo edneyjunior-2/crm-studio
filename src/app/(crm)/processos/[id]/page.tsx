@@ -1,9 +1,10 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Scale, Building2, User, MapPin, BookOpen, AlertCircle,
+  ArrowLeft, Scale, Building2, User, MapPin, BookOpen, AlertCircle, Pencil,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { calcularHonorarios, formatarBRL } from '@/lib/honorarios'
 import { AudienciaButton } from './audiencia-button'
 import { MarcarLidoOnMount } from './marcar-lido-on-mount'
 import { ProcessoAcoes } from './processo-acoes'
@@ -101,6 +102,16 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   const valorCausaFmt = processo.valor_causa
     ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(processo.valor_causa)
     : '—'
+
+  // Honorário do advogado (o que de fato é dele; baseia a previsão de ganho)
+  const honorario = calcularHonorarios(processo.honorarios_tipo, processo.honorarios_valor, processo.valor_causa)
+  const honorarioFmt = honorario != null ? formatarBRL(honorario) : '—'
+  const honorarioSub =
+    processo.honorarios_tipo === 'percentual' && processo.honorarios_valor != null
+      ? `${processo.honorarios_valor}% da causa`
+      : processo.honorarios_tipo === 'fixo'
+        ? 'valor fixo'
+        : ''
   const ultimaAtt = processo.ultimo_datajud_update
     ? formatarDataHora(processo.ultimo_datajud_update)
     : '—'
@@ -135,14 +146,21 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
       {/* Marca as movimentações como lidas no client, após o render */}
       <MarcarLidoOnMount processoId={id} />
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2">
+      {/* Breadcrumb + editar */}
+      <div className="flex items-center justify-between gap-2">
         <Link
           href="/processos"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
           Processos
+        </Link>
+        <Link
+          href={`/processos/${id}/editar`}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+        >
+          <Pencil className="size-3.5" />
+          Editar
         </Link>
       </div>
 
@@ -170,9 +188,10 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
         </div>
 
         {/* Faixa de resumo (KPIs) */}
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi label="Área" value={areaLabel} />
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <Kpi label="Honorário" value={honorarioFmt} sub={honorarioSub} accent />
           <Kpi label="Valor da causa" value={valorCausaFmt} />
+          <Kpi label="Área" value={areaLabel} />
           <Kpi label="Movimentações" value={String(movCount)} />
           <Kpi label="Atualizado (DataJud)" value={ultimaAtt} />
         </div>
@@ -268,15 +287,35 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   )
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function Kpi({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string
+  value: string
+  sub?: string
+  accent?: boolean
+}) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+    <div
+      className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2.5 ${
+        accent
+          ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/20'
+          : 'border-border bg-muted/30'
+      }`}
+    >
       <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <span className="truncate text-sm font-semibold text-foreground" title={value}>
+      <span
+        className={`truncate text-sm font-semibold ${accent ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground'}`}
+        title={value}
+      >
         {value}
       </span>
+      {sub && <span className="truncate text-[10px] text-muted-foreground">{sub}</span>}
     </div>
   )
 }
