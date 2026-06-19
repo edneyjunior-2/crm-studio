@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { AudienciaButton } from './audiencia-button'
 import { MarcarLidoOnMount } from './marcar-lido-on-mount'
 import { ProcessoAcoes } from './processo-acoes'
+import { MovimentacoesTimeline } from './movimentacoes-timeline'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -115,6 +116,19 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     if (ultimo && ultimo.mes === rotulo) ultimo.itens.push(m)
     else gruposMov.push({ mes: rotulo, itens: [m] })
   }
+
+  // Dados prontos para o acordeão (formata data + flag de audiência aqui no server)
+  const recenteId = gruposMov[0]?.itens[0]?.id ?? null
+  const gruposTimeline = gruposMov.map((g) => ({
+    mes: g.mes,
+    itens: g.itens.map((m) => ({
+      id: m.id,
+      descricao: m.descricao,
+      complemento: m.complemento,
+      data: formatarData(m.data_movimentacao),
+      audiencia: isAudiencia(m.descricao),
+    })),
+  }))
 
   return (
     <div className="flex flex-col gap-6">
@@ -247,61 +261,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
             Nenhuma movimentação registrada. O cron das 8h buscará as atualizações do DataJud.
           </div>
         ) : (
-          <div className="flex flex-col gap-5">
-            {gruposMov.map((grupo, gi) => (
-              <div key={grupo.mes} className="flex flex-col gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {grupo.mes}
-                </p>
-                <div className="relative flex flex-col">
-                  <div className="absolute left-[17px] top-0 bottom-0 w-px bg-border" aria-hidden />
-                  {grupo.itens.map((m, mi) => {
-                    const audiencia = isAudiencia(m.descricao)
-                    const recente = gi === 0 && mi === 0
-                    return (
-                      <div key={m.id} className="relative flex gap-4 pb-5 last:pb-0">
-                        <div
-                          className={`relative z-10 mt-1 flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 ${
-                            recente
-                              ? 'border-primary bg-primary/15'
-                              : audiencia
-                                ? 'border-amber-400 bg-amber-50 dark:bg-amber-950'
-                                : 'border-border bg-card'
-                          }`}
-                          aria-hidden
-                        />
-                        <div className="flex flex-1 flex-col gap-0.5 pb-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className={`text-sm font-medium leading-snug ${
-                              audiencia ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'
-                            }`}>
-                              {m.descricao}
-                              {recente && (
-                                <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                                  Mais recente
-                                </span>
-                              )}
-                              {audiencia && (
-                                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                                  Audiência
-                                </span>
-                              )}
-                            </p>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {formatarData(m.data_movimentacao)}
-                            </span>
-                          </div>
-                          {m.complemento && (
-                            <p className="text-xs text-muted-foreground">{m.complemento}</p>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+          <MovimentacoesTimeline grupos={gruposTimeline} recenteId={recenteId} />
         )}
       </div>
     </div>
