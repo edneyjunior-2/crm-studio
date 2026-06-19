@@ -19,7 +19,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { createNegocio, updateNegocio } from '@/app/(crm)/pipeline/actions'
 import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao } from '@/types'
@@ -126,7 +125,13 @@ export function NegocioForm({
                 </Label>
                 <Select value={clienteId} onValueChange={setClienteId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione..." />
+                    {clienteId ? (
+                      <span className="flex flex-1 truncate text-left">
+                        {clientes.find((c) => c.id === clienteId)?.razao_social ?? '—'}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Selecione...</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {clientes.map((c) => (
@@ -144,7 +149,13 @@ export function NegocioForm({
                 </Label>
                 <Select value={solucaoId} onValueChange={setSolucaoId}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione..." />
+                    {solucaoId ? (
+                      <span className="flex flex-1 truncate text-left">
+                        {solucoes.find((s) => s.id === solucaoId)?.nome ?? '—'}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Selecione...</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {solucoes.map((s) => (
@@ -166,7 +177,9 @@ export function NegocioForm({
                 onValueChange={(v) => setEstagio(v as EstagioNegocio)}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  {ESTAGIOS.find((e) => e.value === estagio)?.label ?? (
+                    <span className="text-muted-foreground">Selecione...</span>
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   {ESTAGIOS.map((e) => (
