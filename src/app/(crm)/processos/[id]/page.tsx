@@ -5,8 +5,8 @@ import {
   Calendar, AlertCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { marcarComoLido } from './actions'
 import { AudienciaButton } from './audiencia-button'
+import { MarcarLidoOnMount } from './marcar-lido-on-mount'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -30,28 +30,28 @@ const AREA_LABEL: Record<string, string> = {
   outro:          'Outro',
 }
 
-function formatarData(iso: string | null): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  const dia = String(d.getDate()).padStart(2, '0')
-  const mes = String(d.getMonth() + 1).padStart(2, '0')
-  return `${dia}/${mes}/${d.getFullYear()}`
+// data_movimentacao é um `date` ('YYYY-MM-DD'): parse direto dos componentes,
+// sem `new Date()` (que interpretaria como UTC e poderia recuar um dia em BRT).
+function formatarData(data: string | null): string {
+  if (!data) return '—'
+  const [ano, mes, dia] = data.slice(0, 10).split('-')
+  if (!ano || !mes || !dia) return data
+  return `${dia}/${mes}/${ano}`
 }
 
+// timestamptz (ISO com fuso): formata no fuso de Brasília.
 function formatarDataHora(iso: string): string {
-  const d = new Date(iso)
-  const dia = String(d.getDate()).padStart(2, '0')
-  const mes = String(d.getMonth() + 1).padStart(2, '0')
-  const h   = String(d.getHours()).padStart(2, '0')
-  const m   = String(d.getMinutes()).padStart(2, '0')
-  return `${dia}/${mes}/${d.getFullYear()} às ${h}:${m}`
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(new Date(iso)).replace(',', ' às')
 }
 
 function isAudiencia(descricao: string): boolean {
   const lower = descricao.toLowerCase()
-  return ['audiência', 'audiencia', 'sessão', 'julgamento', 'instrução'].some(
-    (p) => lower.includes(p),
-  )
+  // Apenas "audiência" — evita falso-positivo com "julgamento"/"sessão"/"instrução".
+  return lower.includes('audiência') || lower.includes('audiencia')
 }
 
 export default async function ProcessoDetailPage({ params }: PageProps) {
@@ -73,14 +73,15 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
 
   if (error || !processo) notFound()
 
-  const { data: movimentacoes } = await supabase
+  const { data: movimentacoes, error: errMov } = await supabase
     .from('movimentacoes_processo')
     .select('*')
     .eq('processo_id', id)
     .order('data_movimentacao', { ascending: false })
 
-  // Marca como lido (server action inline)
-  await marcarComoLido(id)
+  if (errMov) {
+    console.error('[processos] erro ao carregar movimentações:', errMov.message)
+  }
 
   const clienteRaw = processo.clientes as unknown
   const advRaw     = (processo as Record<string, unknown>)['profiles!advogado_id'] as unknown
@@ -96,6 +97,9 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Marca as movimentações como lidas no client, após o render */}
+      <MarcarLidoOnMount processoId={id} />
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-2">
         <Link
@@ -119,7 +123,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
                 {processo.numero_processo}
               </p>
               <p className="text-sm text-muted-foreground">
-                Tribunal: {processo.tribunal_slug.toUpperCase()}
+                Tribunal: {(processo.tribunal_slug ?? '—').toUpperCase()}
               </p>
             </div>
           </div>
@@ -206,7 +210,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
                 </div>
                 <AudienciaButton
                   descricao={a.descricao}
-                  dataHora={`${a.data_movimentacao}T09:00:00.000Z`}
+                  dataSugerida={a.data_movimentacao}
                   processoNumero={processo.numero_processo}
                 />
               </div>

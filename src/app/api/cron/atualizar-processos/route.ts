@@ -4,6 +4,10 @@ import { buscarProcessoDataJud } from '@/lib/datajud'
 
 export const maxDuration = 300 // 5 min (Vercel Pro)
 
+// Throttle entre consultas ao DataJud (limite público ~120 req/min → ~1 req/600ms).
+const THROTTLE_MS = 600
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 // Vercel Cron invoca via GET; POST permite trigger manual autenticado
 export async function GET(req: NextRequest) {
   return handler(req)
@@ -40,18 +44,42 @@ async function handler(req: NextRequest) {
   let atualizados    = 0
   let novasTotais    = 0
   const erros: string[] = []
+  let i = 0
 
   for (const processo of processos) {
+    if (i > 0) await sleep(THROTTLE_MS)
+    i++
+
     try {
-      const dados = await buscarProcessoDataJud(
+      const res = await buscarProcessoDataJud(
         processo.numero_processo,
         processo.tribunal_slug,
       )
 
-      if (!dados || !dados.movimentos.length) continue
+      if (!res.ok) {
+        // auth = chave inválida/sem acesso → erro de configuração: abortar o run
+        // inteiro (não adianta consultar os demais e ainda estoura rate limit).
+        if (res.motivo === 'auth') {
+          return NextResponse.json(
+            { error: 'DataJud: falha de autenticação (verifique DATAJUD_API_KEY)', atualizados, novas_movimentacoes: novasTotais },
+            { status: 502 },
+          )
+        }
+        // rate_limit → encerrar e reportar o que já foi feito; o próximo run continua.
+        if (res.motivo === 'rate_limit') {
+          erros.push('rate_limit atingido — interrompido')
+          break
+        }
+        if (res.motivo !== 'nao_encontrado') {
+          erros.push(`${processo.numero_processo}: ${res.motivo}`)
+        }
+        continue
+      }
 
-      // Mapear movimentações para inserção
-      const movs = dados.movimentos.map((m) => {
+      if (!res.processo.movimentos.length) continue
+
+      // Mapear movimentações para inserção (datajud.ts já filtrou datas inválidas)
+      const movs = res.processo.movimentos.map((m) => {
         const d = new Date(m.dataHora)
         const dataMovimentacao =
           `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -68,13 +96,18 @@ async function handler(req: NextRequest) {
       })
 
       // Upsert com ON CONFLICT DO NOTHING — só insere movimentações genuinamente novas
-      const { data: inserted } = await db
+      const { data: inserted, error: errMovs } = await db
         .from('movimentacoes_processo')
         .upsert(movs, {
           onConflict:       'processo_id,codigo_movimento,data_movimentacao',
           ignoreDuplicates: true,
         })
         .select('id')
+
+      if (errMovs) {
+        erros.push(`${processo.numero_processo}: ${errMovs.message}`)
+        continue
+      }
 
       const qtdNovas = inserted?.length ?? 0
       novasTotais += qtdNovas

@@ -3,7 +3,12 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { buscarProcessoDataJud, detectarTribunal, normalizarNumeroCNJ } from '@/lib/datajud'
+import {
+  buscarProcessoDataJud,
+  detectarTribunal,
+  normalizarNumeroCNJ,
+  mensagemErroDataJud,
+} from '@/lib/datajud'
 
 export interface BuscarProcessoResult {
   numeroProcesso:   string
@@ -12,21 +17,21 @@ export interface BuscarProcessoResult {
   vara:             string
   comarca:          string
   valor:            number | null
-  partes:           { polo: string; nome: string }[]
   movimentos:       { codigo: number; nome: string; dataHora: string; complemento?: string }[]
-  erro?:            string
 }
 
-export async function buscarProcesso(numero: string): Promise<BuscarProcessoResult | { erro: string }> {
+export async function buscarProcesso(
+  numero: string,
+): Promise<BuscarProcessoResult | { erro: string }> {
   const normalizado = normalizarNumeroCNJ(numero)
-  const dados = await buscarProcessoDataJud(normalizado)
+  const res = await buscarProcessoDataJud(normalizado)
 
-  if (!dados) {
-    return {
-      erro: 'Processo não encontrado no DataJud. Você pode cadastrá-lo manualmente.',
-    }
+  if (!res.ok) {
+    // Mensagem específica por motivo — não mascarar 401/429/rede como "não encontrado".
+    return { erro: mensagemErroDataJud(res.motivo) }
   }
 
+  const dados = res.processo
   return {
     numeroProcesso: dados.numeroProcesso,
     tribunalSlug:   dados.tribunalSlug,
@@ -34,7 +39,6 @@ export async function buscarProcesso(numero: string): Promise<BuscarProcessoResu
     vara:           dados.vara ?? '',
     comarca:        dados.comarca ?? '',
     valor:          dados.valor ?? null,
-    partes:         dados.partes,
     movimentos:     dados.movimentos,
   }
 }
@@ -51,8 +55,8 @@ export async function criarProcesso(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  // Precisamos do empresa_id para as movimentações (o trigger preenche em processos_juridicos,
-  // mas precisamos explicitamente em movimentacoes_processo)
+  // Precisamos do empresa_id para as movimentações (o trigger preenche em
+  // processos_juridicos, mas precisamos explicitamente em movimentacoes_processo)
   const { data: profile } = await supabase
     .from('profiles')
     .select('empresa_id')
@@ -71,7 +75,6 @@ export async function criarProcesso(
   const comarca    = (formData.get('comarca') as string)?.trim() || null
   const valorRaw   = (formData.get('valor_causa') as string)?.trim()
   const valor      = valorRaw ? parseFloat(valorRaw.replace(',', '.')) : null
-  const partesRaw  = (formData.get('partes_raw') as string) || null
 
   if (!numero) return { error: 'Número do processo é obrigatório.' }
 
@@ -90,8 +93,7 @@ export async function criarProcesso(
       assunto,
       vara,
       comarca,
-      valor_causa:     valor,
-      partes_raw:      partesRaw ? JSON.parse(partesRaw) : null,
+      valor_causa:     valor && !Number.isNaN(valor) ? valor : null,
     })
     .select('id')
     .single()
@@ -103,11 +105,12 @@ export async function criarProcesso(
     return { error: errProcesso.message }
   }
 
-  // Buscar e salvar movimentações iniciais do DataJud (best-effort)
+  // Buscar e salvar movimentações iniciais do DataJud (best-effort — não impede o cadastro)
   try {
-    const dados = await buscarProcessoDataJud(normalizado, tribunalSlug)
-    if (dados?.movimentos?.length) {
-      const movs = dados.movimentos.map((m) => {
+    const res = await buscarProcessoDataJud(normalizado, tribunalSlug)
+    if (res.ok && res.processo.movimentos.length) {
+      // datajud.ts já descarta movimentos com dataHora inválida; aqui só formatamos.
+      const movs = res.processo.movimentos.map((m) => {
         const d = new Date(m.dataHora)
         const dataMovimentacao =
           `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -123,17 +126,23 @@ export async function criarProcesso(
         }
       })
 
-      await supabase
+      const { error: errMovs } = await supabase
         .from('movimentacoes_processo')
         .upsert(movs, { onConflict: 'processo_id,codigo_movimento,data_movimentacao', ignoreDuplicates: true })
 
-      await supabase
-        .from('processos_juridicos')
-        .update({ ultimo_datajud_update: new Date().toISOString() })
-        .eq('id', processo.id)
+      if (errMovs) {
+        console.error('[processos] falha ao inserir movimentações iniciais:', errMovs.message)
+      } else {
+        await supabase
+          .from('processos_juridicos')
+          .update({ ultimo_datajud_update: new Date().toISOString() })
+          .eq('id', processo.id)
+      }
+    } else if (!res.ok && res.motivo !== 'nao_encontrado') {
+      console.error(`[processos] DataJud indisponível ao importar movimentações (${res.motivo}) para ${normalizado}`)
     }
-  } catch {
-    // Falha na busca inicial não impede o cadastro
+  } catch (err) {
+    console.error('[processos] erro inesperado ao importar movimentações iniciais:', err)
   }
 
   revalidatePath('/processos')

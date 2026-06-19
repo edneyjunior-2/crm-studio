@@ -40,13 +40,17 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
     setErroDJ(null)
     setDadosDJ(null)
 
-    const resultado = await buscarProcesso(numeroInput.trim())
-    setBuscando(false)
-
-    if ('erro' in resultado) {
-      setErroDJ(resultado.erro ?? 'Erro desconhecido.')
-    } else {
-      setDadosDJ(resultado)
+    try {
+      const resultado = await buscarProcesso(numeroInput.trim())
+      if ('erro' in resultado) {
+        setErroDJ(resultado.erro ?? 'Erro desconhecido.')
+      } else {
+        setDadosDJ(resultado)
+      }
+    } catch {
+      setErroDJ('Não foi possível consultar o DataJud agora. Tente novamente.')
+    } finally {
+      setBuscando(false)
     }
   }
 
@@ -100,7 +104,7 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <div>
-            <p className="font-medium">Não encontrado no DataJud</p>
+            <p className="font-medium">Consulta ao DataJud</p>
             <p className="mt-0.5 text-xs">{erroDJ}</p>
           </div>
         </div>
@@ -115,15 +119,6 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
             {dadosDJ.movimentos.length > 0 && ` · ${dadosDJ.movimentos.length} movimentações`}
           </p>
         </div>
-      )}
-
-      {/* Hidden: partes_raw do DataJud */}
-      {dadosDJ && (
-        <input
-          type="hidden"
-          name="partes_raw"
-          value={JSON.stringify(dadosDJ.partes)}
-        />
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -186,8 +181,6 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
             type="number"
             step="0.01"
             min="0"
-            defaultValue={dadosDJ?.valor ?? ''}
-            key={dadosDJ?.valor}
             placeholder="0,00"
             className={inputClass}
           />

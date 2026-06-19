@@ -51,15 +51,19 @@ export async function adicionarAudienciaAoCalendario(
     })
 
     if (eventData.id) {
-      const { createAdminClient } = await import('@/lib/supabase/admin')
-      const admin = createAdminClient()
-      await admin.from('calendario_eventos').insert({
+      // Client autenticado: o trigger set_empresa_id carimba empresa_id a partir
+      // do contexto do usuário (o admin client rodaria sem sessão → trigger falha).
+      const { error: errReg } = await supabase.from('calendario_eventos').insert({
         event_id:          eventData.id,
         calendar_id:       calendarId,
         organizer_email:   user.email ?? '',
         organizer_user_id: user.id,
         titulo,
       })
+      if (errReg) {
+        console.error('[processos] evento criado no Google mas falhou ao registrar localmente:', errReg.message)
+        return { error: 'Evento criado no Google Agenda, mas não foi possível registrá-lo no sistema.' }
+      }
     }
 
     revalidatePath('/calendario')
