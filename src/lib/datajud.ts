@@ -281,8 +281,24 @@ function extrairVaraComarca(orgao: string): { vara: string; comarca: string } {
   return { vara: orgao.trim(), comarca: '' }
 }
 
-// "tipo_de_documento" → "Tipo de documento"
+// Rótulos acentuados para os campos de complemento mais comuns do DataJud
+// (a API manda o nome do campo em snake_case e sem acento).
+const ROTULOS_COMPLEMENTO: Record<string, string> = {
+  tipo_de_documento:                   'Tipo de documento',
+  tipo_de_peticao:                     'Tipo de petição',
+  tipo_de_conclusao:                   'Tipo de conclusão',
+  tipo_de_distribuicao_redistribuicao: 'Tipo de distribuição',
+  tipo_de_audiencia:                   'Tipo de audiência',
+  motivo_da_remessa:                   'Motivo da remessa',
+  motivo_do_cancelamento:              'Motivo do cancelamento',
+  tipo_de_decisao:                     'Tipo de decisão',
+  tipo_de_remessa:                     'Tipo de remessa',
+  tipo_de_baixa:                       'Tipo de baixa',
+}
+
+// "tipo_de_documento" → "Tipo de documento" (com acento quando conhecido)
 function humanizarCampo(campo: string): string {
+  if (ROTULOS_COMPLEMENTO[campo]) return ROTULOS_COMPLEMENTO[campo]
   const s = campo.replace(/_/g, ' ').trim()
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 }
