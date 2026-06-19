@@ -180,6 +180,38 @@ export async function atualizarEmpresa(empresaId: string, formData: FormData) {
 }
 
 // ---------------------------------------------------------------------------
+// Trocar a área de atuação (CRM Vendas <-> CRM Advocacia)
+// Advocacia = módulo 'processos' ativo em modulos_ativos. Vendas = sem ele.
+// ---------------------------------------------------------------------------
+
+export async function atualizarAreaAtuacao(empresaId: string, formData: FormData) {
+  await getAuthPlatformAdmin()
+
+  const area = formData.get('tipo_atuacao') as string | null
+  if (area !== 'vendas' && area !== 'advocacia') return
+
+  const db = createAdminClient()
+
+  const { data: emp } = await db
+    .from('empresas')
+    .select('modulos_ativos')
+    .eq('id', empresaId)
+    .single()
+
+  const atuais: string[] = emp?.modulos_ativos ?? []
+  const novos =
+    area === 'advocacia'
+      ? atuais.includes('processos')
+        ? atuais
+        : [...atuais, 'processos']
+      : atuais.filter((m) => m !== 'processos')
+
+  await db.from('empresas').update({ modulos_ativos: novos }).eq('id', empresaId)
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+}
+
+// ---------------------------------------------------------------------------
 // Gerar API key para uma empresa (retorna o token UMA VEZ)
 // ---------------------------------------------------------------------------
 

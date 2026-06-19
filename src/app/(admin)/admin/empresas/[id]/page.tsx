@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { atualizarEmpresa } from '../actions'
 import { ApiKeysSection } from './api-keys-section'
 import { UsuariosSection } from './usuarios-section'
+import { AreaAtuacaoSection } from './area-atuacao-section'
 
 const PLANOS   = ['interno', 'trial', 'free', 'starter', 'pro', 'business']
 const STATUSES = ['trial', 'ativo', 'pendente', 'atrasado', 'suspenso', 'cancelado']
@@ -160,6 +161,12 @@ export default async function EmpresaDetailPage({
           </div>
         </dl>
       </div>
+
+      {/* Área de atuação — troca CRM Vendas <-> Advocacia */}
+      <AreaAtuacaoSection
+        empresaId={id}
+        area={empresa.modulos_ativos?.includes('processos') ? 'advocacia' : 'vendas'}
+      />
 
       {/* Usuários da empresa + botão de link de acesso */}
       <UsuariosSection usuarios={usuariosComEmail} />
