@@ -46,4 +46,18 @@ export async function setEmpresaStatus(empresaId: string, status: string): Promi
   }
 }
 
+// Limpa clientes criados pelos testes (razão social contém "E2E").
+// Best-effort: sem as chaves de service role, apenas não faz nada.
+export async function limparClientesDeTeste(): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return
+  await fetch(`${SUPABASE_URL}/rest/v1/clientes?razao_social=ilike.*E2E*`, {
+    method: 'DELETE',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      Prefer: 'return=minimal',
+    },
+  }).catch(() => { /* limpeza best-effort */ })
+}
+
 export { base as test }

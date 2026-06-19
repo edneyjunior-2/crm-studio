@@ -1,7 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { loginAs } from './fixtures'
+import { loginAs, limparClientesDeTeste } from './fixtures'
 
 test.describe('Clientes', () => {
+  // Remove os clientes criados pelos testes para não poluir a base.
+  test.afterAll(async () => {
+    await limparClientesDeTeste()
+  })
+
   test.beforeEach(async ({ page }) => {
     await loginAs(page)
     await page.goto('/clientes')
