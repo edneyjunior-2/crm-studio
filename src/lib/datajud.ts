@@ -140,13 +140,16 @@ export async function buscarProcessoDataJud(
   tribunalSlug?: string,
 ): Promise<DataJudResult> {
   const slug    = tribunalSlug ?? detectarTribunal(numeroCNJ)
-  const numero  = normalizarNumeroCNJ(numeroCNJ)
+  const numero  = normalizarNumeroCNJ(numeroCNJ)        // pontuado — para exibir/retornar
+  const numeroDigits = numeroCNJ.replace(/\D/g, '')      // 20 dígitos puros — para a API
 
   if (slug === 'desconhecido') return { ok: false, motivo: 'numero_invalido' }
 
   const url  = `${DATAJUD_BASE}/api_publica_${slug}/_search`
+  // IMPORTANTE: o DataJud guarda numeroProcesso como 20 dígitos SEM pontuação.
+  // Consultar com a forma pontuada retorna 0 hits — sempre buscar com dígitos puros.
   const body = JSON.stringify({
-    query: { match: { numeroProcesso: numero } },
+    query: { match: { numeroProcesso: numeroDigits } },
     size:  1,
   })
 
