@@ -1,22 +1,15 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Scale, Building2, User, MapPin, BookOpen,
-  Calendar, AlertCircle,
+  ArrowLeft, Scale, Building2, User, MapPin, BookOpen, AlertCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { AudienciaButton } from './audiencia-button'
 import { MarcarLidoOnMount } from './marcar-lido-on-mount'
+import { ProcessoAcoes } from './processo-acoes'
 
 interface PageProps {
   params: Promise<{ id: string }>
-}
-
-const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  ativo:     { label: 'Ativo',     className: 'bg-green-500/10 text-green-700 dark:text-green-400' },
-  encerrado: { label: 'Encerrado', className: 'bg-muted text-muted-foreground' },
-  suspenso:  { label: 'Suspenso',  className: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
-  arquivado: { label: 'Arquivado', className: 'bg-muted text-muted-foreground' },
 }
 
 const AREA_LABEL: Record<string, string> = {
@@ -83,17 +76,45 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     console.error('[processos] erro ao carregar movimentações:', errMov.message)
   }
 
+  // Papel do usuário (só admin exclui processo)
+  const { data: perfil } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  const podeExcluir = perfil?.role === 'admin'
+
   const clienteRaw = processo.clientes as unknown
   const advRaw     = (processo as Record<string, unknown>)['profiles!advogado_id'] as unknown
   const clienteNome = (clienteRaw as { razao_social?: string } | null)?.razao_social ?? null
   const advNome     = (advRaw as { full_name?: string } | null)?.full_name ?? null
 
-  const statusCfg = STATUS_CONFIG[processo.status] ?? STATUS_CONFIG.ativo
-
   const partes = (processo.partes_raw as { polo: string; nome: string }[] | null) ?? []
 
   // Audiências (futuras e passadas)
   const audiencias = (movimentacoes ?? []).filter((m) => isAudiencia(m.descricao))
+
+  // Valores do resumo (KPIs)
+  const movCount = movimentacoes?.length ?? 0
+  const areaLabel = processo.area ? (AREA_LABEL[processo.area] ?? processo.area) : '—'
+  const valorCausaFmt = processo.valor_causa
+    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(processo.valor_causa)
+    : '—'
+  const ultimaAtt = processo.ultimo_datajud_update
+    ? formatarDataHora(processo.ultimo_datajud_update)
+    : '—'
+
+  // Agrupa movimentações por mês (já vêm ordenadas desc por data)
+  const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+  type Mov = { id: string; descricao: string; complemento: string | null; data_movimentacao: string }
+  const gruposMov: { mes: string; itens: Mov[] }[] = []
+  for (const m of (movimentacoes ?? []) as Mov[]) {
+    const [ano, mes] = m.data_movimentacao.slice(0, 10).split('-')
+    const rotulo = `${MESES[Number(mes) - 1] ?? mes} de ${ano}`
+    const ultimo = gruposMov[gruposMov.length - 1]
+    if (ultimo && ultimo.mes === rotulo) ultimo.itens.push(m)
+    else gruposMov.push({ mes: rotulo, itens: [m] })
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -127,18 +148,25 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
               </p>
             </div>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusCfg.className}`}>
-            {statusCfg.label}
-          </span>
+          <ProcessoAcoes
+            processoId={id}
+            statusAtual={processo.status}
+            podeExcluir={podeExcluir}
+          />
+        </div>
+
+        {/* Faixa de resumo (KPIs) */}
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Kpi label="Área" value={areaLabel} />
+          <Kpi label="Valor da causa" value={valorCausaFmt} />
+          <Kpi label="Movimentações" value={String(movCount)} />
+          <Kpi label="Atualizado (DataJud)" value={ultimaAtt} />
         </div>
 
         {/* Grid de informações */}
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-3">
           {processo.assunto && (
             <InfoItem icon={BookOpen} label="Assunto" value={processo.assunto} />
-          )}
-          {processo.area && (
-            <InfoItem icon={Scale} label="Área" value={AREA_LABEL[processo.area] ?? processo.area} />
           )}
           {processo.vara && (
             <InfoItem icon={MapPin} label="Vara" value={processo.vara} />
@@ -151,23 +179,6 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           )}
           {advNome && (
             <InfoItem icon={User} label="Advogado responsável" value={advNome} />
-          )}
-          {processo.valor_causa && (
-            <InfoItem
-              icon={BookOpen}
-              label="Valor da causa"
-              value={new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              }).format(processo.valor_causa)}
-            />
-          )}
-          {processo.ultimo_datajud_update && (
-            <InfoItem
-              icon={Calendar}
-              label="Última atualização DataJud"
-              value={formatarDataHora(processo.ultimo_datajud_update)}
-            />
           )}
         </div>
 
@@ -236,51 +247,76 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
             Nenhuma movimentação registrada. O cron das 8h buscará as atualizações do DataJud.
           </div>
         ) : (
-          <div className="relative flex flex-col">
-            {/* Linha vertical da timeline */}
-            <div className="absolute left-[17px] top-0 bottom-0 w-px bg-border" aria-hidden />
-
-            {movimentacoes.map((m, i) => {
-              const audiencia = isAudiencia(m.descricao)
-              return (
-                <div key={m.id} className="relative flex gap-4 pb-5 last:pb-0">
-                  {/* Ponto da timeline */}
-                  <div
-                    className={`relative z-10 mt-1 flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 ${
-                      audiencia
-                        ? 'border-amber-400 bg-amber-50 dark:bg-amber-950'
-                        : 'border-border bg-card'
-                    }`}
-                    aria-hidden
-                  />
-
-                  {/* Conteúdo */}
-                  <div className="flex flex-1 flex-col gap-0.5 pb-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm font-medium leading-snug ${
-                        audiencia ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'
-                      }`}>
-                        {m.descricao}
-                        {audiencia && (
-                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                            Audiência
-                          </span>
-                        )}
-                      </p>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {formatarData(m.data_movimentacao)}
-                      </span>
-                    </div>
-                    {m.complemento && (
-                      <p className="text-xs text-muted-foreground">{m.complemento}</p>
-                    )}
-                  </div>
+          <div className="flex flex-col gap-5">
+            {gruposMov.map((grupo, gi) => (
+              <div key={grupo.mes} className="flex flex-col gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {grupo.mes}
+                </p>
+                <div className="relative flex flex-col">
+                  <div className="absolute left-[17px] top-0 bottom-0 w-px bg-border" aria-hidden />
+                  {grupo.itens.map((m, mi) => {
+                    const audiencia = isAudiencia(m.descricao)
+                    const recente = gi === 0 && mi === 0
+                    return (
+                      <div key={m.id} className="relative flex gap-4 pb-5 last:pb-0">
+                        <div
+                          className={`relative z-10 mt-1 flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 ${
+                            recente
+                              ? 'border-primary bg-primary/15'
+                              : audiencia
+                                ? 'border-amber-400 bg-amber-50 dark:bg-amber-950'
+                                : 'border-border bg-card'
+                          }`}
+                          aria-hidden
+                        />
+                        <div className="flex flex-1 flex-col gap-0.5 pb-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`text-sm font-medium leading-snug ${
+                              audiencia ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'
+                            }`}>
+                              {m.descricao}
+                              {recente && (
+                                <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                  Mais recente
+                                </span>
+                              )}
+                              {audiencia && (
+                                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                  Audiência
+                                </span>
+                              )}
+                            </p>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {formatarData(m.data_movimentacao)}
+                            </span>
+                          </div>
+                          {m.complemento && (
+                            <p className="text-xs text-muted-foreground">{m.complemento}</p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function Kpi({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <span className="truncate text-sm font-semibold text-foreground" title={value}>
+        {value}
+      </span>
     </div>
   )
 }
