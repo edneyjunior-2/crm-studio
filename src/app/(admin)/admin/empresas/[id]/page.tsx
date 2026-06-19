@@ -6,6 +6,7 @@ import { atualizarEmpresa } from '../actions'
 import { ApiKeysSection } from './api-keys-section'
 import { UsuariosSection } from './usuarios-section'
 import { AreaAtuacaoSection } from './area-atuacao-section'
+import { EditarNomeEmpresa } from './editar-nome'
 
 const PLANOS   = ['interno', 'trial', 'free', 'starter', 'pro', 'business']
 const STATUSES = ['trial', 'ativo', 'pendente', 'atrasado', 'suspenso', 'cancelado']
@@ -80,7 +81,7 @@ export default async function EmpresaDetailPage({
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{empresa.nome}</h1>
+        <EditarNomeEmpresa empresaId={empresa.id} nome={empresa.nome} />
         <p className="mt-1 font-mono text-xs text-muted-foreground">{empresa.id}</p>
       </div>
 

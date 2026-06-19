@@ -216,6 +216,29 @@ export async function atualizarEmpresa(empresaId: string, formData: FormData) {
 }
 
 // ---------------------------------------------------------------------------
+// Editar o nome da empresa
+// ---------------------------------------------------------------------------
+
+export async function atualizarNomeEmpresa(
+  empresaId: string,
+  nome: string,
+): Promise<{ error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const nomeTrim = nome?.trim()
+  if (!nomeTrim) return { error: 'O nome não pode ficar vazio.' }
+  if (nomeTrim.length > 120) return { error: 'Nome muito longo.' }
+
+  const db = createAdminClient()
+  const { error } = await db.from('empresas').update({ nome: nomeTrim }).eq('id', empresaId)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  revalidatePath('/admin/empresas')
+  return {}
+}
+
+// ---------------------------------------------------------------------------
 // Trocar a área de atuação (CRM Vendas <-> CRM Advocacia)
 // Advocacia = módulo 'processos' ativo em modulos_ativos. Vendas = sem ele.
 // ---------------------------------------------------------------------------
