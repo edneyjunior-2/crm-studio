@@ -75,11 +75,46 @@ export interface DataJudProcesso {
   tribunalSlug:      string
   dataAjuizamento?:  string | null
   assunto?:          string
+  /** Área do direito inferida (enum do app) ou '' quando não foi possível inferir. */
+  area?:             string
   vara?:             string
   comarca?:          string
   valor?:            number | null
   partes:            DataJudParte[]
   movimentos:        DataJudMovimento[]
+}
+
+// Áreas do app (mesmo enum do form/detalhe): civel | trabalhista | criminal |
+// previdenciario | tributario | administrativo | familia | outro.
+// Classificador best-effort por palavras-chave na classe + assuntos (textos
+// legíveis do DataJud) + heurística do tribunal. Ordem importa: áreas
+// específicas antes de 'civel' (que é o guarda-chuva). Retorna '' se incerto
+// (o usuário preenche/ajusta na mão).
+const AREA_KEYWORDS: { area: string; termos: string[] }[] = [
+  { area: 'trabalhista',    termos: ['trabalh', 'reclamatóri', 'reclamatori', 'verbas rescis', 'fgts', 'aviso prévio', 'horas extras', 'vínculo empregat', 'vinculo empregat'] },
+  { area: 'tributario',     termos: ['execução fiscal', 'execucao fiscal', 'tribut', 'dívida ativa', 'divida ativa', 'iptu', 'icms', 'iss ', 'imposto', 'cobrança administrativa', 'cobranca administrativa', 'taxa', 'contribuição', 'contribuicao'] },
+  { area: 'previdenciario', termos: ['previdenc', 'aposentadoria', 'auxílio-doença', 'auxilio-doenca', 'auxílio-acidente', 'benefício assistencial', 'beneficio assistencial', 'salário-maternidade', 'salario-maternidade', 'pensão por morte', 'pensao por morte', 'inss', 'loas', 'bpc'] },
+  { area: 'criminal',       termos: ['penal', 'criminal', 'crime', 'inquérito', 'inquerito', 'habeas corpus', 'flagrante', 'execução penal', 'execucao penal', 'delito', 'contravenção', 'contravencao'] },
+  { area: 'familia',        termos: ['família', 'familia', 'divórcio', 'divorcio', 'alimentos', 'guarda', 'inventário', 'inventario', 'união estável', 'uniao estavel', 'partilha', 'sucess', 'curatela', 'tutela', 'adoção', 'adocao', 'reconhecimento de paternidade'] },
+  { area: 'administrativo', termos: ['administrativ', 'servidor públic', 'servidor public', 'licitaç', 'licitac', 'improbidade', 'concurso públic', 'concurso public', 'desapropriaç', 'desapropriac', 'poder públic', 'poder public'] },
+  { area: 'civel',          termos: ['cível', 'civel', 'indeniz', 'reparação de danos', 'reparacao de danos', 'cobrança', 'cobranca', 'contrat', 'consumidor', 'despejo', 'usucapião', 'usucapiao', 'busca e apreensão', 'busca e apreensao', 'monitóri', 'monitori', 'execução de título', 'execucao de titulo', 'danos morais', 'danos materiais'] },
+]
+
+export function inferirAreaDireito(
+  classeNome: string,
+  assuntosNomes: string[],
+  tribunalSlug: string,
+): string {
+  const texto = [classeNome, ...assuntosNomes].join(' · ').toLowerCase()
+
+  for (const { area, termos } of AREA_KEYWORDS) {
+    if (termos.some((t) => texto.includes(t))) return area
+  }
+
+  // Heurística por segmento do tribunal quando o texto não bastou.
+  if (tribunalSlug.startsWith('trt')) return 'trabalhista'   // Justiça do Trabalho
+
+  return '' // incerto → deixa para o usuário escolher
 }
 
 /**
@@ -197,6 +232,8 @@ export async function buscarProcessoDataJud(
   const orgao    = (hit.orgaoJulgador as { nome?: string } | undefined)?.nome ?? ''
   const assuntos = (hit.assuntos as { nome?: string }[] | undefined) ?? []
   const assunto  = assuntos[0]?.nome ?? ''
+  const classe   = (hit.classe as { nome?: string } | undefined)?.nome ?? ''
+  const area     = inferirAreaDireito(classe, assuntos.map((a) => a.nome ?? ''), slug)
 
   const { vara, comarca } = extrairVaraComarca(orgao)
 
@@ -222,6 +259,7 @@ export async function buscarProcessoDataJud(
       tribunalSlug:    slug,
       dataAjuizamento: (hit.dataAjuizamento as string | undefined) ?? null,
       assunto,
+      area,
       vara,
       comarca,
       valor,

@@ -14,6 +14,7 @@ export interface BuscarProcessoResult {
   numeroProcesso:   string
   tribunalSlug:     string
   assunto:          string
+  area:             string
   vara:             string
   comarca:          string
   valor:            number | null
@@ -36,6 +37,7 @@ export async function buscarProcesso(
     numeroProcesso: dados.numeroProcesso,
     tribunalSlug:   dados.tribunalSlug,
     assunto:        dados.assunto ?? '',
+    area:           dados.area ?? '',
     vara:           dados.vara ?? '',
     comarca:        dados.comarca ?? '',
     valor:          dados.valor ?? null,

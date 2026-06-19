@@ -164,12 +164,23 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
         {/* Área do direito */}
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="area">Área do direito</label>
-          <select id="area" name="area" className={inputClass}>
+          <select
+            id="area"
+            name="area"
+            defaultValue={dadosDJ?.area ?? ''}
+            key={dadosDJ?.area ?? 'sem-area'}
+            className={inputClass}
+          >
             <option value="">Selecionar...</option>
             {AREAS.map((a) => (
               <option key={a.value} value={a.value}>{a.label}</option>
             ))}
           </select>
+          {dadosDJ?.area && (
+            <p className="text-xs text-muted-foreground">
+              Preenchido automaticamente pelo DataJud — ajuste se necessário.
+            </p>
+          )}
         </div>
 
         {/* Valor da causa */}
