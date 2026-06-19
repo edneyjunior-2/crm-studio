@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { AlertTriangle, Trash2 } from 'lucide-react'
+import { AlertTriangle, Trash2, Archive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -62,7 +62,7 @@ export function ExcluirConta({ empresaNome, podeExcluir, motivo }: Props) {
       <div>
         <h3 className="text-base font-medium text-destructive">Zona de perigo</h3>
         <p className="text-sm text-muted-foreground">
-          Ações irreversíveis. Tenha certeza antes de prosseguir.
+          Encerra o acesso de toda a empresa ao CRM Studio. Tenha certeza antes de prosseguir.
         </p>
       </div>
 
@@ -71,7 +71,8 @@ export function ExcluirConta({ empresaNome, podeExcluir, motivo }: Props) {
           <span className="text-sm font-medium text-foreground">Excluir conta</span>
           <p className="text-sm text-muted-foreground">
             Cancela a assinatura e encerra o acesso de toda a empresa ao CRM Studio.
-            Esta ação não pode ser desfeita.
+            Seus dados ficam guardados por <strong>90 dias</strong> — você pode reativar
+            a conta nesse período. Depois desse prazo, podem ser excluídos definitivamente.
           </p>
         </div>
 
@@ -112,10 +113,20 @@ export function ExcluirConta({ empresaNome, podeExcluir, motivo }: Props) {
           <DialogHeader>
             <DialogTitle>Excluir conta</DialogTitle>
             <DialogDescription>
-              Esta ação é irreversível. A assinatura será cancelada e todos os
-              usuários perderão o acesso ao CRM Studio.
+              A assinatura será cancelada e todos os usuários perderão o acesso
+              ao CRM Studio imediatamente.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Aviso de retenção — informado ao cliente no ato (LGPD / reativação). */}
+          <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm">
+            <Archive className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <span className="text-muted-foreground">
+              Seus dados ficarão guardados em nosso sistema por <strong className="text-foreground">90 dias</strong>.
+              Nesse período você pode reativar a conta regularizando a assinatura. Após 90 dias,
+              os dados podem ser excluídos de forma definitiva.
+            </span>
+          </div>
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="confirmacao-nome">
@@ -142,7 +153,7 @@ export function ExcluirConta({ empresaNome, podeExcluir, motivo }: Props) {
               disabled={!nomeConfere || !podeExcluir || isPending}
               onClick={handleExcluir}
             >
-              {isPending ? 'Excluindo...' : 'Excluir conta permanentemente'}
+              {isPending ? 'Excluindo...' : 'Excluir minha conta'}
             </Button>
           </DialogFooter>
         </DialogContent>

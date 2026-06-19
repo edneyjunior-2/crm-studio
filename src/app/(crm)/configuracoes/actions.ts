@@ -179,10 +179,11 @@ export async function excluirConta(
     if (updAssinaturasError) return { error: updAssinaturasError.message }
   }
 
-  // Soft-cancel da empresa: status='cancelado' + ativo=false.
+  // Soft-cancel da empresa: status='cancelado' + ativo=false + carimbo p/ retenção.
+  // Os dados ficam retidos ~90 dias (informado ao cliente) antes de eventual purga.
   const { error: updEmpresaError } = await db
     .from('empresas')
-    .update({ status: 'cancelado', ativo: false })
+    .update({ status: 'cancelado', ativo: false, cancelado_em: new Date().toISOString() })
     .eq('id', empresaId)
 
   if (updEmpresaError) return { error: updEmpresaError.message }
