@@ -1,25 +1,18 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  MessagesSquare,
-  Bot,
-  User,
-  CheckCheck,
-  CornerUpLeft,
-  Clock,
-  Lock,
+  MessagesSquare, Bot, User, CheckCheck, CornerUpLeft, Lock,
+  Search, Plus, Smartphone, Pencil, Check, X, Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
-  assumirConversa,
-  devolverAoBot,
-  resolverConversa,
-  marcarLida,
+  assumirConversa, devolverAoBot, resolverConversa, marcarLida,
+  salvarNumeroAtendimento, iniciarConversa,
 } from './atendimento-actions'
 
 export interface Conversa {
@@ -51,172 +44,310 @@ export interface Mensagem {
 }
 
 type Status = NonNullable<Conversa['status']>
-
-const STATUS_LABEL: Record<Status, string> = {
-  bot: 'Bot',
-  humano: 'Humano',
-  resolvido: 'Resolvido',
-  adiado: 'Adiado',
-}
-
-// Badges: bot=azul, humano=âmbar, resolvido=verde, adiado=cinza.
+const STATUS_LABEL: Record<Status, string> = { bot: 'Bot', humano: 'Humano', resolvido: 'Resolvido', adiado: 'Adiado' }
 const STATUS_BADGE: Record<Status, string> = {
   bot: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
   humano: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
   resolvido: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
   adiado: 'bg-muted text-muted-foreground',
 }
+const AUTHOR_LABEL: Record<NonNullable<Mensagem['author_type']>, string> = {
+  lead: 'Lead', bot: 'Leila (bot)', humano: 'Atendente', sistema: 'Sistema',
+}
 
-/** Formata um timestamp para pt-BR. Hoje → só hora; outros dias → data curta. */
 function formatarHorario(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   const agora = new Date()
-  const mesmoDia =
-    d.getFullYear() === agora.getFullYear() &&
-    d.getMonth() === agora.getMonth() &&
-    d.getDate() === agora.getDate()
-  if (mesmoDia) {
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  }
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const mesmoDia = d.getFullYear() === agora.getFullYear() && d.getMonth() === agora.getMonth() && d.getDate() === agora.getDate()
+  return mesmoDia
+    ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
-
-/** Formata data + hora completas (cabeçalho de mensagem). */
 function formatarDataHora(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-const AUTHOR_LABEL: Record<NonNullable<Mensagem['author_type']>, string> = {
-  lead: 'Lead',
-  bot: 'Leila (bot)',
-  humano: 'Atendente',
-  sistema: 'Sistema',
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 interface InboxProps {
   conversas: Conversa[]
   selecionada: Conversa | null
   mensagens: Mensagem[]
+  numeroAtendimento: string | null
 }
 
-export function Inbox({ conversas, selecionada, mensagens }: InboxProps) {
+export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento }: InboxProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [busca, setBusca] = useState('')
+  const [filtro, setFiltro] = useState<'todas' | 'nao_lidas'>('todas')
+  const [novaAberta, setNovaAberta] = useState(false)
 
-  function executar(
-    fn: (id: string) => Promise<{ error?: string }>,
-    id: string,
-    sucesso: string
-  ) {
+  function executar(fn: (id: string) => Promise<{ error?: string }>, id: string, sucesso: string) {
     startTransition(async () => {
       const res = await fn(id)
-      if (res?.error) {
-        toast.error(res.error)
-        return
-      }
+      if (res?.error) { toast.error(res.error); return }
       toast.success(sucesso)
       router.refresh()
     })
   }
 
+  const termo = busca.trim().toLowerCase()
+  const filtradas = conversas.filter((c) => {
+    if (filtro === 'nao_lidas' && (c.unread_count ?? 0) === 0) return false
+    if (termo && !(c.wa_number ?? '').toLowerCase().includes(termo)) return false
+    return true
+  })
+  const naoLidasTotal = conversas.filter((c) => (c.unread_count ?? 0) > 0).length
+
   return (
     <div className="flex flex-col gap-4">
       {/* Cabeçalho */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Atendimento</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Conversas do WhatsApp atendidas pelo SDR (robô Leila).
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Atendimento</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Conversas do WhatsApp atendidas pelo robô (Leila).
+          </p>
+        </div>
+        <Button onClick={() => setNovaAberta(true)}>
+          <Plus /> Nova conversa
+        </Button>
       </div>
 
-      {conversas.length === 0 ? (
-        <EstadoVazio />
-      ) : (
-        <div className="flex h-[calc(100vh-12rem)] overflow-hidden rounded-xl border border-border bg-card">
-          {/* Lista de conversas (esquerda) */}
-          <div className="flex w-full max-w-xs shrink-0 flex-col overflow-y-auto border-r border-border md:max-w-sm">
-            {conversas.map((conv) => {
-              const ativa = conv.id === selecionada?.id
-              const status = conv.status ?? 'bot'
-              const naoLidas = conv.unread_count ?? 0
-              return (
-                <Link
-                  key={conv.id}
-                  href={`/atendimento?c=${conv.id}`}
-                  className={cn(
-                    'flex flex-col gap-1 border-b border-border px-3 py-2.5 transition-colors hover:bg-muted/60',
-                    ativa && 'bg-muted'
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-foreground">
-                      {conv.wa_number ?? 'Sem número'}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatarHorario(conv.last_inbound_at)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                        STATUS_BADGE[status]
-                      )}
-                    >
-                      {STATUS_LABEL[status]}
-                    </span>
-                    {naoLidas > 0 && (
-                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold text-primary-foreground">
-                        {naoLidas}
-                      </span>
-                    )}
-                  </div>
-                </Link>
-              )
-            })}
+      {/* Configuração do número do atendimento */}
+      <NumeroAtendimento numero={numeroAtendimento} />
+
+      <div className="flex h-[calc(100vh-16rem)] overflow-hidden rounded-xl border border-border bg-card">
+        {/* Lista (esquerda) */}
+        <div className="flex w-full max-w-xs shrink-0 flex-col border-r border-border md:max-w-sm">
+          {/* Busca */}
+          <div className="border-b border-border p-2">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Pesquisar pelo número..."
+                className="w-full bg-transparent text-sm outline-none"
+              />
+            </div>
+            {/* Filtros */}
+            <div className="mt-2 flex gap-1.5">
+              <FiltroPill ativo={filtro === 'todas'} onClick={() => setFiltro('todas')}>
+                Todas
+              </FiltroPill>
+              <FiltroPill ativo={filtro === 'nao_lidas'} onClick={() => setFiltro('nao_lidas')}>
+                Não lidas{naoLidasTotal > 0 ? ` (${naoLidasTotal})` : ''}
+              </FiltroPill>
+            </div>
           </div>
 
-          {/* Thread (direita) */}
-          <div className="flex min-w-0 flex-1 flex-col">
-            {selecionada ? (
-              <Thread
-                conversa={selecionada}
-                mensagens={mensagens}
-                isPending={isPending}
-                onAssumir={() =>
-                  executar(assumirConversa, selecionada.id, 'Conversa assumida.')
-                }
-                onDevolver={() =>
-                  executar(devolverAoBot, selecionada.id, 'Conversa devolvida ao bot.')
-                }
-                onResolver={() =>
-                  executar(resolverConversa, selecionada.id, 'Conversa resolvida.')
-                }
-                onMarcarLida={() =>
-                  executar(marcarLida, selecionada.id, 'Marcada como lida.')
-                }
-              />
-            ) : (
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-                <MessagesSquare className="size-10 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  Selecione uma conversa à esquerda para ver as mensagens.
+          {/* Conversas */}
+          <div className="flex flex-1 flex-col overflow-y-auto">
+            {filtradas.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+                <MessagesSquare className="size-8 text-muted-foreground/40" />
+                <p className="text-xs text-muted-foreground">
+                  {conversas.length === 0
+                    ? 'Nenhuma conversa ainda. As conversas do WhatsApp aparecerão aqui.'
+                    : 'Nenhuma conversa encontrada com esse filtro.'}
                 </p>
               </div>
+            ) : (
+              filtradas.map((conv) => {
+                const ativa = conv.id === selecionada?.id
+                const status = conv.status ?? 'bot'
+                const naoLidas = conv.unread_count ?? 0
+                return (
+                  <Link
+                    key={conv.id}
+                    href={`/atendimento?c=${conv.id}`}
+                    className={cn(
+                      'flex flex-col gap-1 border-b border-border px-3 py-2.5 transition-colors hover:bg-muted/60',
+                      ativa && 'bg-muted',
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium text-foreground">{conv.wa_number ?? 'Sem número'}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{formatarHorario(conv.last_inbound_at)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', STATUS_BADGE[status])}>
+                        {STATUS_LABEL[status]}
+                      </span>
+                      {naoLidas > 0 && (
+                        <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold text-primary-foreground">
+                          {naoLidas}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                )
+              })
             )}
           </div>
         </div>
+
+        {/* Thread (direita) */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {selecionada ? (
+            <Thread
+              conversa={selecionada}
+              mensagens={mensagens}
+              isPending={isPending}
+              onAssumir={() => executar(assumirConversa, selecionada.id, 'Conversa assumida.')}
+              onDevolver={() => executar(devolverAoBot, selecionada.id, 'Conversa devolvida ao bot.')}
+              onResolver={() => executar(resolverConversa, selecionada.id, 'Conversa resolvida.')}
+              onMarcarLida={() => executar(marcarLida, selecionada.id, 'Marcada como lida.')}
+            />
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
+              <MessagesSquare className="size-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Selecione uma conversa à esquerda para ver as mensagens.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {novaAberta && <NovaConversaDialog onClose={() => setNovaAberta(false)} />}
+    </div>
+  )
+}
+
+function FiltroPill({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+        ativo ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted',
       )}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Configuração do número do atendimento (cliente define; é o número da Meta)
+// ---------------------------------------------------------------------------
+function NumeroAtendimento({ numero }: { numero: string | null }) {
+  const router = useRouter()
+  const [editando, setEditando] = useState(!numero)
+  const [valor, setValor] = useState(numero ?? '')
+  const [salvando, startSalvar] = useTransition()
+
+  function salvar() {
+    if (!valor.trim()) { toast.error('Informe o número do WhatsApp.'); return }
+    startSalvar(async () => {
+      const res = await salvarNumeroAtendimento(valor.trim())
+      if (res.error) { toast.error(res.error); return }
+      toast.success('Número salvo.')
+      setEditando(false)
+      router.refresh()
+    })
+  }
+
+  if (!editando && numero) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2.5">
+        <div className="flex items-center gap-2 text-sm">
+          <Smartphone className="size-4 text-muted-foreground" />
+          <span className="text-muted-foreground">Número do atendimento:</span>
+          <span className="font-medium text-foreground">{numero}</span>
+        </div>
+        <button onClick={() => setEditando(true)} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          <Pencil className="size-3.5" /> Editar
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+      <div className="flex items-center gap-2">
+        <Smartphone className="size-4 text-amber-700 dark:text-amber-400" />
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Número do WhatsApp do atendimento</p>
+      </div>
+      <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-400/90">
+        Informe o número que o robô (Leila) vai usar para atender. Ele precisa ser o <strong>mesmo número
+        liberado na sua conta WhatsApp Business API (Meta)</strong> — é por ele que as conversas chegam aqui.
+      </p>
+      <div className="mt-1 flex items-center gap-2">
+        <input
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          placeholder="Ex.: 5571999998888 (ou o phone_number_id da Meta)"
+          className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40"
+        />
+        <Button onClick={salvar} disabled={salvando}>
+          {salvando ? <Loader2 className="animate-spin" /> : <Check />} Salvar
+        </Button>
+        {numero && (
+          <Button variant="outline" onClick={() => { setEditando(false); setValor(numero) }} disabled={salvando}>
+            <X /> Cancelar
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Nova conversa (humano inicia)
+// ---------------------------------------------------------------------------
+function NovaConversaDialog({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
+  const [numero, setNumero] = useState('')
+  const [mensagem, setMensagem] = useState('')
+  const [enviando, startEnviar] = useTransition()
+
+  function iniciar() {
+    if (!numero.trim()) { toast.error('Informe o número.'); return }
+    startEnviar(async () => {
+      const res = await iniciarConversa(numero, mensagem)
+      if (res.error) { toast.error(res.error); return }
+      toast.success('Conversa criada.')
+      onClose()
+      if (res.id) router.push(`/atendimento?c=${res.id}`)
+      else router.refresh()
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold">Nova conversa</h2>
+          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
+        </div>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Número do contato (com DDD)</label>
+            <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ex.: (71) 99999-8888"
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Primeira mensagem (opcional)</label>
+            <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} rows={3} placeholder="Escreva a mensagem inicial..."
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40" />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            O envio pelo WhatsApp ocorre quando o número estiver conectado na Meta. A conversa já fica registrada aqui.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={enviando}>Cancelar</Button>
+            <Button onClick={iniciar} disabled={enviando}>
+              {enviando ? <Loader2 className="animate-spin" /> : <Plus />} Iniciar
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -231,94 +362,39 @@ interface ThreadProps {
   onMarcarLida: () => void
 }
 
-function Thread({
-  conversa,
-  mensagens,
-  isPending,
-  onAssumir,
-  onDevolver,
-  onResolver,
-  onMarcarLida,
-}: ThreadProps) {
+function Thread({ conversa, mensagens, isPending, onAssumir, onDevolver, onResolver, onMarcarLida }: ThreadProps) {
   const status = conversa.status ?? 'bot'
-
   return (
     <>
-      {/* Cabeçalho da thread */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">
-            {conversa.wa_number ?? 'Sem número'}
-          </span>
-          <span
-            className={cn(
-              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-              STATUS_BADGE[status]
-            )}
-          >
+          <span className="text-sm font-semibold text-foreground">{conversa.wa_number ?? 'Sem número'}</span>
+          <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', STATUS_BADGE[status])}>
             {STATUS_LABEL[status]}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          {status !== 'humano' && (
-            <Button size="sm" variant="outline" disabled={isPending} onClick={onAssumir}>
-              <User /> Assumir
-            </Button>
-          )}
-          {status !== 'bot' && (
-            <Button size="sm" variant="outline" disabled={isPending} onClick={onDevolver}>
-              <Bot /> Devolver ao bot
-            </Button>
-          )}
-          {status !== 'resolvido' && (
-            <Button size="sm" variant="outline" disabled={isPending} onClick={onResolver}>
-              <CornerUpLeft /> Resolver
-            </Button>
-          )}
-          {(conversa.unread_count ?? 0) > 0 && (
-            <Button size="sm" variant="ghost" disabled={isPending} onClick={onMarcarLida}>
-              <CheckCheck /> Marcar lida
-            </Button>
-          )}
+          {status !== 'humano' && <Button size="sm" variant="outline" disabled={isPending} onClick={onAssumir}><User /> Assumir</Button>}
+          {status !== 'bot' && <Button size="sm" variant="outline" disabled={isPending} onClick={onDevolver}><Bot /> Devolver ao bot</Button>}
+          {status !== 'resolvido' && <Button size="sm" variant="outline" disabled={isPending} onClick={onResolver}><CornerUpLeft /> Resolver</Button>}
+          {(conversa.unread_count ?? 0) > 0 && <Button size="sm" variant="ghost" disabled={isPending} onClick={onMarcarLida}><CheckCheck /> Marcar lida</Button>}
         </div>
       </div>
 
-      {/* Mensagens */}
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
         {mensagens.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              Nenhuma mensagem nesta conversa ainda.
-            </p>
-          </div>
+          <div className="flex flex-1 items-center justify-center"><p className="text-sm text-muted-foreground">Nenhuma mensagem nesta conversa ainda.</p></div>
         ) : (
           mensagens.map((msg) => {
-            // Lead (entrada) à esquerda; bot/humano/sistema (saída) à direita.
             const naDireita = msg.direction === 'out'
             const autor = msg.author_type ? AUTHOR_LABEL[msg.author_type] : 'Desconhecido'
             return (
-              <div
-                key={msg.id}
-                className={cn('flex flex-col gap-1', naDireita ? 'items-end' : 'items-start')}
-              >
-                <span className="px-1 text-xs text-muted-foreground">
-                  {autor} · {formatarDataHora(msg.created_at)}
-                </span>
-                <div
-                  className={cn(
-                    'max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words',
-                    naDireita
-                      ? 'rounded-br-sm bg-primary text-primary-foreground'
-                      : 'rounded-bl-sm bg-muted text-foreground'
-                  )}
-                >
+              <div key={msg.id} className={cn('flex flex-col gap-1', naDireita ? 'items-end' : 'items-start')}>
+                <span className="px-1 text-xs text-muted-foreground">{autor} · {formatarDataHora(msg.created_at)}</span>
+                <div className={cn('max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words',
+                  naDireita ? 'rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm bg-muted text-foreground')}>
                   {msg.media_url && (
-                    <a
-                      href={msg.media_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mb-1 block underline underline-offset-2 opacity-90"
-                    >
+                    <a href={msg.media_url} target="_blank" rel="noreferrer" className="mb-1 block underline underline-offset-2 opacity-90">
                       {msg.media_mime?.startsWith('image/') ? 'Ver imagem' : 'Ver anexo'}
                     </a>
                   )}
@@ -330,32 +406,11 @@ function Thread({
         )}
       </div>
 
-      {/* Aviso no lugar do campo de resposta.
-          TODO: implementar envio de mensagem ao lead quando o número de WhatsApp
-          do cliente estiver conectado (provedor/Z-API/Cloud API). Exige número
-          real + roteamento de saída; fora de escopo nesta entrega. */}
+      {/* TODO: envio de resposta ao lead quando o número estiver conectado na Meta. */}
       <div className="flex items-center gap-2 border-t border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
         <Lock className="size-3.5 shrink-0" />
-        <span>
-          Responder pelo WhatsApp estará disponível quando o número do cliente estiver conectado.
-        </span>
+        <span>Responder pelo WhatsApp estará disponível quando o número do cliente estiver conectado na Meta.</span>
       </div>
     </>
-  )
-}
-
-function EstadoVazio() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card py-16 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full bg-muted">
-        <Clock className="size-7 text-muted-foreground" />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-foreground">Nenhuma conversa ainda.</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          As conversas do WhatsApp (SDR) aparecerão aqui.
-        </p>
-      </div>
-    </div>
   )
 }
