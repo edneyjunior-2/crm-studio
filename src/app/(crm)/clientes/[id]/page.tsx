@@ -10,6 +10,7 @@ import {
   Tag,
   Pencil,
   TrendingUp,
+  Scale,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
@@ -46,11 +47,17 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [clienteResult, negociosResult] = await Promise.all([
+  const [clienteResult, negociosResult, processosResult] = await Promise.all([
     supabase.from('clientes').select('*').eq('id', id).single(),
     supabase
       .from('negocios')
       .select('id, titulo, estagio, valor_estimado, data_previsao_fechamento, created_at, updated_at, cliente_id, solucao_id, responsavel_id, probabilidade, observacoes')
+      .eq('cliente_id', id)
+      .order('created_at', { ascending: false }),
+    // Processos jurídicos do cliente (módulo advocacia). Vazio p/ clientes sem processos.
+    supabase
+      .from('processos_juridicos')
+      .select('id, numero_processo, status, valor_causa')
       .eq('cliente_id', id)
       .order('created_at', { ascending: false }),
   ])
@@ -61,6 +68,19 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
   const cliente = clienteResult.data as Cliente
   const negocios = (negociosResult.data ?? []) as Negocio[]
+
+  // Previsão de ganho: soma do valor da causa dos processos EM ANDAMENTO (ativos).
+  // É um potencial — só se realiza quando o processo encerra. Nunca entra no caixa.
+  type ProcessoLite = { id: string; numero_processo: string; status: string; valor_causa: number | null }
+  const processos = (processosResult.data ?? []) as ProcessoLite[]
+  const previsaoAtivos = processos
+    .filter((p) => p.status === 'ativo' && p.valor_causa != null)
+    .reduce((soma, p) => soma + Number(p.valor_causa), 0)
+  const brl = (v: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+  const statusLabel: Record<string, string> = {
+    ativo: 'Ativo', encerrado: 'Encerrado', suspenso: 'Suspenso', arquivado: 'Arquivado',
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -162,6 +182,55 @@ export default async function ClienteDetailPage({ params }: PageProps) {
         </div>
 
         <div className="col-span-1 flex flex-col gap-4">
+          {processos.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <Scale className="size-4 text-muted-foreground" />
+                  Processos jurídicos
+                </h3>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {processos.length}
+                </span>
+              </div>
+
+              {/* Previsão de ganho — potencial, NÃO é caixa realizado */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                  Previsão de ganho (processos em andamento)
+                </p>
+                <p className="mt-0.5 text-lg font-bold text-amber-800 dark:text-amber-300">
+                  {brl(previsaoAtivos)}
+                </p>
+                <p className="mt-1 text-[11px] leading-snug text-amber-700/80 dark:text-amber-400/70">
+                  Valor potencial somado das causas ativas. Só se realiza quando o
+                  processo é encerrado — não entra no fluxo de caixa.
+                </p>
+              </div>
+
+              <ul className="mt-3 flex flex-col gap-2">
+                {processos.map((p) => (
+                  <li key={p.id}>
+                    <Link
+                      href={`/processos/${p.id}`}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 transition-colors hover:bg-accent"
+                    >
+                      <div className="flex flex-col gap-0.5 overflow-hidden">
+                        <span className="truncate font-mono text-xs text-foreground">
+                          {p.numero_processo}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {statusLabel[p.status] ?? p.status}
+                          {p.valor_causa != null && ` · ${brl(Number(p.valor_causa))}`}
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">
