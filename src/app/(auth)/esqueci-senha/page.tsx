@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { enviarRecuperacaoSenha } from './actions'
+import { AuthBrandHeader } from '@/components/auth/brand-header'
 
 export default function EsqueciSenhaPage() {
   const [pending, setPending] = useState(false)
@@ -33,25 +34,7 @@ export default function EsqueciSenhaPage() {
       </div>
 
       <div className="relative w-full max-w-sm">
-        {/* Cabeçalho da marca */}
-        <div className="mb-10 text-center">
-          {/* Logo */}
-          <div className="mb-6 inline-flex size-16 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
-            <span className="text-2xl font-bold text-primary-foreground font-[family-name:var(--font-heading)] italic">
-              A
-            </span>
-          </div>
-
-          <h1 className="text-3xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
-            CRM Studio
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Consultoria Tributária
-          </p>
-
-          {/* Linha decorativa dourada */}
-          <div className="mx-auto mt-4 h-px w-16 bg-accent/60" />
-        </div>
+        <AuthBrandHeader subtitle="Plataforma modular para PMEs brasileiras" />
 
         {/* Card */}
         <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">

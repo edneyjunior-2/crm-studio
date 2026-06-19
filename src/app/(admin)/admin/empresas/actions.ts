@@ -250,9 +250,15 @@ export async function gerarLinkAcesso(
   const email = userData.user?.email ?? ''
   if (!email) return { error: 'Usuário não encontrado.' }
 
+  // redirectTo deve apontar para o app (onde o cliente define a senha).
+  // Mesma fonte de verdade do fluxo esqueci-senha: NEXT_PUBLIC_SITE_URL.
+  // A URL precisa estar na allowlist de Redirect URLs do projeto Supabase.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+
   const { data, error } = await db.auth.admin.generateLink({
-    type:  'recovery',
+    type:    'recovery',
     email,
+    options: { redirectTo: `${siteUrl}/reset-password` },
   })
 
   if (error || !data?.properties?.action_link) {

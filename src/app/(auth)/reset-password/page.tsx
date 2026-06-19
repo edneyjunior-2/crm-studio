@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { AuthBrandHeader } from '@/components/auth/brand-header'
 
 type Status = 'loading' | 'invalid' | 'form' | 'success' | 'error'
 
@@ -28,10 +29,15 @@ export default function ResetPasswordPage() {
       return
     }
 
-    // Estabelecer sessão com o token de recuperação
+    // Estabelecer sessão com o token de recuperação.
+    // signOut local primeiro: se um admin (ou outro usuário) já estiver logado
+    // neste browser, o setSession sobrescreveria a sessão dele com a do cliente.
     const supabase = createClient()
     supabase.auth
-      .setSession({ access_token: accessToken, refresh_token: refreshToken })
+      .signOut({ scope: 'local' })
+      .then(() =>
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      )
       .then(({ error }) => {
         if (error) {
           setStatus('invalid')
@@ -40,6 +46,16 @@ export default function ResetPasswordPage() {
         }
       })
   }, [])
+
+  // Após redefinir a senha, o cliente já tem sessão válida (setSession) —
+  // redireciona direto pro CRM. Fallback manual permanece no card de sucesso.
+  useEffect(() => {
+    if (status !== 'success') return
+    const t = setTimeout(() => {
+      window.location.href = '/dashboard'
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [status])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -80,23 +96,7 @@ export default function ResetPasswordPage() {
       </div>
 
       <div className="relative w-full max-w-sm">
-        {/* Cabeçalho da marca */}
-        <div className="mb-10 text-center">
-          <div className="mb-6 inline-flex size-16 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
-            <span className="text-2xl font-bold text-primary-foreground font-[family-name:var(--font-heading)] italic">
-              A
-            </span>
-          </div>
-
-          <h1 className="text-3xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
-            CRM Studio
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Consultoria Tributária
-          </p>
-
-          <div className="mx-auto mt-4 h-px w-16 bg-accent/60" />
-        </div>
+        <AuthBrandHeader subtitle="Plataforma modular para PMEs brasileiras" />
 
         {/* Card */}
         <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
@@ -218,16 +218,16 @@ export default function ResetPasswordPage() {
                 </svg>
               </div>
               <div>
-                <p className="font-semibold text-foreground">Senha redefinida com sucesso!</p>
+                <p className="font-semibold text-foreground">Senha definida com sucesso!</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Você já pode entrar com sua nova senha.
+                  Redirecionando para o CRM...
                 </p>
               </div>
               <Link
-                href="/login"
+                href="/dashboard"
                 className="mt-2 text-sm font-medium text-primary hover:underline"
               >
-                Ir para o login
+                Entrar agora
               </Link>
             </div>
           )}
