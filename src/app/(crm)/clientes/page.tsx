@@ -53,19 +53,19 @@ function ClientesSkeleton() {
 export default async function ClientesPage() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">Clientes</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Gerencie os clientes da sua carteira.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ImportarClientesDialog
             trigger={
               <Button variant="outline">
                 <Upload className="size-4" />
-                Importar planilha
+                <span className="hidden sm:inline">Importar planilha</span>
               </Button>
             }
           />

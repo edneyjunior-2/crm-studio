@@ -268,7 +268,7 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
               size="icon-sm"
               className="opacity-0 transition-opacity group-hover:opacity-100 text-violet-500 hover:bg-violet-500/10 hover:text-violet-600"
               onClick={() => setReuniaoOpen(true)}
-              title="Registrar reunião"
+              aria-label="Registrar reunião"
             >
               <Video className="size-3.5" />
             </Button>
@@ -277,7 +277,7 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
               size="icon-sm"
               className="opacity-0 transition-opacity group-hover:opacity-100 text-blue-500 hover:bg-blue-500/10 hover:text-blue-600"
               onClick={() => setEmailOpen(true)}
-              title="Registrar e-mail enviado"
+              aria-label="Registrar e-mail enviado"
             >
               <Mail className="size-3.5" />
             </Button>
@@ -286,7 +286,7 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
               size="icon-sm"
               className="opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-foreground"
               onClick={() => setEditOpen(true)}
-              title="Editar negócio"
+              aria-label="Editar negócio"
             >
               <Pencil className="size-3.5" />
             </Button>

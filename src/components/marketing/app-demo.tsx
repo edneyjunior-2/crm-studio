@@ -54,9 +54,9 @@ function DashboardScreen() {
 
 function PipelineScreen() {
   const estagios = [
-    { label: 'Prospecção', color: 'bg-slate-100', items: ['Empresa Alpha', 'Grupo Beta'] },
-    { label: 'Proposta', color: 'bg-violet-50', items: ['Construtora Silva'] },
-    { label: 'Negociação', color: 'bg-amber-50', items: ['Rede Varejo X', 'Holding Y'] },
+    { label: 'Prospecção', color: 'bg-slate-100', items: [{ nome: 'Empresa Alpha', valor: 'R$ 32k' }, { nome: 'Grupo Beta', valor: 'R$ 18k' }] },
+    { label: 'Proposta', color: 'bg-violet-50', items: [{ nome: 'Construtora Silva', valor: 'R$ 45k' }] },
+    { label: 'Negociação', color: 'bg-amber-50', items: [{ nome: 'Rede Varejo X', valor: 'R$ 27k' }, { nome: 'Holding Y', valor: 'R$ 61k' }] },
   ]
   return (
     <div className="flex gap-2 p-3 overflow-hidden h-full">
@@ -64,9 +64,9 @@ function PipelineScreen() {
         <div key={est.label} className="flex-1 flex flex-col gap-1.5 min-w-0">
           <p className="text-[9px] font-semibold text-[#9ca3af] uppercase tracking-wide truncate">{est.label}</p>
           {est.items.map((item) => (
-            <div key={item} className={`rounded-lg ${est.color} px-2 py-2`}>
-              <p className="text-[9px] font-medium text-[#16181d] truncate">{item}</p>
-              <p className="text-[8px] text-[#9ca3af] mt-0.5">R$ {(Math.random() * 50 + 10).toFixed(0)}k</p>
+            <div key={item.nome} className={`rounded-lg ${est.color} px-2 py-2`}>
+              <p className="text-[9px] font-medium text-[#16181d] truncate">{item.nome}</p>
+              <p className="text-[8px] text-[#9ca3af] mt-0.5">{item.valor}</p>
             </div>
           ))}
         </div>
@@ -142,10 +142,10 @@ function CalendarioScreen() {
   return (
     <div className="flex flex-col gap-2 p-3">
       <div className="grid grid-cols-5 gap-1 mb-1">
-        {dias.map((d) => (
+        {dias.map((d, i) => (
           <div key={d} className="rounded bg-[#f9f8f5] py-1.5 text-center">
             <p className="text-[8px] font-semibold text-[#9ca3af]">{d}</p>
-            <p className="text-[11px] font-bold text-[#16181d]">{Math.floor(Math.random() * 5) + 15}</p>
+            <p className="text-[11px] font-bold text-[#16181d]">{15 + i}</p>
           </div>
         ))}
       </div>

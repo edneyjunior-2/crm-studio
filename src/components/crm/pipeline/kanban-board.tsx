@@ -130,7 +130,7 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
   const [periodicidade, setPeriodicidade] = useState<string>('mensal')
   const [dataFechamento, setDataFechamento] = useState('')
   const [motivoPerda, setMotivoPerda] = useState('')
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setNegocios(initialNegocios)
@@ -316,8 +316,8 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
             <DialogClose render={<Button variant="outline" type="button" onClick={handleCancelarDrop} />}>
               Cancelar
             </DialogClose>
-            <Button onClick={handleConfirmarDrop}>
-              Confirmar Mudança
+            <Button onClick={handleConfirmarDrop} disabled={isPending}>
+              {isPending ? 'Salvando...' : 'Confirmar Mudança'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -427,8 +427,8 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
             <DialogClose render={<Button variant="outline" type="button" onClick={handleCancelarDrop} />}>
               Cancelar
             </DialogClose>
-            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleConfirmarDrop}>
-              Confirmar Fechamento
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleConfirmarDrop} disabled={isPending}>
+              {isPending ? 'Salvando...' : 'Confirmar Fechamento'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -461,8 +461,8 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
             <DialogClose render={<Button variant="outline" type="button" onClick={handleCancelarDrop} />}>
               Cancelar
             </DialogClose>
-            <Button variant="destructive" onClick={handleConfirmarDrop}>
-              Confirmar Perda
+            <Button variant="destructive" onClick={handleConfirmarDrop} disabled={isPending}>
+              {isPending ? 'Salvando...' : 'Confirmar Perda'}
             </Button>
           </DialogFooter>
         </DialogContent>

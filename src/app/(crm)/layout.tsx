@@ -64,11 +64,11 @@ export default async function CRMLayout({
         <Sidebar profile={profile as Profile} modulosAtivos={modulosAtivos} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Topbar profile={profile as Profile} />
-          <main className="flex-1 overflow-y-auto p-6 crm-grid-texture">{children}</main>
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 crm-grid-texture">{children}</main>
         </div>
       </div>
 
-      <Toaster richColors position="top-right" theme="dark" />
+      <Toaster richColors position="top-right" />
       <TourBoasVindas />
     </div>
   )

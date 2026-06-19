@@ -48,14 +48,14 @@ export function FinalCta() {
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/cadastro"
-              className="group inline-flex items-center justify-center gap-2 rounded-full bg-accent px-9 py-4 text-[15px] font-semibold text-white shadow-[0_4px_28px_rgba(232,145,91,0.4)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_36px_rgba(232,145,91,0.5)]"
+              className="group inline-flex items-center justify-center gap-2 rounded-full bg-accent px-9 py-4 text-[15px] font-semibold text-white shadow-[0_4px_28px_rgba(232,145,91,0.4)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_36px_rgba(232,145,91,0.5)] outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
             >
               Começar grátis
               <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
             <Link
               href="/contato"
-              className="inline-flex items-center justify-center rounded-full border border-white/25 px-9 py-4 text-[15px] font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/10"
+              className="inline-flex items-center justify-center rounded-full border border-white/25 px-9 py-4 text-[15px] font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/10 outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
             >
               Falar com a gente
             </Link>

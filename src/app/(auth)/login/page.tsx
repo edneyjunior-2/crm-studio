@@ -5,11 +5,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 interface LoginPageProps {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; cadastro?: string }>
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { error } = await searchParams
+  const { error, cadastro } = await searchParams
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
@@ -27,8 +27,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+          {cadastro === 'ok' && (
+            <div className="mb-5 rounded-lg border border-chart-5/30 bg-chart-5/5 px-3 py-2.5 text-sm text-chart-5">
+              Conta criada com sucesso. Faça login para entrar.
+            </div>
+          )}
           {error && (
-            <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+            <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">
               {decodeURIComponent(error)}
             </div>
           )}

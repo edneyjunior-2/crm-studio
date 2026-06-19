@@ -7,12 +7,21 @@ import type { Profile } from '@/types'
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
+  '/atendimento': 'Atendimento',
   '/clientes': 'Clientes',
   '/solucoes': 'Soluções',
+  '/parceiros': 'Parceiros',
   '/pipeline': 'Pipeline',
   '/financeiro': 'Financeiro',
-  '/configuracoes': 'Configurações',
+  '/calendario': 'Calendário',
+  '/processos': 'Processos',
   '/contratos': 'Contratos',
+  '/estoque': 'Estoque',
+  '/rh': 'RH',
+  '/automacoes': 'Automações',
+  '/fluxos': 'Fluxos',
+  '/configuracoes': 'Configurações',
+  '/minha-conta': 'Minha Conta',
   '/onboarding': 'Onboarding',
 }
 
@@ -66,8 +75,8 @@ export function Topbar({ profile }: TopbarProps) {
           <span className="text-sm font-medium text-foreground leading-tight">
             {profile.full_name}
           </span>
-          <span className="text-xs capitalize text-muted-foreground leading-tight">
-            {profile.role}
+          <span className="text-xs text-muted-foreground leading-tight">
+            {{ admin: 'Administrador', socio: 'Sócio', comercial: 'Comercial' }[profile.role] ?? profile.role}
           </span>
         </div>
         <div className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground ring-2 ring-primary/20">

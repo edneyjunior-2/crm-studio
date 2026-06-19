@@ -19,6 +19,7 @@ export function ContatoForm() {
   const [empresa, setEmpresa] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [erros, setErros] = useState<Record<string, string>>({})
+  const [erroGeral, setErroGeral] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
 
@@ -31,16 +32,24 @@ export function ContatoForm() {
     return Object.keys(e).length === 0
   }
 
-  function handleSubmit(ev: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(ev: React.FormEvent<HTMLFormElement>) {
     ev.preventDefault()
     if (!validar()) return
+    setErroGeral(null)
     setEnviando(true)
-    // TODO(M1/M5): enviar de verdade via Resend / endpoint /api/contato.
-    // Por ora confirmamos o recebimento no cliente.
-    setTimeout(() => {
-      setEnviando(false)
+    try {
+      const res = await fetch('/api/contato', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, email, empresa, assunto, mensagem }),
+      })
+      if (!res.ok) throw new Error('Falha')
       setEnviado(true)
-    }, 600)
+    } catch {
+      setErroGeral('Não foi possível enviar. Tente novamente ou escreva para nao-responda@crmstudio.com.br.')
+    } finally {
+      setEnviando(false)
+    }
   }
 
   if (enviado) {
@@ -59,6 +68,11 @@ export function ContatoForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+      {erroGeral && (
+        <div role="alert" className="mb-5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+          {erroGeral}
+        </div>
+      )}
       <fieldset className="mb-6">
         <legend className="mb-2 text-sm font-medium">Como podemos ajudar?</legend>
         <div className="flex flex-wrap gap-2">

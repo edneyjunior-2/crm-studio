@@ -44,13 +44,13 @@ export function Hero() {
           </Enter>
 
           {/* Headline animada palavra por palavra */}
-          <h1 className="text-[clamp(2.6rem,6vw,5rem)] font-bold leading-[0.97] tracking-[-0.04em]">
+          <h1 className="text-[clamp(2.6rem,6vw,5rem)] font-bold leading-[0.97] tracking-[-0.04em] text-balance">
             <StaggerText
               text="Organize toda a operação,"
               delay={0.08}
               staggerDelay={0.055}
             />
-            <br />
+            <br className="hidden sm:block" />
             <StaggerText
               text="do seu jeito."
               wordClassName="text-accent"
@@ -73,14 +73,14 @@ export function Hero() {
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
                 href="/cadastro"
-                className="group inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-8 py-4 text-[15px] font-semibold text-background shadow-[0_4px_24px_rgba(22,24,29,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(22,24,29,0.22)]"
+                className="group inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-8 py-4 text-[15px] font-semibold text-background shadow-[0_4px_24px_rgba(22,24,29,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(22,24,29,0.22)] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Começar grátis
                 <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
               <Link
                 href="/contato"
-                className="inline-flex items-center justify-center rounded-full border border-border px-8 py-4 text-[15px] font-semibold text-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-muted hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center rounded-full border border-border px-8 py-4 text-[15px] font-semibold text-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-muted hover:-translate-y-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Falar com a gente
               </Link>

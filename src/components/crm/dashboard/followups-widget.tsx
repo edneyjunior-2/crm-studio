@@ -88,7 +88,7 @@ export function FollowupsWidget({ followups: initial }: { followups: Followup[] 
                   disabled={isPending}
                   onClick={() => handleConcluir(f.id)}
                   className="text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
-                  title="Marcar como concluído"
+                  aria-label="Marcar follow-up como concluído"
                 >
                   <CheckCircle2 className="size-3.5" />
                 </Button>

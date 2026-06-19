@@ -114,9 +114,9 @@ export function InviteUserForm() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label>Perfil de Acesso</Label>
+              <Label htmlFor="role-acesso">Perfil de Acesso</Label>
               <Select value={role} onValueChange={(v) => { if (v) setRole(v) }} disabled={isPending}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="role-acesso" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

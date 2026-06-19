@@ -216,6 +216,7 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
           title={collapsed ? 'Expandir menu' : 'Recolher menu'}
           className="rounded-lg p-1.5 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
         >
@@ -235,6 +236,8 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
+              aria-label={collapsed ? item.label : undefined}
+              aria-current={isActive ? 'page' : undefined}
               {...(item.tourSlug ? { 'data-tour': item.tourSlug } : {})}
               className={cn(
                 'group relative flex items-center rounded-lg text-sm font-medium transition-colors duration-200',

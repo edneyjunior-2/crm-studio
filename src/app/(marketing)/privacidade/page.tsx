@@ -71,10 +71,12 @@ export default function PrivacidadePage() {
 
       {/* Seções */}
       <div className="flex flex-col gap-10">
-        {SECOES.map((secao) => (
+        {SECOES.filter((s) => s.texto !== '[texto jurídico em elaboração]').map((secao) => (
           <section key={secao.titulo}>
             <h2 className="mb-3 text-lg font-semibold text-foreground">{secao.titulo}</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">{secao.texto}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {secao.texto.replace(' [texto jurídico em elaboração]', '')}
+            </p>
           </section>
         ))}
       </div>

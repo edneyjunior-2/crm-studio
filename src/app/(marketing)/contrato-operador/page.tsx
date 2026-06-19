@@ -90,12 +90,19 @@ export default function ContratoOperadorPage() {
 
       {/* Seções */}
       <div className="flex flex-col gap-10">
-        {SECOES.map((secao) => (
+        {SECOES.filter((s) => s.texto !== '[texto jurídico em elaboração]').map((secao) => (
           <section key={secao.titulo}>
             <h2 className="mb-3 text-lg font-semibold text-foreground">{secao.titulo}</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">{secao.texto}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {secao.texto.replace(' [texto jurídico em elaboração]', '')}
+            </p>
           </section>
         ))}
+        {SECOES.every((s) => s.texto === '[texto jurídico em elaboração]') && (
+          <p className="text-sm text-muted-foreground italic">
+            As cláusulas detalhadas estarão disponíveis antes do lançamento oficial.
+          </p>
+        )}
       </div>
 
       {/* Footer nav */}

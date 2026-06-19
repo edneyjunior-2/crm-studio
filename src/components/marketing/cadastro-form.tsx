@@ -198,25 +198,24 @@ export function CadastroForm() {
                       }
                     }}
                     placeholder="00.000.000/0000-00"
+                    inputMode="numeric"
                     autoComplete="off"
                     className="flex-1"
                   />
-                  {cnpjCompleto && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={buscarCnpj}
-                      disabled={isBuscandoCnpj || isPending}
-                      className="shrink-0 gap-1.5"
-                    >
-                      {isBuscandoCnpj
-                        ? <Loader2 className="size-3.5 animate-spin" />
-                        : <Search className="size-3.5" />
-                      }
-                      {isBuscandoCnpj ? 'Buscando...' : 'Buscar'}
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={buscarCnpj}
+                    disabled={!cnpjCompleto || isBuscandoCnpj || isPending}
+                    className="shrink-0 gap-1.5"
+                  >
+                    {isBuscandoCnpj
+                      ? <Loader2 className="size-3.5 animate-spin" />
+                      : <Search className="size-3.5" />
+                    }
+                    {isBuscandoCnpj ? 'Buscando...' : 'Buscar'}
+                  </Button>
                 </div>
                 {!cnpjCompleto && (
                   <p className="text-xs text-muted-foreground">

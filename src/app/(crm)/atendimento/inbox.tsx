@@ -324,7 +324,7 @@ function NovaConversaDialog({ onClose }: { onClose: () => void }) {
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold">Nova conversa</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
+          <button onClick={onClose} aria-label="Fechar" className="rounded p-1 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
         </div>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
