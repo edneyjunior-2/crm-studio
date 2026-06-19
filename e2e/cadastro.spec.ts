@@ -1,9 +1,5 @@
 import { test, expect } from '@playwright/test'
 
-// CNPJ fictício com 14 dígitos todos zeros — dígito verificador inválido,
-// portanto a busca automática de CNPJ não é acionada pelo useEffect.
-const CNPJ_INVALIDO = '00000000000000'
-
 test.describe('Cadastro', () => {
   test('cadastro PJ completo → redireciona para /login?cadastro=ok', async ({ page }) => {
     const ts = Date.now()
@@ -13,10 +9,9 @@ test.describe('Cadastro', () => {
     const btnPJ = page.getByRole('button', { name: 'Pessoa Jurídica' })
     if (await btnPJ.isVisible()) await btnPJ.click()
 
-    await page.locator('#cnpj').fill(CNPJ_INVALIDO)
-
-    // Aguardar campo razão social estar habilitado (indica que o useEffect do CNPJ terminou)
-    await expect(page.locator('#razao_social')).toBeEnabled({ timeout: 5_000 })
+    // 8 dígitos: passa na validação do servidor (!cnpj) mas não aciona o useEffect
+    // que só dispara a busca automática quando o campo tem exatamente 14 dígitos
+    await page.locator('#cnpj').fill('12345678')
 
     await page.locator('#razao_social').fill(`Empresa E2E Teste ${ts}`)
     await page.locator('#nome_responsavel').fill('Responsável Teste')

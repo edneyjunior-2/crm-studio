@@ -23,7 +23,8 @@ test.describe('Autenticação', () => {
     await expect(page).toHaveURL(/\/dashboard/)
 
     // O botão "Sair" fica na sidebar (form action={logout})
-    await page.getByRole('button', { name: 'Sair' }).click()
+    // force: true — o driver.js (tour de onboarding) pode sobrepor um overlay que intercepta o click
+    await page.getByRole('button', { name: 'Sair' }).click({ force: true })
     await page.waitForURL(/\/login/, { timeout: 10_000 })
     await expect(page).toHaveURL(/\/login/)
   })
