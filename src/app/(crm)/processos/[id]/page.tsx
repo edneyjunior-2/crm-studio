@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Scale, Building2, User, MapPin, BookOpen, AlertCircle, Pencil,
+  ArrowLeft, Scale, Building2, User, MapPin, BookOpen, AlertCircle, Pencil, ArrowUpRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { calcularHonorarios, formatarBRL } from '@/lib/honorarios'
@@ -89,6 +89,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   const clienteRaw = processo.clientes as unknown
   const advRaw     = (processo as Record<string, unknown>)['profiles!advogado_id'] as unknown
   const clienteNome = (clienteRaw as { razao_social?: string } | null)?.razao_social ?? null
+  const clienteId   = (clienteRaw as { id?: string } | null)?.id ?? null
   const advNome     = (advRaw as { full_name?: string } | null)?.full_name ?? null
 
   const partes = (processo.partes_raw as { polo: string; nome: string }[] | null) ?? []
@@ -207,9 +208,24 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           {processo.comarca && (
             <InfoItem icon={MapPin} label="Comarca" value={processo.comarca} />
           )}
-          {clienteNome && (
+          {clienteNome && clienteId ? (
+            <Link
+              href={`/clientes/${clienteId}`}
+              className="group -m-1 flex items-start gap-2 rounded-lg p-1 transition-colors hover:bg-accent"
+            >
+              <Building2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                  Cliente
+                  <ArrowUpRight className="size-3 opacity-60 transition-opacity group-hover:opacity-100" />
+                </p>
+                <p className="truncate text-sm text-foreground group-hover:text-primary">{clienteNome}</p>
+                <p className="text-[11px] text-muted-foreground">Ver cadastro (telefone, e-mail)</p>
+              </div>
+            </Link>
+          ) : clienteNome ? (
             <InfoItem icon={Building2} label="Cliente" value={clienteNome} />
-          )}
+          ) : null}
           {advNome && (
             <InfoItem icon={User} label="Advogado responsável" value={advNome} />
           )}

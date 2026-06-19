@@ -75,6 +75,16 @@ export function ProcessoCard({
         )}
       </div>
 
+      {/* Cliente — em destaque */}
+      <div className="flex items-center gap-1.5">
+        <Building2 className="size-4 shrink-0 text-muted-foreground" />
+        {clienteNome ? (
+          <span className="truncate text-sm font-semibold text-foreground">{clienteNome}</span>
+        ) : (
+          <span className="text-sm italic text-muted-foreground">Sem cliente vinculado</span>
+        )}
+      </div>
+
       {/* Número do processo */}
       <div>
         <p className="font-mono text-[13px] font-semibold text-foreground leading-tight">
@@ -95,14 +105,8 @@ export function ProcessoCard({
       {/* Divider */}
       <div className="border-t border-border" />
 
-      {/* Rodapé: cliente + advogado + data */}
+      {/* Rodapé: advogado + data */}
       <div className="flex flex-col gap-1.5">
-        {clienteNome && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Building2 className="size-3 shrink-0" />
-            <span className="truncate">{clienteNome}</span>
-          </div>
-        )}
         {advogadoNome && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <User className="size-3 shrink-0" />
