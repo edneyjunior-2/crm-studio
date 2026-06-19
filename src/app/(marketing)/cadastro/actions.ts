@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { sendWelcomeEmail } from '@/lib/email'
 
 export async function cadastrar(formData: FormData): Promise<{ error?: string }> {
   const tipoPessoa = formData.get('tipo_pessoa') as 'pj' | 'pf'
@@ -87,6 +88,12 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
     return { error: `Erro ao criar conta: ${error.message}` }
   }
 
-  // TODO: integrar envio de e-mail transacional via Resend (M2)
+  // sendWelcomeEmail swallows seus próprios erros — await seguro, não bloqueia se Resend falhar
+  await sendWelcomeEmail({
+    to: email,
+    nome: nomeResponsavel,
+    empresaNome: metadata.empresa_nome,
+  })
+
   redirect('/login?cadastro=ok')
 }

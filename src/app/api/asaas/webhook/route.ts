@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
 
   // 4. Resolver empresa_id
   let empresaId: string | null = null
+  let empresaPlano: string | null = null
 
   if (payment.subscription) {
     const { data: assinatura } = await supabase
@@ -120,10 +121,18 @@ export async function POST(request: NextRequest) {
   if (!empresaId) {
     const { data: empresa } = await supabase
       .from('empresas')
-      .select('id')
+      .select('id, plano')
       .eq('asaas_customer_id', payment.customer)
       .single()
     empresaId = empresa?.id ?? null
+    empresaPlano = empresa?.plano ?? null
+  } else {
+    const { data: empresa } = await supabase
+      .from('empresas')
+      .select('plano')
+      .eq('id', empresaId)
+      .single()
+    empresaPlano = empresa?.plano ?? null
   }
 
   if (!empresaId) {
@@ -132,6 +141,15 @@ export async function POST(request: NextRequest) {
       .update({ error: `empresa_id não encontrada para customer=${payment.customer}`, processed: true, processed_at: new Date().toISOString() })
       .eq('asaas_event_id', asaasEventId)
     return NextResponse.json({ ok: true })
+  }
+
+  // Guard: nunca alterar status de empresas internas (sandbox / contas da plataforma)
+  if (empresaPlano === 'interno') {
+    await supabase
+      .from('eventos_webhook')
+      .update({ empresa_id: empresaId, processed: true, processed_at: new Date().toISOString() })
+      .eq('asaas_event_id', asaasEventId)
+    return NextResponse.json({ ok: true, skipped: 'interno' })
   }
 
   // Atualizar empresa_id no evento agora que resolvemos
@@ -165,6 +183,8 @@ export async function POST(request: NextRequest) {
     novoStatus = 'ativo'
   } else if (event === 'PAYMENT_OVERDUE') {
     novoStatus = 'atrasado'
+  } else if (event === 'SUBSCRIPTION_DELETED' || event === 'SUBSCRIPTION_CANCELLED' || event === 'SUBSCRIPTION_INACTIVATED') {
+    novoStatus = 'cancelado'
   }
 
   if (novoStatus) {
