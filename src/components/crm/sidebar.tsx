@@ -26,6 +26,7 @@ import {
   Boxes,
   IdCard,
   Scale,
+  MessagesSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
@@ -52,6 +53,13 @@ const navItems: NavItem[] = [
     icon: LayoutDashboard,
     tourSlug: 'dashboard',
     // sem modulo → infra, sempre visível
+  },
+  {
+    href: '/atendimento',
+    label: 'Atendimento',
+    icon: MessagesSquare,
+    tourSlug: 'atendimento',
+    // sem modulo → sem gating por enquanto (consistente com o restante)
   },
   {
     href: '/solucoes',
