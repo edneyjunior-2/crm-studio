@@ -94,6 +94,89 @@ export async function sendInviteEmail({
   }
 }
 
+/**
+ * Alerta operacional INTERNO (para o dono da plataforma, não para o cliente).
+ * Usado p/ avisar sobre contas perto da purga e confirmar purgas concluídas.
+ */
+export async function sendAlertaInterno({
+  to,
+  assunto,
+  titulo,
+  descricao,
+  linhas,
+  destaque = 'aviso',
+}: {
+  to: string
+  assunto: string
+  titulo: string
+  descricao: string
+  linhas: string[]
+  destaque?: 'aviso' | 'perigo'
+}): Promise<{ sent: boolean; reason?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[email] RESEND_API_KEY não configurada — alerta interno não enviado')
+    return { sent: false, reason: 'sem_api_key' }
+  }
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to: stripHeaders(to),
+      subject: stripHeaders(assunto),
+      html: buildAlertaHtml({ titulo, descricao, linhas, destaque }),
+    })
+    if (error) {
+      console.error('[email] Resend recusou o alerta interno:', error)
+      return { sent: false, reason: error.message }
+    }
+    return { sent: true }
+  } catch (err) {
+    console.error('[email] Falha ao enviar alerta interno:', err)
+    return { sent: false, reason: err instanceof Error ? err.message : 'erro' }
+  }
+}
+
+function buildAlertaHtml({
+  titulo,
+  descricao,
+  linhas,
+  destaque,
+}: {
+  titulo: string
+  descricao: string
+  linhas: string[]
+  destaque: 'aviso' | 'perigo'
+}): string {
+  const cor = destaque === 'perigo' ? '#dc2626' : '#d97706'
+  const itens = linhas
+    .map(
+      (l) =>
+        `<li style="color:#374151;font-size:14px;line-height:1.9;">${escapeHtml(l)}</li>`,
+    )
+    .join('')
+  const adminUrl = `${getAppUrl()}/admin/empresas`
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>${escapeHtml(titulo)}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;margin:0;padding:40px 0;">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+    <div style="background:${cor};padding:24px 32px;">
+      <h1 style="color:#ffffff;margin:0;font-size:18px;font-weight:700;">${escapeHtml(titulo)}</h1>
+    </div>
+    <div style="padding:32px;">
+      <p style="color:#6b7280;font-size:15px;line-height:1.7;margin:0 0 20px;">${escapeHtml(descricao)}</p>
+      <ul style="padding-left:18px;margin:0 0 28px;">${itens}</ul>
+      <a href="${adminUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">Abrir o Admin &#8594;</a>
+    </div>
+    <div style="background:#f9fafb;padding:16px 32px;text-align:center;border-top:1px solid #f3f4f6;">
+      <p style="color:#9ca3af;font-size:12px;margin:0;">CRM Studio · alerta automático da plataforma</p>
+    </div>
+  </div>
+</body>
+</html>`
+}
+
 function buildInviteHtml({
   nome,
   empresaNome,

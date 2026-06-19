@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendAlertaInterno } from '@/lib/email'
 
 export const maxDuration = 300 // 5 min (Vercel Pro)
 
@@ -22,6 +23,10 @@ export const maxDuration = 300 // 5 min (Vercel Pro)
  * à parte via admin API — só quando o DELETE da empresa de fato ocorreu.
  */
 const RETENCAO_DIAS = 90
+// Quantos dias antes da purga o dono é avisado (p/ ter chance de reverter).
+const AVISO_DIAS = 7
+// Para onde vão os alertas internos (dono da plataforma). Configurável por env.
+const ALERTA_EMAIL = process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com'
 
 function secretValido(authHeader: string): boolean {
   const secret = process.env.CRON_SECRET
@@ -50,6 +55,46 @@ async function handler(req: NextRequest) {
   // Corte de retenção: cancelado há mais de RETENCAO_DIAS dias.
   const corte = new Date(Date.now() - RETENCAO_DIAS * 24 * 60 * 60 * 1000).toISOString()
 
+  // ---- FASE A: aviso prévio (para o dono tentar reverter ANTES da exclusão) ----
+  // Contas canceladas que entram nos últimos AVISO_DIAS antes do prazo e que ainda
+  // não foram avisadas. O carimbo aviso_purga_enviado_em garante 1 aviso por conta
+  // (e o trigger o zera na reativação, então re-cancelar volta a avisar).
+  const corteAviso = new Date(Date.now() - (RETENCAO_DIAS - AVISO_DIAS) * 24 * 60 * 60 * 1000).toISOString()
+  let avisados = 0
+  const { data: proximas } = await db
+    .from('empresas')
+    .select('id, nome, cancelado_em')
+    .eq('status', 'cancelado')
+    .not('cancelado_em', 'is', null)
+    .gte('cancelado_em', corte)       // ainda dentro dos 90 dias
+    .lt('cancelado_em', corteAviso)   // mas já nos últimos AVISO_DIAS
+    .is('aviso_purga_enviado_em', null)
+    .order('cancelado_em', { ascending: true })
+
+  if (proximas && proximas.length > 0) {
+    const linhas = proximas.map((e) => {
+      const fim = new Date(new Date(e.cancelado_em as string).getTime() + RETENCAO_DIAS * 86400000)
+      const dias = Math.max(0, Math.ceil((fim.getTime() - Date.now()) / 86400000))
+      return `${(e.nome as string) ?? e.id} — será apagada em ${dias} dia(s), em ${fim.toLocaleDateString('pt-BR')}. Reative para manter.`
+    })
+    if (!dryRun) {
+      await sendAlertaInterno({
+        to: ALERTA_EMAIL,
+        assunto: `⚠️ ${proximas.length} conta(s) cancelada(s) perto da exclusão definitiva`,
+        titulo: 'Contas perto da purga (90 dias)',
+        descricao: 'Estas contas canceladas serão APAGADAS definitivamente em breve (irreversível). Se quiser manter alguma, reative a conta no Admin antes do prazo.',
+        linhas,
+        destaque: 'aviso',
+      })
+      await db
+        .from('empresas')
+        .update({ aviso_purga_enviado_em: new Date().toISOString() })
+        .in('id', proximas.map((e) => e.id))
+    }
+    avisados = proximas.length
+  }
+
+  // ---- FASE B: purga ----
   // Travas 1 + 2: só canceladas, com carimbo, além do corte. Mais antigas primeiro.
   const { data: candidatas, error: selErr } = await db
     .from('empresas')
@@ -118,10 +163,26 @@ async function handler(req: NextRequest) {
     detalhes.push({ id: emp.id, acao: 'purgada', usuarios: userIds.length })
   }
 
+  // Confirmação pós-purga (registro do que saiu — irreversível).
+  if (!dryRun && purgadas > 0) {
+    await sendAlertaInterno({
+      to: ALERTA_EMAIL,
+      assunto: `🗑️ ${purgadas} conta(s) purgada(s) definitivamente`,
+      titulo: 'Purga concluída',
+      descricao: `${purgadas} conta(s) cancelada(s) há mais de ${RETENCAO_DIAS} dias foram apagadas definitivamente (irreversível). ${usuariosRemovidos} usuário(s) de acesso removido(s).`,
+      linhas: detalhes
+        .filter((d) => d.acao === 'purgada')
+        .map((d) => `Empresa ${d.id} — ${d.usuarios} usuário(s)`),
+      destaque: 'perigo',
+    })
+  }
+
   return NextResponse.json({
     dryRun,
     retencao_dias: RETENCAO_DIAS,
+    aviso_dias: AVISO_DIAS,
     corte,
+    avisados,
     elegiveis: elegiveis.length,
     purgadas,
     usuarios_removidos: usuariosRemovidos,
