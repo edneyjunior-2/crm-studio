@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getAuthUser } from '@/lib/auth'
 import { TrendingUp, DollarSign, BarChart3, CalendarClock, Star, ArrowRight } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { PipelineChart } from '@/components/crm/dashboard/pipeline-chart'
 import { FollowupsWidget } from '@/components/crm/dashboard/followups-widget'
 import { ConversaoFunil } from '@/components/crm/dashboard/conversao-funil'
@@ -45,13 +46,13 @@ const ESTAGIO_LABEL: Record<EstagioNegocio, string> = {
   fechado_perdido: 'Fechado Perdido',
 }
 
-const ESTAGIO_COLOR: Record<EstagioNegocio, string> = {
-  prospeccao: 'bg-slate-100 text-slate-700',
-  qualificacao: 'bg-blue-100 text-blue-700',
-  proposta: 'bg-violet-100 text-violet-700',
-  negociacao: 'bg-amber-100 text-amber-700',
-  fechado_ganho: 'bg-emerald-100 text-emerald-700',
-  fechado_perdido: 'bg-red-100 text-red-700',
+const ESTAGIO_TO_VARIANT: Record<EstagioNegocio, 'prospeccao' | 'qualificacao' | 'proposta' | 'negociacao' | 'fechado_ganho' | 'fechado_perdido'> = {
+  prospeccao: 'prospeccao',
+  qualificacao: 'qualificacao',
+  proposta: 'proposta',
+  negociacao: 'negociacao',
+  fechado_ganho: 'fechado_ganho',
+  fechado_perdido: 'fechado_perdido',
 }
 
 export default async function DashboardPage() {
@@ -283,9 +284,11 @@ export default async function DashboardPage() {
                 key={sol.id}
                 className="group relative flex flex-col gap-4 rounded-xl border border-primary/20 bg-primary/[0.04] p-5 shadow-sm transition-all hover:bg-primary/[0.07] hover:shadow-md hover:-translate-y-0.5"
               >
-                <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                  <Star className="size-2.5 fill-amber-500 text-amber-500" />
-                  Destaque
+                <div className="absolute right-4 top-4">
+                  <StatusBadge variant="proposta" className="gap-1 text-[10px] font-bold uppercase tracking-wider">
+                    <Star className="size-2.5 fill-amber-500 text-amber-500" />
+                    Destaque
+                  </StatusBadge>
                 </div>
 
                 <div className="flex flex-col gap-1 pr-20">
@@ -344,9 +347,9 @@ export default async function DashboardPage() {
               <h3 className="text-sm font-semibold text-foreground">
                 Prazo nos próximos 7 dias
               </h3>
-              <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
+              <StatusBadge variant="proposta" className="ml-auto flex size-5 items-center justify-center rounded-full text-xs font-bold">
                 {negociosPrazoList.length}
-              </span>
+              </StatusBadge>
             </div>
             <div className="divide-y divide-border">
               {negociosPrazoList.map((negocio) => (
@@ -368,11 +371,9 @@ export default async function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${ESTAGIO_COLOR[negocio.estagio]}`}
-                    >
+                    <StatusBadge variant={ESTAGIO_TO_VARIANT[negocio.estagio]}>
                       {ESTAGIO_LABEL[negocio.estagio]}
-                    </span>
+                    </StatusBadge>
                     {negocio.data_previsao_fechamento && (
                       <span className="text-xs text-amber-600">
                         {formatDate(negocio.data_previsao_fechamento)}

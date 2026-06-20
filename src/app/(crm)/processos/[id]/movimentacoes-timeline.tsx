@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 
 interface Item {
   id: string
@@ -92,9 +93,9 @@ export function MovimentacoesTimeline({
                               </span>
                             )}
                             {m.audiencia && (
-                              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                              <StatusBadge variant="humano" className="ml-2 text-[10px] font-semibold">
                                 Audiência
-                              </span>
+                              </StatusBadge>
                             )}
                           </p>
                           <span className="shrink-0 text-xs text-muted-foreground">{m.data}</span>

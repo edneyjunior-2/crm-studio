@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Upload, Download, FileText, AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 import Papa from 'papaparse'
 import { Button } from '@/components/ui/button'
 import {
@@ -487,18 +488,15 @@ export function ImportarClientesDialog({ trigger }: ImportarClientesDialogProps)
                             </td>
                             <td className="px-3 py-2">
                               {linha.status === 'ok' ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                                <StatusBadge variant="ok" className="gap-1">
                                   <CheckCircle2 className="size-3" />
                                   OK
-                                </span>
+                                </StatusBadge>
                               ) : (
-                                <span
-                                  className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
-                                  title={linha.motivo}
-                                >
+                                <StatusBadge variant="invalido" className="gap-1" title={linha.motivo}>
                                   <X className="size-3" />
                                   {linha.motivo ?? 'inválido'}
-                                </span>
+                                </StatusBadge>
                               )}
                             </td>
                           </tr>

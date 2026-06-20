@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Mail, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { concluirFollowup } from '@/app/(crm)/pipeline/followup-actions'
@@ -42,9 +43,9 @@ export function FollowupsWidget({ followups: initial }: { followups: Followup[] 
       <div className="flex items-center gap-2 border-b border-border px-5 py-4">
         <Mail className="size-4 text-blue-500" />
         <h3 className="text-sm font-semibold text-foreground">Follow-ups de hoje</h3>
-        <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+        <StatusBadge variant="aguardando" className="ml-auto flex size-5 items-center justify-center rounded-full text-xs font-bold">
           {followups.length}
-        </span>
+        </StatusBadge>
       </div>
 
       <div className="divide-y divide-border">

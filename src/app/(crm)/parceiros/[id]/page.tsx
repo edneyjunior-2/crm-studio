@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { ParceiroForm } from '@/components/crm/parceiros/parceiro-form'
 import { ContratoUpload } from '@/components/crm/parceiros/contrato-upload'
 import type { Parceiro } from '@/types'
@@ -172,13 +172,13 @@ export default async function ParceiroDetailPage({ params }: PageProps) {
               <h3 className="text-sm font-semibold text-foreground">Contrato</h3>
               <div className="flex items-center gap-2">
                 {parceiro.contrato_assinado ? (
-                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400">
+                  <StatusBadge variant="contrato_assinado">
                     Contrato Assinado
-                  </Badge>
+                  </StatusBadge>
                 ) : (
-                  <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-400">
+                  <StatusBadge variant="sem_contrato">
                     Sem Contrato
-                  </Badge>
+                  </StatusBadge>
                 )}
                 {parceiro.contrato_assinado && parceiro.data_contrato && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -226,13 +226,13 @@ export default async function ParceiroDetailPage({ params }: PageProps) {
                 <dt className="text-xs font-medium text-muted-foreground">Status do contrato</dt>
                 <dd>
                   {parceiro.contrato_assinado ? (
-                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400">
+                    <StatusBadge variant="contrato_assinado">
                       Assinado
-                    </Badge>
+                    </StatusBadge>
                   ) : (
-                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-400">
+                    <StatusBadge variant="pendente">
                       Pendente
-                    </Badge>
+                    </StatusBadge>
                   )}
                 </dd>
               </div>
@@ -254,9 +254,9 @@ export default async function ParceiroDetailPage({ params }: PageProps) {
                 <div className="flex flex-col gap-1">
                   <dt className="text-xs font-medium text-muted-foreground">Comissão</dt>
                   <dd>
-                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-400">
+                    <StatusBadge variant="comissao">
                       {parceiro.comissao_percentual}%
-                    </Badge>
+                    </StatusBadge>
                   </dd>
                 </div>
               )}

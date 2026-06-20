@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Eye, Pencil, Trash2, Search, Users, Shield, Globe } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -109,15 +110,15 @@ export function ClientesTable({ clientes }: ClientesTableProps) {
                   </TableCell>
                   <TableCell>
                     {cliente.area_tipo === 'privada' ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      <StatusBadge variant="privada" className="gap-1">
                         <Shield className="size-3" />
                         Privada
-                      </span>
+                      </StatusBadge>
                     ) : cliente.area_tipo === 'publica' ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                      <StatusBadge variant="publica" className="gap-1">
                         <Globe className="size-3" />
                         Pública
-                      </span>
+                      </StatusBadge>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

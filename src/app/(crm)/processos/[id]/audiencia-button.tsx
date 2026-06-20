@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Calendar, Loader2, CheckCircle2 } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { adicionarAudienciaAoCalendario } from './actions'
 
 interface Props {
@@ -36,10 +37,10 @@ export function AudienciaButton({ descricao, dataSugerida, processoNumero }: Pro
 
   if (sucesso) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+      <StatusBadge variant="recebido" className="gap-1.5 rounded-lg px-3 py-1.5">
         <CheckCircle2 className="size-3.5" />
         Adicionado
-      </span>
+      </StatusBadge>
     )
   }
 

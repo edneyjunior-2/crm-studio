@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Search, Pencil, Trash2, Mail, Phone, CalendarCheck, Handshake, UserCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -174,13 +174,13 @@ export function ParceirosGrid({ parceiros, canEdit, profiles = [], currentUserId
 
               <div className="flex items-center gap-2 flex-wrap">
                 {parceiro.contrato_assinado ? (
-                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400">
+                  <StatusBadge variant="contrato_assinado">
                     Contrato Assinado
-                  </Badge>
+                  </StatusBadge>
                 ) : (
-                  <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-400">
+                  <StatusBadge variant="sem_contrato">
                     Sem Contrato
-                  </Badge>
+                  </StatusBadge>
                 )}
                 {parceiro.contrato_assinado && parceiro.data_contrato && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -189,9 +189,9 @@ export function ParceirosGrid({ parceiros, canEdit, profiles = [], currentUserId
                   </div>
                 )}
                 {parceiro.comissao_percentual != null && (
-                  <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-400">
+                  <StatusBadge variant="comissao">
                     {parceiro.comissao_percentual}%
-                  </Badge>
+                  </StatusBadge>
                 )}
               </div>
 

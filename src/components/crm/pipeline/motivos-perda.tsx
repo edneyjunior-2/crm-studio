@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, XCircle } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 import type { NegocioComRelacoes } from '@/types'
 
 interface MotivosPerdaProps {
@@ -44,9 +45,9 @@ export function MotivosPerda({ negocios }: MotivosPerdaProps) {
         <div className="flex items-center gap-2">
           <XCircle className="size-4 text-red-400" />
           <span className="text-sm font-semibold text-foreground">Motivos de Perda</span>
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-100 px-1.5 text-xs font-semibold text-red-600">
+          <StatusBadge variant="atrasado" className="h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold">
             {total}
-          </span>
+          </StatusBadge>
         </div>
         {aberto
           ? <ChevronUp className="size-4 text-muted-foreground" />
