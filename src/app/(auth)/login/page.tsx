@@ -20,8 +20,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
       <div className="relative w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Link href="/" className="font-logo text-2xl font-extrabold tracking-[-0.03em] text-foreground">
-            CRM Studio<span className="text-accent">.</span>
+          <Link href="/" className="inline-block">
+            <img
+              src="/brand/CRM-Studio-wordmark.svg"
+              alt="CRM Studio"
+              className="h-7 w-auto"
+            />
           </Link>
           <p className="mt-2 text-sm text-muted-foreground">Acesse a sua conta</p>
         </div>

@@ -220,9 +220,11 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose }: S
         collapsed ? 'justify-center px-2 py-4' : 'justify-between px-4 py-4'
       )}>
         {!collapsed && (
-          <span className="font-logo text-base font-extrabold tracking-[-0.03em] text-sidebar-foreground">
-            CRM Studio<span className="text-sidebar-primary">.</span>
-          </span>
+          <img
+            src="/brand/CRM-Studio-wordmark-white.svg"
+            alt="CRM Studio"
+            className="h-5 w-auto"
+          />
         )}
         <button
           type="button"

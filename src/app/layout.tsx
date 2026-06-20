@@ -41,6 +41,13 @@ export const metadata: Metadata = {
   title: 'CRM Studio · Vendas, financeiro e equipe em um só lugar',
   description:
     'CRM brasileiro para PMEs: pipeline de vendas, módulo financeiro e calendário integrado ao Google. Organize seu time comercial sem planilha.',
+  icons: {
+    icon: [
+      { url: '/brand/CRM-Studio-favicon.svg', type: 'image/svg+xml' },
+      { url: '/brand/CRM-Studio-favicon-32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: { url: '/brand/CRM-Studio-appicon-192.png', sizes: '192x192' },
+  },
 }
 
 export default function RootLayout({
