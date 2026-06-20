@@ -106,7 +106,7 @@ export function BugReportButton({
         disabled={step === 'capturing'}
         title="Teve um problema?"
         className={cn(
-          'group flex w-full items-center rounded-lg text-sm font-medium transition-colors duration-200',
+          'group mt-auto flex w-full items-center rounded-lg text-sm font-medium transition-colors duration-200',
           'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
           collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
           step === 'capturing' && 'opacity-60 cursor-wait'
