@@ -7,27 +7,48 @@ import {
   Users,
   CalendarDays,
   Package,
-  Layers,
+  MessageSquare,
+  Scale,
+  FileSignature,
+  Bot,
 } from 'lucide-react'
 import { EASE_OUT, Tilt, BorderTrail } from './motion'
 
 const FEATURES = [
   {
     icon: TrendingUp,
-    title: 'Gestão comercial',
-    desc: 'Funil de vendas visual, carteira de clientes e portfólio de produtos ou serviços. Do primeiro contato ao fechamento, tudo registrado.',
+    title: 'Pipeline de vendas',
+    desc: 'Funil visual com arrastar e soltar, probabilidade de fechamento e histórico completo de cada oportunidade. Do lead ao contrato.',
     accent: false,
   },
   {
     icon: Landmark,
     title: 'Financeiro integrado',
-    desc: 'Contas a pagar e a receber conectadas às operações. Fluxo de caixa atualizado em tempo real, sem dupla entrada em nenhum lugar.',
+    desc: 'Contas a pagar e a receber conectadas às operações. Fluxo de caixa em tempo real, sem dupla entrada em lugar nenhum.',
     accent: true,
+  },
+  {
+    icon: MessageSquare,
+    title: 'Chat Inbox · WhatsApp',
+    desc: 'Atendimento centralizado com histórico por cliente. A equipe inteira responde num só lugar, sem misturar com o celular pessoal.',
+    accent: false,
+  },
+  {
+    icon: Scale,
+    title: 'Processos jurídicos',
+    desc: 'Acompanhamento de processos via DataJud, honorários e prazos integrados ao CRM. Módulo sob medida para escritórios de advocacia.',
+    accent: false,
+  },
+  {
+    icon: FileSignature,
+    title: 'Contratos e assinatura',
+    desc: 'Geração de contratos e assinatura eletrônica dentro do próprio CRM. Sem sair do sistema para fechar negócio.',
+    accent: false,
   },
   {
     icon: Users,
     title: 'Clientes e relacionamentos',
-    desc: 'Histórico completo de cada cliente, contatos e atividades organizados por empresa. Busca automática de CNPJ incluída.',
+    desc: 'Histórico completo, contatos e atividades por cliente. Busca automática de CNPJ e controle de toda a carteira.',
     accent: false,
   },
   {
@@ -39,15 +60,13 @@ const FEATURES = [
   {
     icon: Package,
     title: 'Estoque e operações',
-    desc: 'Controle de produtos, saldo e movimentações conectados diretamente às operações do negócio. Sem sistema separado.',
-    soon: true,
+    desc: 'Controle de produtos, saldo e movimentações conectados às operações. Add-on no Pro, incluso no Business.',
     accent: false,
   },
   {
-    icon: Layers,
-    title: 'Módulos por setor',
-    desc: 'Em construção: módulos para engenharia, saúde, jurídico, construção civil e mais. Ative o que o seu setor exige.',
-    soon: true,
+    icon: Bot,
+    title: 'SDR WhatsApp · IA',
+    desc: 'Agente de IA que prospecta, qualifica leads e os lança direto no pipeline automaticamente. Add-on disponível em qualquer plano.',
     accent: false,
   },
 ]
@@ -67,12 +86,13 @@ export function FeaturesGrid() {
           transition={{ duration: 0.6, ease: EASE_OUT }}
         >
           <h2 className="text-[clamp(1.9rem,4vw,3rem)] font-bold leading-[1.04] tracking-[-0.03em]">
-            Tudo que a sua empresa precisa,{' '}
-            <span className="text-muted-foreground">num só sistema.</span>
+            Módulos que se adaptam{' '}
+            <span className="text-muted-foreground">ao seu negócio.</span>
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            Ative os módulos que fazem sentido para o seu negócio. Quando uma
-            área cresce, você adiciona o módulo — sem trocar de sistema.
+            Ative o que faz sentido para o seu setor. Advocacia, engenharia,
+            comercial — cada empresa monta a combinação certa, sem pagar pelo
+            que não usa.
           </p>
         </motion.div>
 
@@ -113,11 +133,6 @@ export function FeaturesGrid() {
 
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-[17px] font-semibold leading-snug">{f.title}</h3>
-                      {f.soon && (
-                        <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                          Em breve
-                        </span>
-                      )}
                     </div>
                     <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
                       {f.desc}
