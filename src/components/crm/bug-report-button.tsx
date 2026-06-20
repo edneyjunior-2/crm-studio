@@ -106,18 +106,18 @@ export function BugReportButton({
         disabled={step === 'capturing'}
         title="Teve um problema?"
         className={cn(
-          'group flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-          'text-sidebar-foreground/50 hover:bg-amber-500/10 hover:text-amber-400',
-          collapsed ? 'justify-center px-0' : 'gap-2.5',
+          'group flex w-full items-center rounded-lg text-sm font-medium transition-colors duration-200',
+          'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+          collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
           step === 'capturing' && 'opacity-60 cursor-wait'
         )}
       >
         {step === 'capturing'
-          ? <Loader2 className="size-4 shrink-0 animate-spin" />
-          : <AlertTriangle className="size-4 shrink-0" />
+          ? <Loader2 className="size-4 shrink-0 animate-spin text-sidebar-foreground/50" />
+          : <AlertTriangle className="size-4 shrink-0 text-sidebar-foreground/50 group-hover:text-sidebar-foreground/70 transition-colors" />
         }
         {!collapsed && (
-          <span className="text-xs">
+          <span className="relative">
             {step === 'capturing' ? 'Capturando tela…' : 'Teve um problema?'}
           </span>
         )}

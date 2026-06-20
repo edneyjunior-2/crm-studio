@@ -243,6 +243,7 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
       {/* Nav */}
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {visibleItems.map((item) => {
+
           const isActive = item.exactMatch
             ? pathname === item.href
             : pathname === item.href || pathname.startsWith(item.href + '/')
@@ -299,6 +300,15 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
             </Link>
           )
         })}
+
+        {/* Bug report — no final da nav, antes da linha divisória */}
+        <BugReportButton
+          collapsed={collapsed}
+          empresaId={empresaId}
+          empresaNome={empresaNome}
+          userName={profile.full_name}
+          userRole={profile.role}
+        />
       </nav>
 
       {/* Footer */}
@@ -403,15 +413,6 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
             </Link>
           )
         })()}
-
-        {/* Bug report */}
-        <BugReportButton
-          collapsed={collapsed}
-          empresaId={empresaId}
-          empresaNome={empresaNome}
-          userName={profile.full_name}
-          userRole={profile.role}
-        />
 
         {/* Logout */}
         <form action={logout}>
