@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { Sun, Moon } from 'lucide-react'
+import { Sun, Moon, Menu } from 'lucide-react'
 import type { Profile } from '@/types'
 
 const pageTitles: Record<string, string> = {
@@ -45,18 +45,29 @@ function getInitials(name: string): string {
 
 interface TopbarProps {
   profile: Profile
+  onMenuClick?: () => void
 }
 
-export function Topbar({ profile }: TopbarProps) {
+export function Topbar({ profile, onMenuClick }: TopbarProps) {
   const pathname = usePathname()
   const title = getPageTitle(pathname)
   const { resolvedTheme, setTheme } = useTheme()
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/80 bg-background/95 px-6 backdrop-blur-sm">
-      <h1 className="text-base font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
-        {title}
-      </h1>
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="lg:hidden mr-2 rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="Abrir menu"
+        >
+          <Menu className="size-5" />
+        </button>
+        <h1 className="text-base font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
+          {title}
+        </h1>
+      </div>
 
       <div className="flex items-center gap-3">
         {/* Dark / Light toggle */}

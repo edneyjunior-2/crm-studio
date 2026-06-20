@@ -3,9 +3,10 @@
 import { useState, useActionState } from 'react'
 import Link from 'next/link'
 import { Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { criarProcesso, buscarProcesso, criarClienteInline } from './actions'
+import { criarProcesso, buscarProcesso } from './actions'
 import type { BuscarProcessoResult } from './actions'
 import { mascararMilhar, parseValorBR } from '@/lib/honorarios'
+import { ClienteForm } from '@/components/crm/clientes/cliente-form'
 
 interface Cliente { id: string; razao_social: string }
 
@@ -40,12 +41,7 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
   // Cliente: lista mutável (p/ cadastro inline) + seleção controlada
   const [clientesList, setClientesList] = useState<Cliente[]>(clientes)
   const [clienteId, setClienteId]       = useState('')
-  const [novoClienteAberto, setNovoClienteAberto] = useState(false)
-  const [ncRazao, setNcRazao]     = useState('')
-  const [ncCnpj, setNcCnpj]       = useState('')
-  const [ncContato, setNcContato] = useState('')
-  const [ncLoading, setNcLoading] = useState(false)
-  const [ncErro, setNcErro]       = useState<string | null>(null)
+  const [novoClienteOpen, setNovoClienteOpen] = useState(false)
 
   // Valor da causa (controlado p/ calcular o honorário em %) + honorários
   const [valorCausa, setValorCausa] = useState('')
@@ -59,28 +55,12 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
       ? (valorCausaNum * honValorNum) / 100
       : null
 
-  async function handleCriarCliente() {
-    if (!ncRazao.trim()) { setNcErro('Informe a razão social.'); return }
-    setNcLoading(true)
-    setNcErro(null)
-    try {
-      const res = await criarClienteInline(ncRazao, ncCnpj, ncContato)
-      if (res.error || !res.cliente) {
-        setNcErro(res.error ?? 'Não foi possível criar o cliente.')
-        return
-      }
-      const novo = res.cliente
-      setClientesList((prev) =>
-        [...prev, novo].sort((a, b) => a.razao_social.localeCompare(b.razao_social, 'pt-BR')),
-      )
-      setClienteId(novo.id)
-      setNovoClienteAberto(false)
-      setNcRazao(''); setNcCnpj(''); setNcContato('')
-    } catch {
-      setNcErro('Erro inesperado ao criar o cliente.')
-    } finally {
-      setNcLoading(false)
-    }
+  function handleNovoClienteSuccess(cliente: { id: string; razao_social: string }) {
+    setClientesList((prev) =>
+      [...prev, cliente].sort((a, b) => a.razao_social.localeCompare(b.razao_social, 'pt-BR')),
+    )
+    setClienteId(cliente.id)
+    setNovoClienteOpen(false)
   }
 
   async function handleBuscar() {
@@ -286,18 +266,9 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
           )}
         </div>
 
-        {/* Cliente (com cadastro inline) */}
+        {/* Cliente (com cadastro inline via Dialog) */}
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label className={labelClass} htmlFor="cliente_id">Cliente</label>
-            <button
-              type="button"
-              onClick={() => { setNovoClienteAberto((v) => !v); setNcErro(null) }}
-              className="text-xs font-medium text-primary transition-colors hover:underline"
-            >
-              {novoClienteAberto ? 'Cancelar' : '+ Novo cliente'}
-            </button>
-          </div>
+          <label className={labelClass} htmlFor="cliente_id">Cliente</label>
           <select
             id="cliente_id"
             name="cliente_id"
@@ -310,42 +281,18 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
               <option key={c.id} value={c.id}>{c.razao_social}</option>
             ))}
           </select>
-
-          {novoClienteAberto && (
-            <div className="mt-1 flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
-              <input
-                value={ncRazao}
-                onChange={(e) => setNcRazao(e.target.value)}
-                placeholder="Razão social *"
-                className={inputClass}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCriarCliente() } }}
-              />
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={ncCnpj}
-                  onChange={(e) => setNcCnpj(e.target.value)}
-                  placeholder="CNPJ (opcional)"
-                  className={inputClass}
-                />
-                <input
-                  value={ncContato}
-                  onChange={(e) => setNcContato(e.target.value)}
-                  placeholder="Contato (opcional)"
-                  className={inputClass}
-                />
-              </div>
-              {ncErro && <p className="text-xs text-destructive">{ncErro}</p>}
-              <button
-                type="button"
-                onClick={handleCriarCliente}
-                disabled={ncLoading}
-                className="inline-flex items-center gap-1.5 self-start rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background transition-colors hover:bg-foreground/90 disabled:opacity-60"
-              >
-                {ncLoading && <Loader2 className="size-3.5 animate-spin" />}
-                {ncLoading ? 'Criando...' : 'Criar e selecionar'}
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setNovoClienteOpen(true)}
+            className="self-start text-sm text-primary hover:underline cursor-pointer"
+          >
+            Novo cliente +
+          </button>
+          <ClienteForm
+            open={novoClienteOpen}
+            onOpenChange={setNovoClienteOpen}
+            onSuccess={handleNovoClienteSuccess}
+          />
         </div>
 
         {/* Advogado responsável */}

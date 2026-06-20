@@ -213,6 +213,34 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
     setDropPendente(null)
   }
 
+  function handleMoverPara(negocio: NegocioComRelacoes, targetEstagio: EstagioNegocio) {
+    if (negocio.estagio === targetEstagio) return
+
+    if (targetEstagio === 'fechado_ganho' || targetEstagio === 'fechado_perdido') {
+      // Reutiliza o mesmo flow de confirmação do drag
+      setNovaData(negocio.data_previsao_fechamento ?? '')
+      setDataFechamento(todayISO())
+      setPeriodicidade('mensal')
+      setMotivoPerda('')
+      setDropPendente({ id: negocio.id, targetEstagio, dataAtual: negocio.data_previsao_fechamento })
+    } else {
+      // Move direto sem dialog
+      const previous = [...negocios]
+      setNegocios((prev) =>
+        prev.map((n) =>
+          n.id === negocio.id ? { ...n, estagio: targetEstagio } : n
+        )
+      )
+      startTransition(async () => {
+        const result = await updateEstagioComData(negocio.id, targetEstagio, null)
+        if (result.error) {
+          toast.error(result.error)
+          setNegocios(previous)
+        }
+      })
+    }
+  }
+
   return (
     <>
       <div className="flex gap-3 overflow-x-auto pb-4">
@@ -278,6 +306,7 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
                       solucoes={solucoes}
                       onDragStart={handleDragStart}
                       googleConnected={googleConnected}
+                      onMoverPara={(targetEstagio) => handleMoverPara(negocio, targetEstagio)}
                     />
                   ))
                 )}

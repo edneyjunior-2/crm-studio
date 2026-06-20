@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   MessagesSquare, Bot, User, CheckCheck, CornerUpLeft, Lock,
-  Search, Plus, Smartphone, Pencil, Check, X, Loader2,
+  Search, Plus, Smartphone, Pencil, Check, X, Loader2, ArrowLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -85,6 +85,7 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento }: 
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<'todas' | 'nao_lidas'>('todas')
   const [novaAberta, setNovaAberta] = useState(false)
+  const [mobileView, setMobileView] = useState<'lista' | 'thread'>('lista')
 
   function executar(fn: (id: string) => Promise<{ error?: string }>, id: string, sucesso: string) {
     startTransition(async () => {
@@ -123,7 +124,7 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento }: 
 
       <div className="flex h-[calc(100vh-16rem)] overflow-hidden rounded-xl border border-border bg-card">
         {/* Lista (esquerda) */}
-        <div className="flex w-full max-w-xs shrink-0 flex-col border-r border-border md:max-w-sm">
+        <div className={cn('w-full max-w-xs shrink-0 flex-col border-r border-border md:max-w-sm', mobileView === 'thread' ? 'hidden md:flex' : 'flex')}>
           {/* Busca */}
           <div className="border-b border-border p-2">
             <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
@@ -166,6 +167,7 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento }: 
                   <Link
                     key={conv.id}
                     href={`/atendimento?c=${conv.id}`}
+                    onClick={() => setMobileView('thread')}
                     className={cn(
                       'flex flex-col gap-1 border-b border-border px-3 py-2.5 transition-colors hover:bg-muted/60',
                       ativa && 'bg-muted',
@@ -193,12 +195,13 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento }: 
         </div>
 
         {/* Thread (direita) */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className={cn('min-w-0 flex-1 flex-col', mobileView === 'lista' ? 'hidden md:flex' : 'flex')}>
           {selecionada ? (
             <Thread
               conversa={selecionada}
               mensagens={mensagens}
               isPending={isPending}
+              onVoltar={() => setMobileView('lista')}
               onAssumir={() => executar(assumirConversa, selecionada.id, 'Conversa assumida.')}
               onDevolver={() => executar(devolverAoBot, selecionada.id, 'Conversa devolvida ao bot.')}
               onResolver={() => executar(resolverConversa, selecionada.id, 'Conversa resolvida.')}
@@ -356,17 +359,25 @@ interface ThreadProps {
   conversa: Conversa
   mensagens: Mensagem[]
   isPending: boolean
+  onVoltar: () => void
   onAssumir: () => void
   onDevolver: () => void
   onResolver: () => void
   onMarcarLida: () => void
 }
 
-function Thread({ conversa, mensagens, isPending, onAssumir, onDevolver, onResolver, onMarcarLida }: ThreadProps) {
+function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida }: ThreadProps) {
   const status = conversa.status ?? 'bot'
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <button
+          type="button"
+          className="md:hidden flex items-center gap-1 text-sm text-muted-foreground"
+          onClick={onVoltar}
+        >
+          <ArrowLeft className="size-4" /> Conversas
+        </button>
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-foreground">{conversa.wa_number ?? 'Sem número'}</span>
           <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', STATUS_BADGE[status])}>

@@ -2,8 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuthUser } from '@/lib/auth'
 import { acessoLiberado } from '@/lib/gating'
 import { modulosEfetivos } from '@/lib/modulos'
-import { Sidebar } from '@/components/crm/sidebar'
-import { Topbar } from '@/components/crm/topbar'
+import { CRMShell } from '@/components/crm/crm-shell'
 import { BannerAssinatura } from '@/components/crm/banner-assinatura'
 import { Toaster } from '@/components/ui/sonner'
 import { TourBoasVindas } from '@/components/crm/tour-boas-vindas'
@@ -60,13 +59,7 @@ export default async function CRMLayout({
       {/* Banner de aviso de assinatura (trial / pendente / atrasado) */}
       <BannerAssinatura status={status} diasRestantes={diasRestantes} />
 
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar profile={profile as Profile} modulosAtivos={modulosAtivos} />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar profile={profile as Profile} />
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 crm-grid-texture">{children}</main>
-        </div>
-      </div>
+      <CRMShell profile={profile as Profile} modulosAtivos={modulosAtivos}>{children}</CRMShell>
 
       <Toaster richColors position="top-right" />
       <TourBoasVindas />

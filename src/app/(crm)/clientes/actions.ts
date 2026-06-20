@@ -120,7 +120,9 @@ export async function assumirCliente(clienteId: string): Promise<{ error?: strin
   return {}
 }
 
-export async function createCliente(formData: FormData): Promise<{ error?: string }> {
+export async function createCliente(
+  formData: FormData
+): Promise<{ error?: string; cliente?: { id: string; razao_social: string } }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -133,9 +135,10 @@ export async function createCliente(formData: FormData): Promise<{ error?: strin
   const tipoPessoa = (formData.get('tipo_pessoa') as string) === 'pf' ? 'pf' : 'pj'
   const cpf = (formData.get('cpf') as string) || null
   const bloqueioExclusividade = (formData.get('bloqueio_exclusividade') as string) !== 'false'
+  const razaoSocial = formData.get('razao_social') as string
 
-  const { error } = await supabase.from('clientes').insert({
-    razao_social: formData.get('razao_social') as string,
+  const { data, error } = await supabase.from('clientes').insert({
+    razao_social: razaoSocial,
     tipo_pessoa: tipoPessoa,
     cnpj: tipoPessoa === 'pj' ? (cnpjRaw || null) : null,
     cpf: tipoPessoa === 'pf' ? (cpf || null) : null,
@@ -152,12 +155,12 @@ export async function createCliente(formData: FormData): Promise<{ error?: strin
     responsavel_id: user.id,
     responsavel_desde: new Date().toISOString(),
     created_by: user.id,
-  })
+  }).select('id, razao_social').single()
 
   if (error) return { error: error.message }
 
   revalidatePath('/clientes')
-  return {}
+  return { cliente: { id: data.id, razao_social: data.razao_social } }
 }
 
 export async function updateCliente(

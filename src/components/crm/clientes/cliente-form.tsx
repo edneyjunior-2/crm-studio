@@ -38,7 +38,14 @@ interface UsuarioOption {
 
 interface ClienteFormProps {
   cliente?: Cliente
-  trigger: React.ReactNode
+  /** Elemento que abre o dialog quando clicado (modo uncontrolled). Pode ser omitido quando se usa open/onOpenChange. */
+  trigger?: React.ReactNode
+  /** Controla o estado de abertura do dialog externamente. */
+  open?: boolean
+  /** Notifica mudança no estado de abertura quando controlado externamente. */
+  onOpenChange?: (open: boolean) => void
+  /** Callback chamado após cadastro bem-sucedido com os dados do cliente criado. */
+  onSuccess?: (cliente: { id: string; razao_social: string }) => void
 }
 
 interface CnpjWsResponse {
@@ -81,8 +88,16 @@ function formatTelefone(value: string): string {
     .replace(/(\d{5})(\d)/, '$1-$2')
 }
 
-export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
-  const [open, setOpen] = useState(false)
+export function ClienteForm({ cliente, trigger, open: openProp, onOpenChange: onOpenChangeProp, onSuccess }: ClienteFormProps) {
+  const [openInternal, setOpenInternal] = useState(false)
+
+  // Modo controlado externamente se openProp for fornecido
+  const isControlled = openProp !== undefined
+  const open = isControlled ? openProp : openInternal
+  const setOpen = (value: boolean) => {
+    if (!isControlled) setOpenInternal(value)
+    onOpenChangeProp?.(value)
+  }
   const [isPending, startTransition] = useTransition()
   const [isBuscandoCnpj, setIsBuscandoCnpj] = useState(false)
   const [isVerificandoCnpj, setIsVerificandoCnpj] = useState(false)
@@ -257,21 +272,26 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
         return
       }
 
-      const result = cliente
-        ? await updateCliente(cliente.id, formData)
-        : await createCliente(formData)
-
-      if (result.error) {
-        toast.error(result.error)
-        return
-      }
-
-      toast.success(
-        cliente ? 'Cliente atualizado com sucesso.' : 'Cliente cadastrado com sucesso.'
-      )
-      setOpen(false)
-      if (!cliente) {
+      if (cliente) {
+        const result = await updateCliente(cliente.id, formData)
+        if (result.error) {
+          toast.error(result.error)
+          return
+        }
+        toast.success('Cliente atualizado com sucesso.')
+        setOpen(false)
+      } else {
+        const result = await createCliente(formData)
+        if (result.error) {
+          toast.error(result.error)
+          return
+        }
+        toast.success('Cliente cadastrado com sucesso.')
+        setOpen(false)
         resetForm(form)
+        if (result.cliente) {
+          onSuccess?.(result.cliente)
+        }
       }
     })
   }
@@ -305,9 +325,11 @@ export function ClienteForm({ cliente, trigger }: ClienteFormProps) {
 
   return (
     <>
-      <span onClick={() => setOpen(true)} style={{ display: 'contents' }}>
-        {trigger}
-      </span>
+      {trigger != null && (
+        <span onClick={() => setOpen(true)} style={{ display: 'contents' }}>
+          {trigger}
+        </span>
+      )}
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-lg">

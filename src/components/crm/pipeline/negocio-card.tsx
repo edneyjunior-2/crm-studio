@@ -139,9 +139,10 @@ interface NegocioCardProps {
   solucoes: Pick<Solucao, 'id' | 'nome'>[]
   onDragStart: (e: React.DragEvent<HTMLDivElement>, id: string) => void
   googleConnected: boolean
+  onMoverPara?: (estagio: EstagioNegocio) => void
 }
 
-export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleConnected }: NegocioCardProps) {
+export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleConnected, onMoverPara }: NegocioCardProps) {
   const [deleteIsPending, startDeleteTransition] = useTransition()
   const [editIsPending, startEditTransition] = useTransition()
   const [emailIsPending, startEmailTransition] = useTransition()
@@ -402,6 +403,24 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
             <SlaBadge negocio={negocio} />
           </div>
         </button>
+
+        {/* Mover para: alternativa touch/teclado ao drag */}
+        <select
+          value=""
+          onChange={(e) => {
+            const val = e.target.value as EstagioNegocio
+            if (val) onMoverPara?.(val)
+          }}
+          className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
+          aria-label="Mover negócio para outro estágio"
+        >
+          <option value="" disabled>Mover para...</option>
+          {ESTAGIOS.filter((e) => e.value !== negocio.estagio).map((e) => (
+            <option key={e.value} value={e.value}>
+              {e.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Dialog: registrar reunião com Google Calendar */}

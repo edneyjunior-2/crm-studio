@@ -179,9 +179,11 @@ interface SidebarProps {
   profile: Profile
   /** Array de slugs de módulos efetivos para esta empresa (calculado no layout). */
   modulosAtivos: string[]
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
-export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
+export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const prefersReduced = useReducedMotion()
@@ -197,12 +199,21 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
   })
 
   return (
-    <aside
-      className={cn(
-        'flex h-full flex-col border-r border-border bg-sidebar transition-[width] duration-200',
-        collapsed ? 'w-14' : 'w-60'
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={onMobileClose}
+        />
       )}
-    >
+      <aside
+        className={cn(
+          'relative flex flex-col border-r border-border bg-sidebar transition-all duration-300',
+          'fixed inset-y-0 left-0 z-40 lg:static lg:z-auto',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+          collapsed ? 'w-14' : 'w-60'
+        )}
+      >
       {/* Header */}
       <div className={cn(
         'flex items-center border-b border-border',
@@ -238,6 +249,7 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
               title={collapsed ? item.label : undefined}
               aria-label={collapsed ? item.label : undefined}
               aria-current={isActive ? 'page' : undefined}
+              onClick={() => onMobileClose?.()}
               {...(item.tourSlug ? { 'data-tour': item.tourSlug } : {})}
               className={cn(
                 'group relative flex items-center rounded-lg text-sm font-medium transition-colors duration-200',
@@ -304,6 +316,7 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
             <Link
               href="/minha-conta"
               title={collapsed ? 'Minha Conta' : undefined}
+              onClick={() => onMobileClose?.()}
               className={cn(
                 'group relative flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200',
                 collapsed ? 'justify-center px-0' : 'gap-2.5',
@@ -348,6 +361,7 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
             <Link
               href="/configuracoes"
               title={collapsed ? 'Configurações' : undefined}
+              onClick={() => onMobileClose?.()}
               className={cn(
                 'group relative flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200',
                 collapsed ? 'justify-center px-0' : 'gap-2.5',
@@ -402,5 +416,6 @@ export function Sidebar({ profile, modulosAtivos }: SidebarProps) {
 
       </div>
     </aside>
+    </>
   )
 }

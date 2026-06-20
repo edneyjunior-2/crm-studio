@@ -55,11 +55,12 @@ export default async function ClienteDetailPage({ params }: PageProps) {
       .select('id, titulo, estagio, valor_estimado, data_previsao_fechamento, created_at, updated_at, cliente_id, solucao_id, responsavel_id, probabilidade, observacoes')
       .eq('cliente_id', id)
       .order('created_at', { ascending: false }),
-    // Processos jurídicos do cliente (módulo advocacia). Vazio p/ clientes sem processos.
+    // Processos jurídicos do cliente (módulo advocacia) — apenas ATIVOS (exclui encerrado/arquivado).
     supabase
       .from('processos_juridicos')
-      .select('id, numero_processo, status, valor_causa, honorarios_tipo, honorarios_valor')
+      .select('id, numero_processo, titulo, status, valor_causa, honorarios_tipo, honorarios_valor')
       .eq('cliente_id', id)
+      .not('status', 'in', '("encerrado","arquivado")')
       .order('created_at', { ascending: false }),
   ])
 
@@ -76,16 +77,16 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   //  - "valor em causas" = soma dos valores das causas, mantido para RELATÓRIO
   //    (é o total em disputa, não o ganho).
   type ProcessoLite = {
-    id: string; numero_processo: string; status: string; valor_causa: number | null
+    id: string; numero_processo: string; titulo: string | null; status: string; valor_causa: number | null
     honorarios_tipo: string | null; honorarios_valor: number | null
   }
+  // Resultado já filtrado: apenas processos ativos (encerrado/arquivado excluídos na query)
   const processos = (processosResult.data ?? []) as ProcessoLite[]
-  const ativos = processos.filter((p) => p.status === 'ativo')
-  const previsaoHonorarios = ativos.reduce(
+  const previsaoHonorarios = processos.reduce(
     (soma, p) => soma + (calcularHonorarios(p.honorarios_tipo, p.honorarios_valor, p.valor_causa) ?? 0),
     0,
   )
-  const valorEmCausas = ativos
+  const valorEmCausas = processos
     .filter((p) => p.valor_causa != null)
     .reduce((soma, p) => soma + Number(p.valor_causa), 0)
   const brl = formatarBRL
@@ -231,7 +232,12 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                       className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 transition-colors hover:bg-accent"
                     >
                       <div className="flex flex-col gap-0.5 overflow-hidden">
-                        <span className="truncate font-mono text-xs text-foreground">
+                        {p.titulo && (
+                          <span className="truncate text-xs font-medium text-foreground">
+                            {p.titulo}
+                          </span>
+                        )}
+                        <span className="truncate font-mono text-xs text-muted-foreground">
                           {p.numero_processo}
                         </span>
                         <span className="text-[11px] text-muted-foreground">
@@ -243,6 +249,15 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                   </li>
                 ))}
               </ul>
+
+              <div className="mt-3 border-t border-border pt-3">
+                <Link
+                  href={`/processos?clienteId=${id}`}
+                  className="flex items-center justify-end gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Ver processos →
+                </Link>
+              </div>
             </div>
           )}
 
