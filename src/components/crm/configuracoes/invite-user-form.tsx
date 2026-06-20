@@ -37,20 +37,19 @@ export function InviteUserForm() {
     const form = e.currentTarget
     const data = new FormData(form)
     const email = (data.get('email') as string).trim()
-    const password = (data.get('password') as string)
     const fullName = (data.get('full_name') as string).trim()
 
-    if (!email || !fullName || !password) return
+    if (!email || !fullName) return
 
     startTransition(async () => {
-      const result = await createUser(email, password, role, fullName)
+      const result = await createUser(email, role, fullName)
 
       if (result.error) {
         toast.error(result.error)
         return
       }
 
-      toast.success('Usuário cadastrado com sucesso.')
+      toast.success(`Convite enviado para ${email}.`)
       setOpen(false)
       form.reset()
       setRole('comercial')
@@ -61,14 +60,18 @@ export function InviteUserForm() {
     <>
       <Button onClick={() => setOpen(true)}>
         <UserPlus className="size-4" />
-        Novo Usuário
+        Convidar Usuário
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Cadastrar novo usuário</DialogTitle>
+            <DialogTitle>Convidar usuário</DialogTitle>
           </DialogHeader>
+
+          <p className="text-sm text-muted-foreground -mt-1">
+            O usuário receberá um e-mail com link para definir a própria senha e acessar o CRM.
+          </p>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
@@ -99,21 +102,6 @@ export function InviteUserForm() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">
-                Senha <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                minLength={6}
-                placeholder="Mínimo 6 caracteres"
-                disabled={isPending}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
               <Label htmlFor="role-acesso">Perfil de Acesso</Label>
               <Select value={role} onValueChange={(v) => { if (v) setRole(v) }} disabled={isPending}>
                 <SelectTrigger id="role-acesso" className="w-full">
@@ -132,7 +120,7 @@ export function InviteUserForm() {
                 Cancelar
               </DialogClose>
               <Button type="submit" disabled={isPending}>
-                {isPending ? 'Cadastrando...' : 'Cadastrar usuário'}
+                {isPending ? 'Enviando convite...' : 'Enviar convite'}
               </Button>
             </DialogFooter>
           </form>

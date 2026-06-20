@@ -198,7 +198,6 @@ const roleSchema = z.enum(['admin', 'socio', 'comercial'])
 
 export async function createUser(
   email: string,
-  password: string,
   role: string,
   fullName: string
 ): Promise<{ error?: string }> {
@@ -211,19 +210,16 @@ export async function createUser(
 
   const admin = createAdminClient()
 
-  const { data: authData, error: createError } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    // empresa_id no metadata: o trigger handle_new_user adiciona o membro à empresa do admin
-    // (em vez de criar uma empresa nova, que é o caminho do cadastro self-serve).
-    user_metadata: { full_name: fullName, role, empresa_id: empresaId },
+  // inviteUserByEmail: cria o usuário + envia e-mail com link de definição de senha.
+  // O usuário define a própria senha ao aceitar o convite.
+  const { data: authData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: { full_name: fullName, role, empresa_id: empresaId },
   })
 
-  if (createError) return { error: createError.message }
+  if (inviteError) return { error: inviteError.message }
 
   const userId = authData.user?.id
-  if (!userId) return { error: 'Erro ao criar usuário.' }
+  if (!userId) return { error: 'Erro ao criar convite.' }
 
   const { error: profileError } = await admin
     .from('profiles')
