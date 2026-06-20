@@ -107,14 +107,14 @@ export function BugReportButton({
         title="Teve um problema?"
         className={cn(
           'group mt-auto flex w-full items-center rounded-lg text-sm font-medium transition-colors duration-200',
-          'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+          'text-red-400/70 hover:bg-red-500/10 hover:text-red-400',
           collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
           step === 'capturing' && 'opacity-60 cursor-wait'
         )}
       >
         {step === 'capturing'
           ? <Loader2 className="size-4 shrink-0 animate-spin text-sidebar-foreground/50" />
-          : <AlertTriangle className="size-4 shrink-0 text-sidebar-foreground/50 group-hover:text-sidebar-foreground/70 transition-colors" />
+          : <AlertTriangle className="size-4 shrink-0 text-red-400/60 group-hover:text-red-400 transition-colors" />
         }
         {!collapsed && (
           <span className="relative">
