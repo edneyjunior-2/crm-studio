@@ -44,8 +44,13 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isApp) {
-    // No app: rotas de marketing puro redirecionam para www
-    if (MARKETING_ONLY.some((r) => pathname === r || pathname.startsWith(`${r}/`))) {
+    // Raiz → login (middleware de auth redireciona para /dashboard se já logado)
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    // Outras rotas de marketing puro redirecionam para www
+    const marketingOtherThanRoot = MARKETING_ONLY.filter((r) => r !== '/')
+    if (marketingOtherThanRoot.some((r) => pathname === r || pathname.startsWith(`${r}/`))) {
       return NextResponse.redirect(
         new URL(`https://www.crmstudio.com.br${pathname}${request.nextUrl.search}`)
       )
