@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Plus, Scale, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { ProcessosFilter } from './processos-filter'
+import { ImportarExcelDialog } from './importar-excel-dialog'
 
 export default async function ProcessosPage() {
   const supabase = await createClient()
@@ -79,13 +80,16 @@ export default async function ProcessosPage() {
             Acompanhe todos os processos e receba atualizações automáticas via DataJud.
           </p>
         </div>
-        <Link
-          href="/processos/novo"
-          className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-foreground/90"
-        >
-          <Plus className="size-4" />
-          Novo processo
-        </Link>
+        <div className="flex items-center gap-2">
+          <ImportarExcelDialog />
+          <Link
+            href="/processos/novo"
+            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-foreground/90"
+          >
+            <Plus className="size-4" />
+            Novo processo
+          </Link>
+        </div>
       </div>
 
       {/* Erro */}
