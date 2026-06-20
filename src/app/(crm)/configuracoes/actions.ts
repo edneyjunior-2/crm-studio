@@ -433,3 +433,28 @@ export async function deleteUser(userId: string): Promise<{ error?: string }> {
   revalidatePath('/configuracoes')
   return {}
 }
+
+// ---------------------------------------------------------------------------
+// Config SDR — salva na empresa do usuário logado
+// ---------------------------------------------------------------------------
+export async function salvarConfigSdrEmpresa(formData: FormData) {
+  const { empresaId } = await getAuthAdmin()
+
+  const payload = {
+    wa_phone_number_id: (formData.get('wa_phone_number_id') as string).trim() || null,
+    nome_escritorio:    (formData.get('nome_escritorio')    as string).trim() || null,
+    nome_assistente:    (formData.get('nome_assistente')    as string).trim() || 'Leila',
+    tom_de_voz:         (formData.get('tom_de_voz')         as string).trim() || null,
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('empresas')
+    .update(payload)
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/configuracoes')
+  return {}
+}

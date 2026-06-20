@@ -9,6 +9,7 @@ import { MenuToggles } from '@/components/crm/configuracoes/menu-toggles'
 import { PrivacidadeDados } from '@/components/crm/privacidade-dados'
 import { ExcluirConta } from '@/components/crm/configuracoes/excluir-conta'
 import { avaliarPagamento } from './actions'
+import { ConfigSdrSection } from '@/components/crm/configuracoes/config-sdr-section'
 import { modulosEfetivos } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
 import type { PlanoEmpresa } from '@/lib/auth'
@@ -37,7 +38,7 @@ export default async function ConfiguracoesPage() {
     empresaId
       ? supabase
           .from('empresas')
-          .select('nome, status, encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso')
+          .select('nome, status, encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso, wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz')
           .eq('id', empresaId)
           .single()
       : Promise.resolve({ data: null, error: null }),
@@ -74,6 +75,10 @@ export default async function ConfiguracoesPage() {
     modulos_ativos: string[] | null
     modulos_ocultos: string[] | null
     codigo_acesso: string | null
+    wa_phone_number_id: string | null
+    nome_escritorio: string | null
+    nome_assistente: string | null
+    tom_de_voz: string | null
   } | null
 
   const modulosDisponiveis = Array.from(
@@ -156,6 +161,20 @@ export default async function ConfiguracoesPage() {
           role={profile?.role ?? 'admin'}
         />
       </section>
+
+      {/* SDR — aparece se o módulo SDR estiver ativo */}
+      {modulosDisponiveis.includes('sdr' as Modulo) && (
+        <section>
+          <ConfigSdrSection
+            config={{
+              wa_phone_number_id: empresa?.wa_phone_number_id ?? null,
+              nome_escritorio:    empresa?.nome_escritorio ?? null,
+              nome_assistente:    empresa?.nome_assistente ?? null,
+              tom_de_voz:         empresa?.tom_de_voz ?? null,
+            }}
+          />
+        </section>
+      )}
 
       {empresa?.nome && (
         <ExcluirConta
