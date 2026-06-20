@@ -278,18 +278,18 @@ function buildInviteHtml({
 }) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Convite — crm studio.</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Convite — CRM Studio.</title></head>
 <body style="margin:0;padding:0;background:${BONE};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:${BONE};padding:40px 16px;">
   <tr><td align="center">
     <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
       <tr><td style="background:${NAVY};padding:28px 32px;text-align:center;">
-        <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">crm studio<span style="color:${AMBER};">.</span></span>
+        <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">CRM Studio<span style="color:${AMBER};">.</span></span>
       </td></tr>
       <tr><td style="padding:36px 32px;">
         <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${esc(fullName)}!</h1>
         <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
-          <strong style="color:${NAVY};">${esc(adminName)}</strong> de <strong style="color:${NAVY};">${esc(empresaNome)}</strong> convidou você para acessar o <strong style="color:${NAVY};">crm studio.</strong><br>
+          <strong style="color:${NAVY};">${esc(adminName)}</strong> de <strong style="color:${NAVY};">${esc(empresaNome)}</strong> convidou você para acessar o <strong style="color:${NAVY};">CRM Studio.</strong><br>
           Clique no botão abaixo para definir sua senha e começar a usar.
         </p>
         <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">

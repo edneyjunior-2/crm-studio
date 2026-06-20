@@ -47,7 +47,7 @@ function emailShell(title: string, body: string, footer: string): string {
   <tr><td align="center">
     <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
       <tr><td style="background:${NAVY};padding:28px 32px;text-align:center;">
-        <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">crm studio<span style="color:${AMBER};">.</span></span>
+        <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">CRM Studio<span style="color:${AMBER};">.</span></span>
       </td></tr>
       <tr><td style="padding:36px 32px;">${body}</td></tr>
       <tr><td style="background:#f8f7f4;border-top:1px solid #e5e2da;padding:20px 32px;text-align:center;">
@@ -197,7 +197,7 @@ function buildAlertaHtml({
     <p style="color:#64748b;font-size:15px;line-height:1.7;margin:0 0 16px;">${escapeHtml(descricao)}</p>
     <ul style="padding-left:18px;margin:0 0 28px;">${itens}</ul>
     ${ctaButton(adminUrl, 'Abrir o Admin →')}`,
-    'crm studio. · alerta automático da plataforma',
+    'CRM Studio. · alerta automático da plataforma',
   )
 }
 
@@ -215,10 +215,10 @@ function buildInviteHtml({
   const href = encodeURI(linkAcesso)
 
   return emailShell(
-    'Convite — crm studio.',
+    'Convite — CRM Studio.',
     `<h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${safeName}!</h1>
     <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
-      Sua conta de acesso ao <strong style="color:${NAVY};">crm studio.</strong> para
+      Sua conta de acesso ao <strong style="color:${NAVY};">CRM Studio.</strong> para
       <strong style="color:${NAVY};">${safeEmpresa}</strong> foi criada.<br>
       Clique no botão abaixo para definir sua senha e começar a usar.
     </p>
@@ -241,7 +241,7 @@ function buildWelcomeHtml({
   const safeEmpresa = escapeHtml(empresaNome)
 
   return emailShell(
-    'Bem-vindo ao crm studio.',
+    'Bem-vindo ao CRM Studio.',
     `<h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${safeName}!</h1>
     <p style="margin:0 0 8px;font-size:15px;color:#64748b;line-height:1.6;">
       Sua conta para <strong style="color:${NAVY};">${safeEmpresa}</strong> foi criada com sucesso.
@@ -258,6 +258,6 @@ function buildWelcomeHtml({
         <li>Crie uma oportunidade no Pipeline</li>
       </ul>
     </div>`,
-    'crm studio. · Gerencie suas vendas com inteligência<br>Este é um e-mail automático — não é necessário responder.',
+    'CRM Studio. · Gerencie suas vendas com inteligência<br>Este é um e-mail automático — não é necessário responder.',
   )
 }
