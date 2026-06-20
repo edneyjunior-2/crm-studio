@@ -1,8 +1,11 @@
 import { Resend } from 'resend'
 
-// Remetente configurável: em produção use um domínio verificado no Resend.
-// Para testar sem verificar domínio, defina EMAIL_FROM='CRM Studio <onboarding@resend.dev>'.
 const FROM = process.env.EMAIL_FROM ?? 'CRM Studio <nao-responda@crmstudio.com.br>'
+
+// Paleta oficial da marca
+const NAVY  = '#14233A'
+const AMBER = '#E8915B'
+const BONE  = '#ECEAE3'
 
 function getAppUrl(): string {
   const url = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.crmstudio.com.br'
@@ -22,6 +25,39 @@ function escapeHtml(s: string): string {
 
 function stripHeaders(s: string): string {
   return s.replace(/[\r\n]+/g, ' ')
+}
+
+function ctaButton(href: string, label: string): string {
+  return `<table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+    <tr><td style="background:${AMBER};border-radius:8px;">
+      <a href="${href}" target="_blank"
+         style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:-0.2px;">
+        ${label}
+      </a>
+    </td></tr>
+  </table>`
+}
+
+function emailShell(title: string, body: string, footer: string): string {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
+<body style="margin:0;padding:0;background:${BONE};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:${BONE};padding:40px 16px;">
+  <tr><td align="center">
+    <table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+      <tr><td style="background:${NAVY};padding:28px 32px;text-align:center;">
+        <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">crm studio<span style="color:${AMBER};">.</span></span>
+      </td></tr>
+      <tr><td style="padding:36px 32px;">${body}</td></tr>
+      <tr><td style="background:#f8f7f4;border-top:1px solid #e5e2da;padding:20px 32px;text-align:center;">
+        <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6;">${footer}</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`
 }
 
 export async function sendWelcomeEmail({
@@ -147,34 +183,22 @@ function buildAlertaHtml({
   linhas: string[]
   destaque: 'aviso' | 'perigo'
 }): string {
-  const cor = destaque === 'perigo' ? '#dc2626' : '#d97706'
-  const itens = linhas
-    .map(
-      (l) =>
-        `<li style="color:#374151;font-size:14px;line-height:1.9;">${escapeHtml(l)}</li>`,
-    )
-    .join('')
+  const corFaixa = destaque === 'perigo' ? '#dc2626' : AMBER
   const adminUrl = `${getAppUrl()}/admin/empresas`
+  const itens = linhas
+    .map((l) => `<li style="color:#374151;font-size:14px;line-height:1.9;">${escapeHtml(l)}</li>`)
+    .join('')
 
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>${escapeHtml(titulo)}</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;margin:0;padding:40px 0;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-    <div style="background:${cor};padding:24px 32px;">
-      <h1 style="color:#ffffff;margin:0;font-size:18px;font-weight:700;">${escapeHtml(titulo)}</h1>
+  return emailShell(
+    titulo,
+    `<div style="background:${corFaixa};border-radius:8px;padding:14px 18px;margin:0 0 24px;">
+      <p style="margin:0;font-size:15px;font-weight:700;color:#ffffff;">${escapeHtml(titulo)}</p>
     </div>
-    <div style="padding:32px;">
-      <p style="color:#6b7280;font-size:15px;line-height:1.7;margin:0 0 20px;">${escapeHtml(descricao)}</p>
-      <ul style="padding-left:18px;margin:0 0 28px;">${itens}</ul>
-      <a href="${adminUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">Abrir o Admin &#8594;</a>
-    </div>
-    <div style="background:#f9fafb;padding:16px 32px;text-align:center;border-top:1px solid #f3f4f6;">
-      <p style="color:#9ca3af;font-size:12px;margin:0;">CRM Studio · alerta automático da plataforma</p>
-    </div>
-  </div>
-</body>
-</html>`
+    <p style="color:#64748b;font-size:15px;line-height:1.7;margin:0 0 16px;">${escapeHtml(descricao)}</p>
+    <ul style="padding-left:18px;margin:0 0 28px;">${itens}</ul>
+    ${ctaButton(adminUrl, 'Abrir o Admin →')}`,
+    'crm studio. · alerta automático da plataforma',
+  )
 }
 
 function buildInviteHtml({
@@ -188,49 +212,21 @@ function buildInviteHtml({
 }): string {
   const safeName = escapeHtml(nome)
   const safeEmpresa = escapeHtml(empresaNome)
-  // linkAcesso é uma URL gerada pelo Supabase (action_link); usar como href.
   const href = encodeURI(linkAcesso)
 
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Seu acesso ao CRM Studio</title>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;margin:0;padding:40px 0;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-
-    <div style="background:#0f172a;padding:32px;text-align:center;">
-      <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;letter-spacing:-0.5px;">CRM Studio</h1>
-    </div>
-
-    <div style="padding:40px 32px;">
-      <h2 style="color:#111827;font-size:21px;font-weight:600;margin:0 0 8px;">Olá, ${safeName}!</h2>
-      <p style="color:#6b7280;font-size:15px;line-height:1.7;margin:0 0 28px;">
-        Sua conta de acesso para <strong style="color:#111827;">${safeEmpresa}</strong> foi criada.
-        Clique no botão abaixo para <strong style="color:#111827;">definir sua senha</strong> e entrar no sistema.
-      </p>
-
-      <a href="${href}"
-         style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:15px;font-weight:600;">
-        Definir minha senha &#8594;
-      </a>
-
-      <p style="color:#9ca3af;font-size:13px;line-height:1.6;margin:24px 0 0;">
-        Este link é pessoal e expira em 24 horas. Se você não esperava este e-mail, ignore-o.
-      </p>
-    </div>
-
-    <div style="background:#f9fafb;padding:20px 32px;text-align:center;border-top:1px solid #f3f4f6;">
-      <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.6;">
-        CRM Studio · Gestão para o seu negócio
-      </p>
-    </div>
-
-  </div>
-</body>
-</html>`
+  return emailShell(
+    'Convite — crm studio.',
+    `<h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${safeName}!</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
+      Sua conta de acesso ao <strong style="color:${NAVY};">crm studio.</strong> para
+      <strong style="color:${NAVY};">${safeEmpresa}</strong> foi criada.<br>
+      Clique no botão abaixo para definir sua senha e começar a usar.
+    </p>
+    ${ctaButton(href, 'Definir minha senha →')}
+    <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">Se o botão não funcionar, copie e cole este link:</p>
+    <p style="margin:4px 0 0;font-size:12px;color:${AMBER};word-break:break-all;">${href}</p>`,
+    'Este link é pessoal e expira em 24 horas. Se você não esperava este e-mail, pode ignorá-lo com segurança.',
+  )
 }
 
 function buildWelcomeHtml({
@@ -244,50 +240,24 @@ function buildWelcomeHtml({
   const safeName = escapeHtml(nome)
   const safeEmpresa = escapeHtml(empresaNome)
 
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bem-vindo ao CRM Studio</title>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;margin:0;padding:40px 0;">
-  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-
-    <div style="background:#0f172a;padding:32px;text-align:center;">
-      <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;letter-spacing:-0.5px;">CRM Studio</h1>
-    </div>
-
-    <div style="padding:40px 32px;">
-      <h2 style="color:#111827;font-size:21px;font-weight:600;margin:0 0 8px;">Olá, ${safeName}!</h2>
-      <p style="color:#6b7280;font-size:15px;line-height:1.7;margin:0 0 28px;">
-        Sua conta para <strong style="color:#111827;">${safeEmpresa}</strong> foi criada com sucesso.
-        Você tem <strong style="color:#111827;">14 dias de trial gratuito</strong> para explorar tudo sem precisar de cartão.
-      </p>
-
-      <a href="${dashboardUrl}"
-         style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:15px;font-weight:600;">
-        Acessar meu CRM &#8594;
-      </a>
-
-      <div style="margin-top:36px;padding-top:24px;border-top:1px solid #f3f4f6;">
-        <p style="color:#374151;font-size:14px;font-weight:600;margin:0 0 10px;">Próximos passos:</p>
-        <ul style="color:#6b7280;font-size:14px;line-height:2;padding-left:18px;margin:0;">
-          <li>Convide sua equipe em <strong style="color:#374151;">Configurações &#8594; Usuários</strong></li>
-          <li>Cadastre seu primeiro cliente</li>
-          <li>Crie uma oportunidade no Pipeline</li>
-        </ul>
-      </div>
-    </div>
-
-    <div style="background:#f9fafb;padding:20px 32px;text-align:center;border-top:1px solid #f3f4f6;">
-      <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.6;">
-        CRM Studio · Gerencie suas vendas com inteligência<br/>
-        Este é um e-mail automático — não é necessário responder.
-      </p>
-    </div>
-
-  </div>
-</body>
-</html>`
+  return emailShell(
+    'Bem-vindo ao crm studio.',
+    `<h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${safeName}!</h1>
+    <p style="margin:0 0 8px;font-size:15px;color:#64748b;line-height:1.6;">
+      Sua conta para <strong style="color:${NAVY};">${safeEmpresa}</strong> foi criada com sucesso.
+    </p>
+    <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
+      Você tem <strong style="color:${NAVY};">14 dias de trial gratuito</strong> para explorar tudo sem precisar de cartão.
+    </p>
+    ${ctaButton(dashboardUrl, 'Acessar meu CRM →')}
+    <div style="border-top:1px solid #e5e2da;padding-top:20px;">
+      <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:${NAVY};">Próximos passos:</p>
+      <ul style="margin:0;padding-left:18px;color:#64748b;font-size:14px;line-height:2.2;">
+        <li>Convide sua equipe em <strong style="color:${NAVY};">Configurações → Usuários</strong></li>
+        <li>Cadastre seu primeiro cliente</li>
+        <li>Crie uma oportunidade no Pipeline</li>
+      </ul>
+    </div>`,
+    'crm studio. · Gerencie suas vendas com inteligência<br>Este é um e-mail automático — não é necessário responder.',
+  )
 }
