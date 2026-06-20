@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
 import type { Modulo } from '@/lib/modulos'
 import { logout } from '@/app/(auth)/login/actions'
+import { BugReportButton } from './bug-report-button'
 
 interface NavItem {
   href: string
@@ -181,9 +182,11 @@ interface SidebarProps {
   modulosAtivos: string[]
   mobileOpen?: boolean
   onMobileClose?: () => void
+  empresaId?: string | null
+  empresaNome?: string | null
 }
 
-export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, empresaId, empresaNome }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const prefersReduced = useReducedMotion()
@@ -400,6 +403,15 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose }: S
             </Link>
           )
         })()}
+
+        {/* Bug report */}
+        <BugReportButton
+          collapsed={collapsed}
+          empresaId={empresaId}
+          empresaNome={empresaNome}
+          userName={profile.full_name}
+          userRole={profile.role}
+        />
 
         {/* Logout */}
         <form action={logout}>

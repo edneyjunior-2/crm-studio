@@ -35,7 +35,7 @@ export default async function CRMLayout({
   const [{ data: empresaData }, { data: profile }] = await Promise.all([
     supabase
       .from('empresas')
-      .select('modulos_ativos, modulos_ocultos')
+      .select('modulos_ativos, modulos_ocultos, nome')
       .eq('id', empresaId)
       .single(),
     supabase
@@ -59,7 +59,12 @@ export default async function CRMLayout({
       {/* Banner de aviso de assinatura (trial / pendente / atrasado) */}
       <BannerAssinatura status={status} diasRestantes={diasRestantes} />
 
-      <CRMShell profile={profile as Profile} modulosAtivos={modulosAtivos}>{children}</CRMShell>
+      <CRMShell
+        profile={profile as Profile}
+        modulosAtivos={modulosAtivos}
+        empresaId={empresaId}
+        empresaNome={empresaData?.nome ?? null}
+      >{children}</CRMShell>
 
       <Toaster richColors position="top-right" />
       <TourBoasVindas />

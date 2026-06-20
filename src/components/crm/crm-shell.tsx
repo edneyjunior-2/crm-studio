@@ -9,9 +9,11 @@ interface CRMShellProps {
   profile: Profile
   modulosAtivos: string[]
   children: React.ReactNode
+  empresaId?: string | null
+  empresaNome?: string | null
 }
 
-export function CRMShell({ profile, modulosAtivos, children }: CRMShellProps) {
+export function CRMShell({ profile, modulosAtivos, children, empresaId, empresaNome }: CRMShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -21,6 +23,8 @@ export function CRMShell({ profile, modulosAtivos, children }: CRMShellProps) {
         modulosAtivos={modulosAtivos}
         mobileOpen={sidebarOpen}
         onMobileClose={() => setSidebarOpen(false)}
+        empresaId={empresaId}
+        empresaNome={empresaNome}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar profile={profile} onMenuClick={() => setSidebarOpen(true)} />

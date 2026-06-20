@@ -1,6 +1,6 @@
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import Link from 'next/link'
-import { Building2, LayoutDashboard } from 'lucide-react'
+import { Building2, LayoutDashboard, Bug } from 'lucide-react'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await getAuthPlatformAdmin()
@@ -29,6 +29,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           >
             <Building2 className="size-4 text-muted-foreground" />
             Empresas
+          </Link>
+          <Link
+            href="/admin/bugs"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+          >
+            <Bug className="size-4 text-muted-foreground" />
+            Bug Reports
           </Link>
         </nav>
       </aside>
