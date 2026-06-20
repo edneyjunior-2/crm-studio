@@ -87,9 +87,10 @@ export default async function BugsPage() {
             const sev = String(analise?.severidade ?? '')
             const contexto = bug.contexto as Record<string, unknown> | null
             return (
-              <div
+              <a
                 key={bug.id}
-                className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:gap-4"
+                href={`/admin/bugs/${bug.id}`}
+                className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md sm:flex-row sm:items-start sm:gap-4"
               >
                 {/* Screenshot thumbnail */}
                 {bug.screenshot_url ? (
@@ -153,7 +154,7 @@ export default async function BugsPage() {
 
                 {/* Actions */}
                 <BugDetailPanel bugId={bug.id} currentStatus={bug.status} />
-              </div>
+              </a>
             )
           })}
         </div>

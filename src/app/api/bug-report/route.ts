@@ -118,7 +118,8 @@ Classifique e retorne JSON com este schema exato:
   "causa_provavel": "string",
   "sugestao_correcao": "string",
   "proximos_passos": ["array de strings com até 3 ações concretas"],
-  "precisa_atencao_imediata": boolean
+  "precisa_atencao_imediata": boolean,
+  "prompt_correcao": "string — prompt completo e autocontido para o Claude Code corrigir o problema. Deve incluir: contexto do bug, arquivo(s) provável(is), o que mudar e como testar. Escreva em português, direto ao ponto, como se fosse uma instrução para um engenheiro."
 }`
 
   const messageContent: Anthropic.MessageParam['content'] = []

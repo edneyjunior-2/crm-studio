@@ -1,0 +1,93 @@
+name: Fix Bug (Claude Code)
+
+on:
+  workflow_dispatch:
+    inputs:
+      bug_id:
+        description: 'ID do bug report'
+        required: true
+      prompt:
+        description: 'Prompt de correção gerado pelo Claude'
+        required: true
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run Claude Code fix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd app
+          npm ci
+
+          # Cria branch para o fix
+          BRANCH="fix/bug-${{ github.event.inputs.bug_id }}"
+          git config user.name "Claude Code Bot"
+          git config user.email "bot@crmstudio.com.br"
+          git checkout -b "$BRANCH"
+
+          # Roda Claude Code com o prompt do bug report
+          # Modo --print: gera o plano de correção sem aplicar automaticamente
+          claude --print \
+            "${{ github.event.inputs.prompt }}
+
+          Após aplicar a correção:
+          1. Rode: npx tsc --noEmit
+          2. Se passar, faça git add e git commit com mensagem clara
+          3. NÃO faça git push — o workflow cuida disso" > claude-fix-plan.md
+
+          echo "--- Plano gerado ---"
+          cat claude-fix-plan.md
+
+          # Verifica se há mudanças
+          if git diff --staged --quiet && git diff --quiet; then
+            echo "Nenhuma mudança aplicada."
+            exit 0
+          fi
+
+          # Commit e push
+          git add -A
+          git commit -m "fix: correção automática do bug ${{ github.event.inputs.bug_id }}
+
+          Aplicado via Claude Code a partir do bug report.
+          Co-Authored-By: Claude Code Bot <bot@crmstudio.com.br>"
+          git push origin "$BRANCH"
+
+      - name: Create Pull Request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="fix/bug-${{ github.event.inputs.bug_id }}"
+          gh pr create \
+            --title "fix: correção do bug ${{ github.event.inputs.bug_id }}" \
+            --body "## Correção automática via Claude Code
+
+          **Bug ID:** ${{ github.event.inputs.bug_id }}
+
+          **Prompt utilizado:**
+          \`\`\`
+          ${{ github.event.inputs.prompt }}
+          \`\`\`
+
+          > Revise o diff antes de fazer merge.
+
+          🤖 Gerado automaticamente pelo sistema de auto-healing do CRM Studio." \
+            --base main \
+            --head "$BRANCH"
