@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/atualizar-processos",
-      "schedule": "*/30 8-13 * * *"
+      "schedule": "*/30 8-13 * * 1-5"
     },
     {
       "path": "/api/cron/purgar-canceladas",
