@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Calendar, Loader2, CheckCircle2 } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { adicionarAudienciaAoCalendario } from './actions'
+import { agendarAudienciaNoCalendario } from './actions'
 
 interface Props {
   descricao:      string
@@ -26,7 +26,14 @@ export function AudienciaButton({ descricao, dataSugerida, processoNumero }: Pro
     setErro(null)
     // Monta um datetime local (BRT, UTC-3) e converte para ISO.
     const dataHoraISO = new Date(`${data}T${hora || '09:00'}:00-03:00`).toISOString()
-    const res = await adicionarAudienciaAoCalendario(descricao, dataHoraISO, processoNumero)
+    const res = await agendarAudienciaNoCalendario({
+      titulo:         `Audiência — ${processoNumero}`,
+      dataHoraInicio: dataHoraISO,
+      duracaoMinutos: 60,
+      local:          '',
+      descricao:      `${descricao}\n\nProcesso: ${processoNumero}`,
+      attendeeEmails: [],
+    })
     setLoading(false)
     if (res.error) {
       setErro(res.error)

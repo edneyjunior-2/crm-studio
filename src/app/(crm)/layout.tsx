@@ -6,6 +6,7 @@ import { CRMShell } from '@/components/crm/crm-shell'
 import { BannerAssinatura } from '@/components/crm/banner-assinatura'
 import { Toaster } from '@/components/ui/sonner'
 import { TourBoasVindas } from '@/components/crm/tour-boas-vindas'
+import { SyncDataJudProvider } from '@/components/crm/sync-datajud-provider'
 import type { Profile } from '@/types'
 
 export default async function CRMLayout({
@@ -55,20 +56,22 @@ export default async function CRMLayout({
     .filter((m) => !modulosOcultos.includes(m))
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
-      {/* Banner de aviso de assinatura (trial / pendente / atrasado) */}
-      <BannerAssinatura status={status} diasRestantes={diasRestantes} />
+    <SyncDataJudProvider>
+      <div className="flex h-screen flex-col overflow-hidden bg-background">
+        {/* Banner de aviso de assinatura (trial / pendente / atrasado) */}
+        <BannerAssinatura status={status} diasRestantes={diasRestantes} />
 
-      <CRMShell
-        profile={profile as Profile}
-        modulosAtivos={modulosAtivos}
-        empresaId={empresaId}
-        empresaNome={empresaData?.nome ?? null}
-      >{children}</CRMShell>
+        <CRMShell
+          profile={profile as Profile}
+          modulosAtivos={modulosAtivos}
+          empresaId={empresaId}
+          empresaNome={empresaData?.nome ?? null}
+        >{children}</CRMShell>
 
-      <Toaster richColors position="top-right" />
-      <TourBoasVindas />
-    </div>
+        <Toaster richColors position="top-right" />
+        <TourBoasVindas />
+      </div>
+    </SyncDataJudProvider>
   )
 }
 

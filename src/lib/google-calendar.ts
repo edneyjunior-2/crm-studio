@@ -75,6 +75,7 @@ export async function createEvent(params: {
   end: string
   attendees?: string[]
   externalLink?: string
+  location?: string        // local físico (ex: vara/comarca) — independente do externalLink
   organizerEmail?: string  // email do usuário que está criando — impersonado via DWD
   recurrence?: 'semanal' | 'mensal' | 'anual' | null
 }): Promise<{ eventData: calendar_v3.Schema$Event; calendarId: string }> {
@@ -90,7 +91,7 @@ export async function createEvent(params: {
   const requestBody = {
     summary: params.title,
     description: params.description,
-    location: params.externalLink,
+    location: params.location ?? params.externalLink,
     start: { dateTime: params.start, timeZone: 'America/Sao_Paulo' },
     end:   { dateTime: params.end,   timeZone: 'America/Sao_Paulo' },
     attendees: params.attendees?.map((email) => ({ email })),

@@ -6,6 +6,7 @@ import {
   Landmark, TrendingUp, TrendingDown, Wallet, AlertCircle,
   RefreshCw, Clock, DollarSign, AlertTriangle, Package,
   Users, CalendarMinus, CheckCircle2, XCircle,
+  Scale, Bell, CalendarClock, Pencil, Wifi,
 } from 'lucide-react'
 import { EASE_OUT } from './motion'
 
@@ -13,7 +14,7 @@ const BRL = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 const BRLk = (v: number) => `R$ ${Math.round(v / 1000)}k`
 
-type TabKey = 'pipeline' | 'financeiro' | 'estoque' | 'rh'
+type TabKey = 'pipeline' | 'financeiro' | 'estoque' | 'rh' | 'advocacia'
 
 /* ---------------------------------------------------------------- pipeline -- */
 
@@ -426,13 +427,145 @@ function RhScreen({ stagger }: { stagger: (i: number) => object }) {
   )
 }
 
+/* --------------------------------------------------------------- advocacia -- */
+
+const KPIS_ADV = [
+  { label: 'Processos ativos',      value: '262',         Icon: Scale,        tone: 'text-primary bg-primary/10' },
+  { label: 'Novas movimentações',   value: '48 novas',    Icon: Bell,         tone: 'text-amber-600 bg-amber-50' },
+  { label: 'Próxima audiência',     value: '25/06 · 10h', Icon: CalendarClock, tone: 'text-chart-5 bg-chart-5/10' },
+]
+
+const PROCESSOS_DEMO = [
+  { num: '0121239-45.2026.8.05',  tribunal: 'TJBA', area: 'Previdenciário', cliente: 'Maria Conceição Silva', status: 'ativo',    novas: 3 },
+  { num: '1007466-17.2024.4.01',  tribunal: 'TRF1', area: 'Trabalhista',    cliente: 'João Mendes Ltda.',      status: 'ativo',    novas: 0 },
+  { num: '0126522-49.2026.8.05',  tribunal: 'TJBA', area: 'Cível',          cliente: 'Construtora Horizonte',  status: 'ativo',    novas: 7 },
+  { num: '0056721-90.2023.8.05',  tribunal: 'TJBA', area: 'Família',        cliente: 'Ana Paula Ramos',        status: 'suspenso', novas: 0 },
+]
+
+const STATUS_ADV: Record<string, string> = {
+  ativo:    'bg-chart-5/10 text-chart-5',
+  suspenso: 'bg-amber-50 text-amber-600',
+}
+
+const MOVS_DEMO = [
+  { desc: 'Audiência de Instrução e Julgamento',    data: '25/06/2026', tipo: 'audiencia' as const },
+  { desc: 'Petição de esclarecimentos protocolada', data: '18/06/2026', tipo: 'manual'   as const },
+  { desc: 'Despacho ordinatório',                   data: '15/06/2026', tipo: 'datajud'  as const },
+  { desc: 'Distribuição e autuação do processo',    data: '12/06/2026', tipo: 'datajud'  as const },
+]
+
+function AdvocaciaScreen({ stagger }: { stagger: (i: number) => object }) {
+  return (
+    <div className="flex flex-col gap-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-3">
+        {KPIS_ADV.map((k, i) => (
+          <motion.div key={k.label} {...stagger(i)}
+            className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5">
+            <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${k.tone}`}>
+              <k.Icon className="size-4.5" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] text-muted-foreground">{k.label}</p>
+              <p className="text-[15px] font-semibold tabular-nums">{k.value}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-5">
+        {/* Lista de processos */}
+        <div className="rounded-xl border border-border bg-card lg:col-span-3">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h4 className="text-[13px] font-semibold">Processos jurídicos</h4>
+            <span className="flex items-center gap-1.5 rounded-full border border-chart-5/30 bg-chart-5/10 px-2 py-0.5 text-[10px] font-semibold text-chart-5">
+              <Wifi className="size-2.5" /> DataJud ativo
+            </span>
+          </div>
+          <div className="flex flex-col divide-y divide-border">
+            {PROCESSOS_DEMO.map((p, i) => (
+              <motion.div key={p.num} {...stagger(i + 1)}
+                className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
+                      {p.tribunal}
+                    </span>
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                      {p.area}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-[12px] font-medium text-foreground truncate">{p.num}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{p.cliente}</p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_ADV[p.status]}`}>
+                    {p.status}
+                  </span>
+                  {p.novas > 0 && (
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                      {p.novas} nova{p.novas > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* Timeline de movimentações */}
+        <div className="rounded-xl border border-border bg-card p-4 lg:col-span-2">
+          <div className="mb-3">
+            <h4 className="text-[13px] font-semibold">Movimentações</h4>
+            <p className="text-[11px] text-muted-foreground">Construtora Horizonte · 0126522</p>
+          </div>
+          <div className="relative flex flex-col">
+            <div className="absolute left-[8px] top-1 bottom-1 w-px bg-border" aria-hidden />
+            {MOVS_DEMO.map((m, i) => (
+              <motion.div key={m.desc} {...stagger(i + 1)} className="relative flex gap-3 pb-3.5 last:pb-0">
+                <div className={`relative z-10 mt-0.5 size-[18px] shrink-0 rounded-full border-2 ${
+                  m.tipo === 'audiencia' ? 'border-amber-400 bg-amber-50 dark:bg-amber-950'
+                    : m.tipo === 'manual' ? 'border-blue-400 bg-blue-50'
+                    : 'border-border bg-card'
+                }`} aria-hidden />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[12px] font-medium leading-snug ${
+                    m.tipo === 'audiencia' ? 'text-amber-700' : m.tipo === 'manual' ? 'text-blue-700' : 'text-foreground'
+                  }`}>
+                    {m.desc}
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground">{m.data}</span>
+                    {m.tipo === 'audiencia' && (
+                      <span className="rounded-full bg-amber-100 px-1.5 py-px text-[9px] font-semibold text-amber-700">Audiência</span>
+                    )}
+                    {m.tipo === 'manual' && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-100 px-1.5 py-px text-[9px] font-semibold text-blue-700">
+                        <Pencil className="size-2" /> Manual
+                      </span>
+                    )}
+                    {m.tipo === 'datajud' && (
+                      <span className="rounded-full bg-muted px-1.5 py-px text-[9px] font-medium text-muted-foreground">DataJud</span>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ----------------------------------------------------------------- showcase -- */
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'pipeline',  label: 'Pipeline' },
+  { key: 'pipeline',   label: 'Pipeline' },
   { key: 'financeiro', label: 'Financeiro' },
-  { key: 'estoque',   label: 'Estoque' },
-  { key: 'rh',        label: 'RH' },
+  { key: 'advocacia',  label: 'Advocacia' },
+  { key: 'estoque',    label: 'Estoque' },
+  { key: 'rh',         label: 'RH' },
 ]
 
 export function ProductShowcase({ defaultTab = 'pipeline' }: { defaultTab?: TabKey }) {
@@ -463,7 +596,7 @@ export function ProductShowcase({ defaultTab = 'pipeline' }: { defaultTab?: TabK
                 role="tab"
                 aria-selected={active}
                 onClick={() => setTab(t.key)}
-                className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   active ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -486,6 +619,7 @@ export function ProductShowcase({ defaultTab = 'pipeline' }: { defaultTab?: TabK
           >
             {tab === 'pipeline'   && <PipelineScreen stagger={stagger} />}
             {tab === 'financeiro' && <FinanceiroScreen stagger={stagger} reduce={!!reduce} />}
+            {tab === 'advocacia'  && <AdvocaciaScreen stagger={stagger} />}
             {tab === 'estoque'    && <EstoqueScreen stagger={stagger} />}
             {tab === 'rh'         && <RhScreen stagger={stagger} />}
           </motion.div>

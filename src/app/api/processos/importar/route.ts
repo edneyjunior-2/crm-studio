@@ -1,21 +1,24 @@
-'use server'
+export const maxDuration = 60   // Vercel Pro: até 60s para importações grandes
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { normalizarNumeroCNJ, detectarTribunal, buscarProcessoDataJud } from '@/lib/datajud'
+import { normalizarNumeroCNJ, detectarTribunal } from '@/lib/datajud'
 
 export interface ProcessoImportRow {
-  numero_processo: string
-  cliente_nome?: string
-  advogado_nome?: string
-  assunto?: string
-  vara?: string
-  comarca?: string
-  area?: string
-  valor_causa?: string
-  honorarios_tipo?: string
+  numero_processo:   string
+  cliente_nome?:     string
+  advogado_nome?:    string
+  assunto?:          string
+  vara?:             string
+  comarca?:          string
+  area?:             string
+  valor_causa?:      string
+  honorarios_tipo?:  string
   honorarios_valor?: string
+  providencia?:      string
+  status_interno?:   string
+  indicacao?:        string
 }
 
 export interface ImportResult {
@@ -34,14 +37,16 @@ const HONORARIOS_TIPOS: Record<string, string> = {
 }
 
 const AREAS_MAP: Record<string, string> = {
-  cível: 'civel', civel: 'civel', civil: 'civel',
-  trabalhista: 'trabalhista', trabalho: 'trabalhista',
-  criminal: 'criminal', penal: 'criminal',
-  previdenciário: 'previdenciario', previdenciario: 'previdenciario', previdência: 'previdenciario',
-  tributário: 'tributario', tributario: 'tributario', fiscal: 'tributario',
-  administrativo: 'administrativo',
-  família: 'familia', familia: 'familia', sucessões: 'familia', sucessao: 'familia',
-  outro: 'outro', outros: 'outro',
+  'civel': 'civel', 'civil': 'civel', 'diversas': 'civel', 'diversos': 'civel',
+  'trabalhista': 'trabalhista', 'trabalho': 'trabalhista',
+  'criminal': 'criminal', 'penal': 'criminal',
+  'previdenciario': 'previdenciario', 'previdencia': 'previdenciario',
+  'tributario': 'tributario', 'fiscal': 'tributario', 'itiv': 'tributario',
+  'administrativo': 'administrativo',
+  'familia': 'familia', 'sucessoes': 'familia',
+  'precatorio': 'precatorio',
+  'fazenda publica': 'fazenda_publica', 'fazenda': 'fazenda_publica', 'faz pub': 'fazenda_publica',
+  'outro': 'outro', 'outros': 'outro',
 }
 
 function normalizeArea(raw?: string): string | null {
@@ -106,104 +111,91 @@ export async function POST(req: NextRequest) {
   const result: ImportResult = { total: rows.length, criados: 0, atualizados: 0, erros: [], semDataJud: [] }
   const admin = createAdminClient()
 
+  // 1. Normalizar e validar todas as linhas
+  type Payload = Record<string, unknown>
+  const payloads: Payload[] = []
+  const invalidos: { numero: string; motivo: string }[] = []
+
   for (const row of rows) {
     const numeroRaw = row.numero_processo?.trim()
-    if (!numeroRaw) {
-      result.erros.push({ numero: '(vazio)', motivo: 'Número do processo ausente.' })
-      continue
-    }
+    if (!numeroRaw) { invalidos.push({ numero: '(vazio)', motivo: 'Número do processo ausente.' }); continue }
 
     let numero: string
-    try {
-      numero = normalizarNumeroCNJ(numeroRaw)
-    } catch {
-      result.erros.push({ numero: numeroRaw, motivo: 'Número fora do formato CNJ.' })
-      continue
-    }
+    try { numero = normalizarNumeroCNJ(numeroRaw) }
+    catch { invalidos.push({ numero: numeroRaw, motivo: 'Número fora do formato CNJ.' }); continue }
 
     const tribunalSlug = detectarTribunal(numero)
+    const clienteId    = row.cliente_nome  ? clienteMap.get(row.cliente_nome.toLowerCase().trim())  ?? null : null
+    const advogadoId   = row.advogado_nome ? advogadoMap.get(row.advogado_nome.toLowerCase().trim()) ?? null : null
+    const honTipo      = normalizeHonorariosTipo(row.honorarios_tipo)
+    const honTipoValido = honTipo === 'fixo' || honTipo === 'percentual' ? honTipo : null
 
-    // Match cliente por nome (case-insensitive)
-    const clienteId = row.cliente_nome
-      ? clienteMap.get(row.cliente_nome.toLowerCase().trim()) ?? null
-      : null
-
-    // Match advogado por nome
-    const advogadoId = row.advogado_nome
-      ? advogadoMap.get(row.advogado_nome.toLowerCase().trim()) ?? null
-      : null
-
-    const payload = {
-      numero_processo:  numero,
-      tribunal_slug:    tribunalSlug,
-      empresa_id:       empresaId,
-      created_by:       user.id,
-      ...(clienteId   && { cliente_id:  clienteId }),
-      ...(advogadoId  && { advogado_id: advogadoId }),
-      ...(row.assunto && { assunto:     row.assunto.trim() }),
-      ...(row.vara    && { vara:        row.vara.trim() }),
-      ...(row.comarca && { comarca:     row.comarca.trim() }),
-      ...(normalizeArea(row.area)                 && { area:             normalizeArea(row.area) }),
-      ...(parseValor(row.valor_causa) !== null    && { valor_causa:      parseValor(row.valor_causa) }),
-      ...(normalizeHonorariosTipo(row.honorarios_tipo) && { honorarios_tipo:  normalizeHonorariosTipo(row.honorarios_tipo) }),
-      ...(parseValor(row.honorarios_valor) !== null    && { honorarios_valor: parseValor(row.honorarios_valor) }),
+    const payload: Payload = {
+      numero_processo: numero,
+      tribunal_slug:   tribunalSlug,
+      empresa_id:      empresaId,
+      ...(clienteId  && { cliente_id:  clienteId }),
+      ...(advogadoId && { advogado_id: advogadoId }),
+      ...(row.assunto && { assunto:    row.assunto.trim() }),
+      ...(row.vara    && { vara:       row.vara.trim() }),
+      ...(row.comarca && { comarca:    row.comarca.trim() }),
+      ...(normalizeArea(row.area) !== null         && { area:             normalizeArea(row.area) }),
+      ...(parseValor(row.valor_causa) !== null     && { valor_causa:      parseValor(row.valor_causa) }),
+      ...(honTipoValido                            && { honorarios_tipo:  honTipoValido }),
+      ...(parseValor(row.honorarios_valor) !== null && { honorarios_valor: parseValor(row.honorarios_valor) }),
+      ...(row.providencia    && { providencia:    row.providencia.trim() }),
+      ...(row.status_interno && { status_interno: row.status_interno.trim() }),
+      ...(row.indicacao      && { indicacao:      row.indicacao.trim() }),
     }
+    payloads.push(payload)
+  }
 
-    // Upsert por numero_processo + empresa_id
-    const { data: upserted, error: upsertErr } = await admin
+  result.erros.push(...invalidos)
+
+  // Deduplicar por numero_processo — mantém a última ocorrência de cada CNJ.
+  // Sem isso, o PostgreSQL rejeita o lote com "ON CONFLICT DO UPDATE command
+  // cannot affect row a second time" quando o mesmo CNJ aparece duas vezes no
+  // mesmo INSERT de 50 linhas.
+  const deduped = new Map<string, Payload>()
+  for (const p of payloads) deduped.set(p.numero_processo as string, p)
+  const payloadsUnicos = Array.from(deduped.values())
+
+  // 2. Verificar quais já existem (para contar criados vs atualizados)
+  const numeros = payloadsUnicos.map((p) => p.numero_processo as string)
+  const { data: existentes } = await admin
+    .from('processos_juridicos')
+    .select('numero_processo')
+    .eq('empresa_id', empresaId)
+    .in('numero_processo', numeros)
+  const existentesSet = new Set((existentes ?? []).map((e) => e.numero_processo))
+
+  // 3. Batch upsert em lotes de 50
+  const LOTE = 50
+  for (let i = 0; i < payloadsUnicos.length; i += LOTE) {
+    const lote = payloadsUnicos.slice(i, i + LOTE)
+    const { error: upsertErr } = await admin
       .from('processos_juridicos')
-      .upsert(payload, { onConflict: 'numero_processo,empresa_id', ignoreDuplicates: false })
-      .select('id, created_at, updated_at')
-      .single()
+      .upsert(lote as Parameters<typeof admin.from>[0] extends never ? never : object[], {
+        onConflict: 'numero_processo,empresa_id',
+        ignoreDuplicates: false,
+      })
 
     if (upsertErr) {
-      result.erros.push({ numero, motivo: upsertErr.message })
-      continue
-    }
-
-    // Determinar se foi criação ou atualização
-    const isNew = upserted.created_at === upserted.updated_at
-    isNew ? result.criados++ : result.atualizados++
-
-    // Sincronizar com DataJud (síncrono para reportar erros ao usuário)
-    try {
-      const djRes = await buscarProcessoDataJud(numero, tribunalSlug)
-      if (!djRes.ok) {
-        result.semDataJud.push({
-          numero,
-          motivo: djRes.motivo === 'nao_encontrado'
-            ? 'Processo não encontrado no DataJud — salvo apenas com os dados da planilha.'
-            : 'DataJud indisponível no momento — processo salvo, atualização pendente.',
-        })
-      } else {
-        const dados = djRes.processo
-        await admin.from('processos_juridicos').update({
-          assunto:               dados.assunto ?? undefined,
-          area:                  dados.area ?? undefined,
-          vara:                  dados.vara ?? undefined,
-          comarca:               dados.comarca ?? undefined,
-          valor_causa:           dados.valor ?? undefined,
-          ultimo_datajud_update: new Date().toISOString(),
-        }).eq('id', upserted.id)
-
-        if (dados.movimentos?.length) {
-          const movs = dados.movimentos.map((m) => ({
-            processo_id:       upserted.id,
-            empresa_id:        empresaId,
-            codigo_movimento:  m.codigo,
-            nome_movimento:    m.nome,
-            data_movimentacao: m.dataHora,
-            complemento:       m.complemento ?? null,
-            lido:              false,
-          }))
-          await admin.from('movimentacoes_processo')
-            .upsert(movs, { onConflict: 'processo_id,codigo_movimento,data_movimentacao', ignoreDuplicates: true })
-        }
+      // Marcar todo o lote como erro
+      for (const p of lote) {
+        result.erros.push({ numero: p.numero_processo as string, motivo: upsertErr.message })
       }
-    } catch {
-      result.semDataJud.push({ numero, motivo: 'Erro de comunicação com o DataJud.' })
+    } else {
+      for (const p of lote) {
+        const num = p.numero_processo as string
+        existentesSet.has(num) ? result.atualizados++ : result.criados++
+      }
     }
   }
+
+  // 4. DataJud: o cron do sistema sincroniza automaticamente.
+  //    Processos sem ultimo_datajud_update serão priorizados na próxima rodada.
+  result.total = payloadsUnicos.length
 
   return NextResponse.json(result)
 }

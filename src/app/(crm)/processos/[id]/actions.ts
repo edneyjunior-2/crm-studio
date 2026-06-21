@@ -117,46 +117,46 @@ export async function marcarComoLido(processoId: string) {
 export interface AdicionarAudienciaResult {
   error?:   string
   success?: boolean
+  meetLink?: string
 }
 
-export async function adicionarAudienciaAoCalendario(
-  descricao: string,
-  dataHora:  string,
-  processoNumero: string,
+export interface AgendarAudienciaPayload {
+  titulo:          string
+  dataHoraInicio:  string  // ISO com fuso (ex: "2026-06-25T09:00:00-03:00")
+  duracaoMinutos:  number  // 30 | 60 | 90 | 120
+  local:           string
+  descricao:       string  // detalhes do processo (número, cliente, área)
+  attendeeEmails:  string[]
+}
+
+export async function agendarAudienciaNoCalendario(
+  payload: AgendarAudienciaPayload,
 ): Promise<AdicionarAudienciaResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  // dataHora vem do DataJud em ISO: "2024-06-20T14:00:00.000Z"
-  const inicio = new Date(dataHora)
-  const fim    = new Date(inicio.getTime() + 60 * 60 * 1000) // +1h
-
-  const isoInicio = inicio.toISOString()
-  const isoFim    = fim.toISOString()
-
-  const titulo = `Audiência — Processo ${processoNumero}`
-  const descFull = `${descricao}\n\nProcesso: ${processoNumero}`
+  const inicio = new Date(payload.dataHoraInicio)
+  const fim    = new Date(inicio.getTime() + payload.duracaoMinutos * 60 * 1000)
 
   try {
     const { eventData, calendarId } = await createEvent({
-      title:          titulo,
-      description:    descFull,
-      start:          isoInicio,
-      end:            isoFim,
-      attendees:      [],
+      title:          payload.titulo,
+      description:    payload.descricao,
+      start:          inicio.toISOString(),
+      end:            fim.toISOString(),
+      attendees:      payload.attendeeEmails,
       organizerEmail: user.email ?? undefined,
+      location:       payload.local || undefined,
     })
 
     if (eventData.id) {
-      // Client autenticado: o trigger set_empresa_id carimba empresa_id a partir
-      // do contexto do usuário (o admin client rodaria sem sessão → trigger falha).
       const { error: errReg } = await supabase.from('calendario_eventos').insert({
         event_id:          eventData.id,
         calendar_id:       calendarId,
         organizer_email:   user.email ?? '',
         organizer_user_id: user.id,
-        titulo,
+        titulo:            payload.titulo,
       })
       if (errReg) {
         console.error('[processos] evento criado no Google mas falhou ao registrar localmente:', errReg.message)
@@ -165,7 +165,10 @@ export async function adicionarAudienciaAoCalendario(
     }
 
     revalidatePath('/calendario')
-    return { success: true }
+    return {
+      success:  true,
+      meetLink: eventData.conferenceData?.entryPoints?.[0]?.uri ?? undefined,
+    }
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Erro ao criar evento no calendário.' }
   }

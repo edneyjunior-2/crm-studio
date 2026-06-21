@@ -2,13 +2,17 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Scale, Building2, User, MapPin, BookOpen, AlertCircle, Pencil, ArrowUpRight,
+  ClipboardList, Tag, Users,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { calcularHonorarios, formatarBRL } from '@/lib/honorarios'
-import { AudienciaButton } from './audiencia-button'
+import { AgendarAudienciaDialog } from './agendar-audiencia-dialog'
 import { MarcarLidoOnMount } from './marcar-lido-on-mount'
 import { ProcessoAcoes } from './processo-acoes'
 import { MovimentacoesTimeline } from './movimentacoes-timeline'
+import { IndicacaoParceiroPrompt } from './indicacao-parceiro-prompt'
+import { NovaMovimentacaoDialog } from './nova-movimentacao-dialog'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -79,12 +83,19 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   }
 
   // Papel do usuário (só admin exclui processo)
-  const { data: perfil } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const admin = createAdminClient()
+  const [{ data: perfil }, { data: authUsers }, { data: todosProfiles }] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    admin.auth.admin.listUsers(),
+    admin.from('profiles').select('id, full_name'),
+  ])
   const podeExcluir = perfil?.role === 'admin'
+
+  const profileMap = Object.fromEntries((todosProfiles ?? []).map((p) => [p.id, p.full_name as string]))
+  const membros = (authUsers?.users ?? [])
+    .filter((u) => u.email)
+    .map((u) => ({ id: u.id, nome: profileMap[u.id] ?? u.email!.split('@')[0], email: u.email! }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
   const clienteRaw = processo.clientes as unknown
   const advRaw     = (processo as Record<string, unknown>)['profiles!advogado_id'] as unknown
@@ -93,6 +104,25 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   const advNome     = (advRaw as { full_name?: string } | null)?.full_name ?? null
 
   const partes = (processo.partes_raw as { polo: string; nome: string }[] | null) ?? []
+
+  // Email do advogado responsável (para pré-selecionar no agendamento)
+  const advogadoId  = (processo as Record<string, unknown>).advogado_id as string | null
+  const advogadoEmail = advogadoId
+    ? (authUsers?.users ?? []).find((u) => u.id === advogadoId)?.email ?? null
+    : null
+
+  // Indicação → Parceiro
+  const indicacao = (processo as Record<string, unknown>).indicacao as string | null
+  let parceiroVinculado: { id: string; nome: string } | null = null
+  if (indicacao) {
+    const { data: pcRaw } = await supabase
+      .from('parceiros')
+      .select('id, nome')
+      .ilike('nome', indicacao.trim())
+      .limit(1)
+      .maybeSingle()
+    parceiroVinculado = pcRaw ?? null
+  }
 
   // Audiências (futuras e passadas)
   const audiencias = (movimentacoes ?? []).filter((m) => isAudiencia(m.descricao))
@@ -119,7 +149,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
 
   // Agrupa movimentações por mês (já vêm ordenadas desc por data)
   const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-  type Mov = { id: string; descricao: string; complemento: string | null; data_movimentacao: string }
+  type Mov = { id: string; descricao: string; complemento: string | null; data_movimentacao: string; codigo_movimento: number | null }
   const gruposMov: { mes: string; itens: Mov[] }[] = []
   for (const m of (movimentacoes ?? []) as Mov[]) {
     const [ano, mes] = m.data_movimentacao.slice(0, 10).split('-')
@@ -139,6 +169,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
       complemento: m.complemento,
       data: formatarData(m.data_movimentacao),
       audiencia: isAudiencia(m.descricao),
+      isManual: m.codigo_movimento == null,
     })),
   }))
 
@@ -229,7 +260,49 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           {advNome && (
             <InfoItem icon={User} label="Advogado responsável" value={advNome} />
           )}
+          {!!(processo as Record<string, unknown>).indicacao && (
+            <InfoItem icon={Users} label="Indicação" value={String((processo as Record<string, unknown>).indicacao)} />
+          )}
         </div>
+
+        {/* Dados do escritório (importados da planilha) */}
+        {(!!(processo as Record<string, unknown>).providencia || !!(processo as Record<string, unknown>).status_interno) && (
+          <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Acompanhamento interno
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {!!(processo as Record<string, unknown>).status_interno && (
+                <div className="flex items-start gap-2">
+                  <Tag className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground">Status interno</p>
+                    <p className="text-sm text-foreground">{String((processo as Record<string, unknown>).status_interno)}</p>
+                  </div>
+                </div>
+              )}
+              {!!(processo as Record<string, unknown>).providencia && (
+                <div className="flex items-start gap-2 sm:col-span-2">
+                  <ClipboardList className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground">Providência</p>
+                    <p className="text-sm text-foreground leading-relaxed">{String((processo as Record<string, unknown>).providencia)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Indicação → Parceiro */}
+        {indicacao && (
+          <IndicacaoParceiroPrompt
+            indicacao={indicacao}
+            clienteId={clienteId}
+            parceiroId={parceiroVinculado?.id ?? null}
+            parceiroNome={parceiroVinculado?.nome ?? null}
+          />
+        )}
 
         {/* Partes */}
         {partes.length > 0 && (
@@ -268,10 +341,16 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
                     {a.complemento && ` · ${a.complemento}`}
                   </p>
                 </div>
-                <AudienciaButton
+                <AgendarAudienciaDialog
                   descricao={a.descricao}
                   dataSugerida={a.data_movimentacao}
                   processoNumero={processo.numero_processo}
+                  vara={processo.vara ?? null}
+                  comarca={processo.comarca ?? null}
+                  clienteNome={clienteNome}
+                  areaLabel={areaLabel !== '—' ? areaLabel : null}
+                  advogadoEmail={advogadoEmail}
+                  membros={membros}
                 />
               </div>
             ))}
@@ -281,22 +360,30 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
 
       {/* Timeline de movimentações */}
       <div className="flex flex-col gap-3">
-        <h3 className="text-base font-semibold text-foreground">
-          Movimentações
-          {movimentacoes && movimentacoes.length > 0 && (
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              ({movimentacoes.length} registros)
-            </span>
-          )}
-        </h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-base font-semibold text-foreground">
+            Movimentações
+            {movimentacoes && movimentacoes.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                ({movimentacoes.length} registros)
+              </span>
+            )}
+          </h3>
+          <NovaMovimentacaoDialog processoId={id} />
+        </div>
 
         {(!movimentacoes || movimentacoes.length === 0) ? (
-          <div className="flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-            <AlertCircle className="size-4" />
-            Nenhuma movimentação registrada. O cron das 8h buscará as atualizações do DataJud.
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-4 py-8 text-center">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <AlertCircle className="size-4 shrink-0" />
+              Nenhuma movimentação registrada ainda.
+            </div>
+            <p className="text-xs text-muted-foreground">
+              O cron das 5h buscará atualizações via DataJud. Para processos não indexados, use o botão acima para registrar manualmente.
+            </p>
           </div>
         ) : (
-          <MovimentacoesTimeline grupos={gruposTimeline} recenteId={recenteId} />
+          <MovimentacoesTimeline grupos={gruposTimeline} recenteId={recenteId} processoId={id} />
         )}
       </div>
     </div>
