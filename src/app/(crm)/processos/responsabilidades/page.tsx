@@ -175,7 +175,7 @@ export default async function ResponsabilidadesPage() {
                   </td>
                   <td className="hidden px-4 py-3 md:table-cell">
                     {p.area
-                      ? <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{p.area}</span>
+                      ? <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{p.area}</span>
                       : <span className="italic text-xs text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3">
