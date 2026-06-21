@@ -65,10 +65,7 @@ export function BugReportButton({
             titulo_pagina: document.title,
             user_agent:    navigator.userAgent,
             viewport:      `${window.innerWidth}x${window.innerHeight}`,
-            empresa_id:    empresaId ?? null,
             empresa_nome:  empresaNome ?? null,
-            user_name:     userName ?? null,
-            user_role:     userRole ?? null,
           },
         }),
       })
