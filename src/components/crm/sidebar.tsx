@@ -27,6 +27,7 @@ import {
   IdCard,
   Scale,
   MessagesSquare,
+  UserCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
@@ -135,7 +136,16 @@ const navItems: NavItem[] = [
     label: 'Processos',
     icon: Scale,
     modulo: 'processos',
+    exactMatch: true,
     tourSlug: 'processos',
+  },
+  {
+    href: '/processos/responsabilidades',
+    label: 'Responsabilidades',
+    icon: UserCheck,
+    modulo: 'processos',
+    isSubItem: true,
+    parentHref: '/processos',
   },
   {
     href: '/contratos',
