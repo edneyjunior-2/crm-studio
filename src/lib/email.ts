@@ -261,3 +261,102 @@ function buildWelcomeHtml({
     'CRM Studio. · Gerencie suas vendas com inteligência<br>Este é um e-mail automático — não é necessário responder.',
   )
 }
+
+// ── QW#4: notificação de reatribuição de processo ────────────────────────────
+
+export async function sendReatribuicaoEmail({
+  to,
+  nomeAdvogado,
+  numeroProcesso,
+  assunto,
+  processoId,
+}: {
+  to: string
+  nomeAdvogado: string
+  numeroProcesso: string
+  assunto: string | null
+  processoId: string
+}): Promise<void> {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const url = `${getAppUrl()}/processos/${processoId}`
+  const safeNome = escapeHtml(stripHeaders(nomeAdvogado))
+  const safeNumero = escapeHtml(stripHeaders(numeroProcesso))
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: stripHeaders(to),
+      subject: `Processo atribuído a você: ${numeroProcesso}`,
+      html: emailShell(
+        'Processo atribuído',
+        `<h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${safeNome}!</h1>
+        <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
+          Você foi designado(a) como responsável pelo processo abaixo.
+          Acesse o CRM para verificar os detalhes e as últimas movimentações.
+        </p>
+        <div style="background:#f8f7f4;border-radius:8px;padding:16px 20px;margin:0 0 24px;">
+          <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Número do processo</p>
+          <p style="margin:0;font-size:15px;font-weight:700;color:${NAVY};font-family:monospace;">${safeNumero}</p>
+          ${assunto ? `<p style="margin:8px 0 0;font-size:14px;color:#64748b;">${escapeHtml(stripHeaders(assunto))}</p>` : ''}
+        </div>
+        ${ctaButton(url, 'Ver processo →')}`,
+        'CRM Studio. · e-mail automático de atribuição de processo',
+      ),
+    })
+  } catch (err) {
+    console.error('[email] falha ao enviar e-mail de reatribuição:', err)
+  }
+}
+
+// ── QW#1: alerta de novas movimentações DataJud ──────────────────────────────
+
+export async function sendNovasMovimentacoesEmail({
+  to,
+  nomeAdvogado,
+  numeroProcesso,
+  assunto,
+  qtdNovas,
+  processoId,
+}: {
+  to: string
+  nomeAdvogado: string
+  numeroProcesso: string
+  assunto: string | null
+  qtdNovas: number
+  processoId: string
+}): Promise<void> {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const url = `${getAppUrl()}/processos/${processoId}`
+  const safeNome = escapeHtml(stripHeaders(nomeAdvogado))
+  const safeNumero = escapeHtml(stripHeaders(numeroProcesso))
+  const label = qtdNovas === 1 ? '1 nova movimentação' : `${qtdNovas} novas movimentações`
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: stripHeaders(to),
+      subject: `[Processo ${numeroProcesso}] ${label} detectada(s)`,
+      html: emailShell(
+        'Novas movimentações processuais',
+        `<h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${safeNome}!</h1>
+        <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
+          O DataJud registrou <strong style="color:${NAVY};">${label}</strong> no processo abaixo.
+          Acesse o CRM para verificar os detalhes.
+        </p>
+        <div style="background:#f8f7f4;border-radius:8px;padding:16px 20px;margin:0 0 24px;">
+          <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Número do processo</p>
+          <p style="margin:0;font-size:15px;font-weight:700;color:${NAVY};font-family:monospace;">${safeNumero}</p>
+          ${assunto ? `<p style="margin:8px 0 0;font-size:14px;color:#64748b;">${escapeHtml(stripHeaders(assunto))}</p>` : ''}
+        </div>
+        ${ctaButton(url, 'Ver movimentações →')}`,
+        'CRM Studio. · alerta automático de novas movimentações — DataJud',
+      ),
+    })
+  } catch (err) {
+    console.error('[email] falha ao enviar alerta de movimentação:', err)
+  }
+}
