@@ -32,6 +32,13 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Placeholders para SDKs que lançam exceção sem key (build-time only)
+          RESEND_API_KEY: re_placeholder_ci
+          ANTHROPIC_API_KEY: sk-placeholder-ci
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ci@placeholder.iam.gserviceaccount.com
+          GOOGLE_PRIVATE_KEY: placeholder
+          GOOGLE_CALENDAR_ID: placeholder@group.calendar.google.com
+          CRON_SECRET: placeholder
 
   e2e:
     name: E2E Tests
