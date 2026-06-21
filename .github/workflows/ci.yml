@@ -57,23 +57,44 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build production (E2E roda contra next start, não next dev)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: re_placeholder_ci
+          ANTHROPIC_API_KEY: sk-placeholder-ci
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ci@placeholder.iam.gserviceaccount.com
+          GOOGLE_PRIVATE_KEY: placeholder
+          GOOGLE_CALENDAR_ID: placeholder@group.calendar.google.com
+          CRON_SECRET: placeholder
+          HEALTH_CHECK_TOKEN: placeholder
+
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
       - name: Run E2E tests
         run: npm run test:e2e:ci
         env:
-          # Supabase
+          # Supabase (runtime — necessário para next start e para os testes)
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: re_placeholder_ci
+          ANTHROPIC_API_KEY: sk-placeholder-ci
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ci@placeholder.iam.gserviceaccount.com
+          GOOGLE_PRIVATE_KEY: placeholder
+          GOOGLE_CALENDAR_ID: placeholder@group.calendar.google.com
+          CRON_SECRET: placeholder
+          HEALTH_CHECK_TOKEN: placeholder
           # E2E test user
           TEST_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
           TEST_EMPRESA_ID: ${{ secrets.E2E_EMPRESA_ID }}
 
       - name: Upload Playwright report
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report

@@ -19,9 +19,13 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    // Em CI usa o build de produção (next start) — evita hydration mismatches do dev mode.
+    // Localmente reusa o servidor já rodando (next dev).
+    command: process.env.CI ? 'npm run start' : 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
 })
