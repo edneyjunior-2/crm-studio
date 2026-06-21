@@ -84,16 +84,19 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
 
   // Papel do usuário (só admin exclui processo)
   const admin = createAdminClient()
-  const [{ data: perfil }, { data: authUsers }, { data: todosProfiles }] = await Promise.all([
+  const [{ data: perfil }, { data: authUsers }, { data: empresaProfiles }] = await Promise.all([
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     admin.auth.admin.listUsers(),
-    admin.from('profiles').select('id, full_name'),
+    // RLS scoped: apenas profiles da mesma empresa
+    supabase.from('profiles').select('id, full_name'),
   ])
   const podeExcluir = perfil?.role === 'admin'
 
-  const profileMap = Object.fromEntries((todosProfiles ?? []).map((p) => [p.id, p.full_name as string]))
+  // Filtra authUsers para conter apenas membros desta empresa (via RLS nos profiles)
+  const empresaUserIds = new Set((empresaProfiles ?? []).map((p) => p.id))
+  const profileMap = Object.fromEntries((empresaProfiles ?? []).map((p) => [p.id, p.full_name as string]))
   const membros = (authUsers?.users ?? [])
-    .filter((u) => u.email)
+    .filter((u) => u.email && empresaUserIds.has(u.id))
     .map((u) => ({ id: u.id, nome: profileMap[u.id] ?? u.email!.split('@')[0], email: u.email! }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 

@@ -54,14 +54,17 @@ export default async function ResponsabilidadesPage() {
   ] = await Promise.all([
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     admin.auth.admin.listUsers(),
-    admin.from('profiles').select('id, full_name'),
+    // RLS scoped: traz apenas profiles da mesma empresa
+    supabase.from('profiles').select('id, full_name'),
   ])
 
   const isAdmin = perfil?.role === 'admin' || perfil?.role === 'socio'
 
+  // Apenas IDs que pertencem a esta empresa (via RLS)
+  const empresaUserIds = new Set((profiles ?? []).map((p) => p.id))
   const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name as string]))
   const membros = (authUsers?.users ?? [])
-    .filter((u) => u.email)
+    .filter((u) => u.email && empresaUserIds.has(u.id))
     .map((u) => ({ id: u.id, nome: profileMap[u.id] ?? u.email!.split('@')[0] }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
