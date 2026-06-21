@@ -20,23 +20,18 @@ export async function DELETE(
 
   const admin = createAdminClient()
 
-  // Só exclui se for manual (codigo_movimento IS NULL) e pertencer à empresa — DataJud não se apaga
-  const { data: mov } = await admin
+  // Verificação e exclusão atômica: só remove se for manual (codigo_movimento IS NULL) e da empresa certa
+  const { data, error } = await admin
     .from('movimentacoes_processo')
-    .select('id')
+    .delete()
     .eq('id', movId)
     .eq('processo_id', processoId)
     .eq('empresa_id', perfil.empresa_id)
     .is('codigo_movimento', null)
-    .maybeSingle()
-
-  if (!mov) return NextResponse.json({ error: 'Movimentação não encontrada ou não pode ser excluída' }, { status: 404 })
-
-  const { error } = await admin
-    .from('movimentacoes_processo')
-    .delete()
-    .eq('id', movId)
+    .select('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data?.length) return NextResponse.json({ error: 'Movimentação não encontrada ou não pode ser excluída' }, { status: 404 })
+
   return NextResponse.json({ ok: true })
 }

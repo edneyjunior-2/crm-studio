@@ -11,11 +11,9 @@ interface HealthResponse {
 
 export async function GET(request: NextRequest) {
   const token = process.env.HEALTH_CHECK_TOKEN
-  if (token) {
-    const provided = request.headers.get('x-health-token')
-    if (provided !== token) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
+  const provided = request.headers.get('x-health-token')
+  if (!token || provided !== token) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
   const supabase = createAdminClient()

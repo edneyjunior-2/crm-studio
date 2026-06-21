@@ -318,7 +318,7 @@ export async function updateUserRole(
   userId: string,
   role: string
 ): Promise<{ error?: string }> {
-  const { supabase, user: adminUser } = await getAuthAdmin()
+  const { supabase, user: adminUser, empresaId } = await getAuthAdmin()
   const adminId = adminUser.id
 
   if (userId === adminId) return { error: 'Não é possível alterar o próprio perfil.' }
@@ -326,6 +326,14 @@ export async function updateUserRole(
   const roleResult = roleSchema.safeParse(role)
   if (!roleResult.success) return { error: 'Role inválido' }
   role = roleResult.data
+
+  // Garante que o usuário alvo pertence à mesma empresa
+  const { data: target } = await supabase
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', userId)
+    .single()
+  if (!target || target.empresa_id !== empresaId) return { error: 'Usuário não encontrado.' }
 
   const { error } = await supabase
     .from('profiles')
@@ -342,8 +350,17 @@ export async function updateUserCargo(
   userId: string,
   cargo: string,
 ): Promise<{ error?: string }> {
-  const { supabase } = await getAuthAdmin()
-  const cargoTrimmed = cargo.trim().slice(0, 80) // máximo 80 chars
+  const { supabase, empresaId } = await getAuthAdmin()
+
+  // Garante que o usuário alvo pertence à mesma empresa
+  const { data: target } = await supabase
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', userId)
+    .single()
+  if (!target || target.empresa_id !== empresaId) return { error: 'Usuário não encontrado.' }
+
+  const cargoTrimmed = cargo.trim().slice(0, 80)
   const { error } = await supabase
     .from('profiles')
     .update({ cargo: cargoTrimmed || null })

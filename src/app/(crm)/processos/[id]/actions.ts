@@ -104,6 +104,9 @@ export async function deletarProcesso(processoId: string): Promise<{ error?: str
 
 export async function marcarComoLido(processoId: string) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
   await supabase
     .from('movimentacoes_processo')
     .update({ lido: true })
