@@ -4,8 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const ADMIN_EMAIL = 'edneyjuniords@gmail.com'
 
 export async function POST(req: NextRequest) {
@@ -15,6 +13,13 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
+  // Deriva empresa_id, nome e role do servidor — nunca confiar nos valores do cliente
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('empresa_id, role, full_name')
+    .eq('id', user.id)
+    .single()
+
   const body = await req.json() as {
     descricao: string
     screenshot_base64: string | null
@@ -23,10 +28,7 @@ export async function POST(req: NextRequest) {
       titulo_pagina: string
       user_agent: string
       viewport: string
-      empresa_id: string | null
       empresa_nome: string | null
-      user_name: string | null
-      user_role: string | null
     }
   }
 
@@ -39,10 +41,10 @@ export async function POST(req: NextRequest) {
   const { data: report, error: insertErr } = await admin
     .from('bug_reports')
     .insert({
-      empresa_id:   contexto.empresa_id ?? null,
+      empresa_id:   profile?.empresa_id ?? null,
       user_id:      user.id,
-      user_name:    contexto.user_name,
-      user_role:    contexto.user_role,
+      user_name:    profile?.full_name ?? null,
+      user_role:    profile?.role ?? null,
       url:          contexto.url,
       descricao:    descricao.trim(),
       contexto: {
@@ -81,7 +83,15 @@ export async function POST(req: NextRequest) {
   }
 
   // 3. Análise Claude (não bloqueia resposta)
-  analyzeAndNotify({ reportId, descricao, contexto, screenshot_base64, screenshotUrl }).catch(() => {})
+  analyzeAndNotify({
+    reportId,
+    descricao,
+    contexto,
+    screenshot_base64,
+    screenshotUrl,
+    userName:  profile?.full_name ?? null,
+    userRole:  profile?.role ?? null,
+  }).catch(() => {})
 
   return NextResponse.json({ ok: true, id: reportId })
 }
@@ -92,9 +102,11 @@ async function analyzeAndNotify(params: {
   contexto: Record<string, unknown>
   screenshot_base64: string | null
   screenshotUrl: string | null
+  userName: string | null
+  userRole: string | null
 }) {
   const admin = createAdminClient()
-  const { reportId, descricao, contexto, screenshot_base64 } = params
+  const { reportId, descricao, contexto, screenshot_base64, userName, userRole } = params
 
   // Construir mensagem para Claude
   const systemPrompt = `Você é o assistente de suporte do CRM Studio, um SaaS brasileiro para PMEs.
@@ -105,7 +117,7 @@ Responda SOMENTE com JSON válido, sem markdown, sem texto extra.`
   const userText = `Bug reportado:
 - Descrição: "${descricao}"
 - Página: ${contexto.url}
-- Usuário: ${contexto.user_name ?? 'desconhecido'} (${contexto.user_role ?? '?'})
+- Usuário: ${userName ?? 'desconhecido'} (${userRole ?? '?'})
 - Empresa: ${contexto.empresa_nome ?? 'desconhecida'}
 - Viewport: ${contexto.viewport ?? '?'}
 - User-agent: ${String(contexto.user_agent ?? '').slice(0, 120)}
@@ -133,6 +145,7 @@ Classifique e retorne JSON com este schema exato:
   }
   messageContent.push({ type: 'text', text: userText })
 
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   let analise: Record<string, unknown> | null = null
   try {
     const resp = await anthropic.messages.create({
@@ -157,6 +170,7 @@ Classifique e retorne JSON com este schema exato:
     ? `<p><a href="${params.screenshotUrl}">📷 Ver screenshot</a></p>`
     : '<p><em>Sem screenshot.</em></p>'
 
+  const resend = new Resend(process.env.RESEND_API_KEY)
   await resend.emails.send({
     from: 'nao-responda@crmstudio.com.br',
     to: ADMIN_EMAIL,
@@ -178,7 +192,7 @@ Classifique e retorne JSON com este schema exato:
     <h3 style="margin:0 0 8px;font-size:14px;text-transform:uppercase;color:#999;letter-spacing:.05em">Contexto</h3>
     <table style="font-size:13px;border-collapse:collapse;width:100%">
       <tr><td style="padding:4px 0;color:#666;width:120px">Página</td><td><code style="font-size:12px">${contexto.url}</code></td></tr>
-      <tr><td style="padding:4px 0;color:#666">Usuário</td><td>${contexto.user_name ?? '—'} (${contexto.user_role ?? '?'})</td></tr>
+      <tr><td style="padding:4px 0;color:#666">Usuário</td><td>${userName ?? '—'} (${userRole ?? '?'})</td></tr>
       <tr><td style="padding:4px 0;color:#666">Empresa</td><td>${contexto.empresa_nome ?? '—'}</td></tr>
       <tr><td style="padding:4px 0;color:#666">Viewport</td><td>${contexto.viewport ?? '—'}</td></tr>
     </table>
