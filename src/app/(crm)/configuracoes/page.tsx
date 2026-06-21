@@ -33,7 +33,7 @@ export default async function ConfiguracoesPage() {
   const empresaId = profile?.empresa_id as string | null
 
   const [profilesResult, authUsersResult, empresaResult] = await Promise.all([
-    supabase.from('profiles').select('*, cargo').order('created_at', { ascending: true }),
+    supabase.from('profiles').select('*').order('created_at', { ascending: true }),
     admin.auth.admin.listUsers(),
     empresaId
       ? supabase

@@ -55,7 +55,7 @@ export default async function ResponsabilidadesPage() {
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     admin.auth.admin.listUsers(),
     // RLS scoped: traz apenas profiles da mesma empresa
-    supabase.from('profiles').select('id, full_name, cargo'),
+    supabase.from('profiles').select('id, full_name'),
   ])
 
   const isAdmin = perfil?.role === 'admin' || perfil?.role === 'socio'
