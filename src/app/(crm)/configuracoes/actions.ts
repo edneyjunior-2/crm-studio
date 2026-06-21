@@ -45,6 +45,13 @@ export interface StatusPagamento {
  *  - status 'cancelado' → já cancelado, sem cobrança ativa → pode (idempotente).
  */
 export async function avaliarPagamento(empresaId: string): Promise<StatusPagamento> {
+  // Garante que o chamador autenticado pertence à empresa solicitada (protege invocação remota)
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Não autenticado.')
+  const { data: callerProfile } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
+  if (!callerProfile || callerProfile.empresa_id !== empresaId) throw new Error('Sem permissão.')
+
   const db = createAdminClient()
 
   const { data: empresa, error: empresaError } = await db
@@ -472,6 +479,7 @@ export async function deleteUser(userId: string): Promise<{ error?: string }> {
 // ---------------------------------------------------------------------------
 export async function salvarConfigSdrEmpresa(formData: FormData) {
   const { empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const payload = {
     wa_phone_number_id: (formData.get('wa_phone_number_id') as string).trim() || null,
