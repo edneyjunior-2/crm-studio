@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Trash2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { updateUserRole, deleteUser } from '@/app/(crm)/configuracoes/actions'
+import { updateUserRole, deleteUser, updateUserCargo } from '@/app/(crm)/configuracoes/actions'
 import type { Role } from '@/types'
 
 interface UsuarioRow {
@@ -39,8 +39,24 @@ interface UsuarioRow {
   full_name: string
   email: string
   role: Role
+  cargo?: string | null
   created_at: string
 }
+
+const CARGOS_SUGERIDOS = [
+  'Advogado',
+  'Advogado Sênior',
+  'Advogado Pleno',
+  'Advogado Júnior',
+  'Sócio',
+  'Sócio-fundador',
+  'Estagiário',
+  'Paralegal',
+  'Analista Jurídico',
+  'Secretário(a)',
+  'Gerente Administrativo',
+  'Financeiro',
+]
 
 interface UsuariosTableProps {
   usuarios: UsuarioRow[]
@@ -109,6 +125,39 @@ function RoleSelect({
         <SelectItem value="comercial">Comercial</SelectItem>
       </SelectContent>
     </Select>
+  )
+}
+
+function CargoInput({ userId, cargo }: { userId: string; cargo?: string | null }) {
+  const [valor, setValor] = useState(cargo ?? '')
+  const [salvando, setSalvando] = useState(false)
+  const [salvo, setSalvo] = useState(false)
+
+  async function handleBlur() {
+    if (valor === (cargo ?? '')) return
+    setSalvando(true)
+    await updateUserCargo(userId, valor)
+    setSalvando(false)
+    setSalvo(true)
+    setTimeout(() => setSalvo(false), 2000)
+  }
+
+  return (
+    <div className="relative">
+      <input
+        list={`cargos-${userId}`}
+        value={valor}
+        onChange={(e) => { setValor(e.target.value); setSalvo(false) }}
+        onBlur={handleBlur}
+        placeholder="Ex: Advogado, Estagiário…"
+        className="h-8 w-44 rounded-lg border border-border bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-foreground/40"
+      />
+      <datalist id={`cargos-${userId}`}>
+        {CARGOS_SUGERIDOS.map((c) => <option key={c} value={c} />)}
+      </datalist>
+      {salvando && <span className="absolute right-2 top-1.5 text-[10px] text-muted-foreground">salvando…</span>}
+      {salvo    && <span className="absolute right-2 top-1.5 text-[10px] text-chart-5">✓</span>}
+    </div>
   )
 }
 
@@ -197,6 +246,7 @@ export function UsuariosTable({ usuarios, currentUserId }: UsuariosTableProps) {
             <TableHead>E-mail</TableHead>
             <TableHead>Perfil</TableHead>
             <TableHead>Alterar perfil</TableHead>
+            <TableHead>Cargo</TableHead>
             <TableHead className="w-16 text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -235,6 +285,9 @@ export function UsuariosTable({ usuarios, currentUserId }: UsuariosTableProps) {
                     currentRole={u.role}
                     disabled={isSelf}
                   />
+                </TableCell>
+                <TableCell>
+                  <CargoInput userId={u.id} cargo={u.cargo} />
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end">

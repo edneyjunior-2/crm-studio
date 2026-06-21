@@ -41,7 +41,7 @@ export default async function CRMLayout({
       .single(),
     supabase
       .from('profiles')
-      .select('id, full_name, role, created_at')
+      .select('id, full_name, role, cargo, created_at')
       .eq('id', user.id)
       .single(),
   ])

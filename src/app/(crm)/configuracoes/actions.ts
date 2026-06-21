@@ -338,6 +338,22 @@ export async function updateUserRole(
   return {}
 }
 
+export async function updateUserCargo(
+  userId: string,
+  cargo: string,
+): Promise<{ error?: string }> {
+  const { supabase } = await getAuthAdmin()
+  const cargoTrimmed = cargo.trim().slice(0, 80) // máximo 80 chars
+  const { error } = await supabase
+    .from('profiles')
+    .update({ cargo: cargoTrimmed || null })
+    .eq('id', userId)
+  if (error) return { error: error.message }
+  revalidatePath('/configuracoes')
+  revalidatePath('/processos/responsabilidades')
+  return {}
+}
+
 export async function salvarEncarregado(
   data: unknown
 ): Promise<{ error?: string }> {

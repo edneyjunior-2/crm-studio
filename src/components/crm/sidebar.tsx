@@ -329,7 +329,7 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
               {profile.full_name}
             </p>
             <p className="text-xs text-sidebar-foreground/60">
-              {roleLabel[profile.role]}
+              {profile.cargo ?? roleLabel[profile.role]}
             </p>
           </div>
         )}

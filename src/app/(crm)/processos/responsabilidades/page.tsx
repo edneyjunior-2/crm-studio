@@ -55,17 +55,23 @@ export default async function ResponsabilidadesPage() {
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     admin.auth.admin.listUsers(),
     // RLS scoped: traz apenas profiles da mesma empresa
-    supabase.from('profiles').select('id, full_name'),
+    supabase.from('profiles').select('id, full_name, cargo'),
   ])
 
   const isAdmin = perfil?.role === 'admin' || perfil?.role === 'socio'
 
   // Apenas IDs que pertencem a esta empresa (via RLS)
   const empresaUserIds = new Set((profiles ?? []).map((p) => p.id))
-  const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name as string]))
+  const profileMap = Object.fromEntries(
+    (profiles ?? []).map((p) => [p.id, { nome: p.full_name as string, cargo: (p as Record<string, unknown>).cargo as string | null }])
+  )
   const membros = (authUsers?.users ?? [])
     .filter((u) => u.email && empresaUserIds.has(u.id))
-    .map((u) => ({ id: u.id, nome: profileMap[u.id] ?? u.email!.split('@')[0] }))
+    .map((u) => ({
+      id:    u.id,
+      nome:  profileMap[u.id]?.nome ?? u.email!.split('@')[0],
+      cargo: profileMap[u.id]?.cargo ?? null,
+    }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
   // Admin/sócio: todos os processos; outros: só os seus

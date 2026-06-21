@@ -5,8 +5,9 @@ import { Check, Loader2 } from 'lucide-react'
 import { reatribuirResponsavel } from './actions'
 
 interface Membro {
-  id:   string
-  nome: string
+  id:    string
+  nome:  string
+  cargo: string | null
 }
 
 interface Props {
@@ -17,17 +18,20 @@ interface Props {
 }
 
 export function ReatribuirSelect({ processoId, advogadoId, membros, readonly }: Props) {
-  const [valor, setValor]           = useState(advogadoId ?? '')
-  const [salvo, setSalvo]           = useState(false)
-  const [erro,  setErro]            = useState<string | null>(null)
-  const [pending, startTransition]  = useTransition()
+  const [valor, setValor]          = useState(advogadoId ?? '')
+  const [salvo, setSalvo]          = useState(false)
+  const [erro,  setErro]           = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
 
   if (readonly) {
-    const nome = membros.find((m) => m.id === advogadoId)?.nome
-    return (
-      <span className="text-sm text-foreground">
-        {nome ?? <span className="italic text-muted-foreground">Sem responsável</span>}
-      </span>
+    const m = membros.find((m) => m.id === advogadoId)
+    return m ? (
+      <div className="flex flex-col leading-tight">
+        <span className="text-sm text-foreground">{m.nome}</span>
+        {m.cargo && <span className="text-[11px] text-muted-foreground">{m.cargo}</span>}
+      </div>
+    ) : (
+      <span className="italic text-sm text-muted-foreground">Sem responsável</span>
     )
   }
 
@@ -53,7 +57,9 @@ export function ReatribuirSelect({ processoId, advogadoId, membros, readonly }: 
       >
         <option value="">— Sem responsável</option>
         {membros.map((m) => (
-          <option key={m.id} value={m.id}>{m.nome}</option>
+          <option key={m.id} value={m.id}>
+            {m.cargo ? `${m.nome} · ${m.cargo}` : m.nome}
+          </option>
         ))}
       </select>
       {pending && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}

@@ -4,6 +4,7 @@ export interface Profile {
   id: string
   full_name: string
   role: Role
+  cargo?: string | null
   created_at: string
   google_access_token?: string | null
   google_refresh_token?: string | null
