@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bot, Check, Loader2, Copy, Lightbulb, Sparkles } from 'lucide-react'
+import { Bot, Check, Loader2, Copy, Lightbulb, Sparkles, Lock } from 'lucide-react'
 import { salvarConfigSdrEmpresa } from '@/app/(crm)/configuracoes/actions'
 
 interface ConfigSdr {
@@ -28,7 +28,7 @@ const EXEMPLOS_TOM = [
   },
 ]
 
-export function ConfigSdrSection({ config }: { config: ConfigSdr | null }) {
+export function ConfigSdrSection({ config, ativo = true }: { config: ConfigSdr | null; ativo?: boolean }) {
   const router = useRouter()
   const [wa, setWa]                 = useState(config?.wa_phone_number_id ?? '')
   const [escritorio, setEscritorio] = useState(config?.nome_escritorio ?? '')
@@ -59,20 +59,38 @@ export function ConfigSdrSection({ config }: { config: ConfigSdr | null }) {
   }
 
   return (
-    <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5">
-      <div>
-        <div className="flex items-center gap-2">
-          <Bot className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Agente SDR — persona e tom de voz</h2>
+    <div className={`flex flex-col gap-5 rounded-xl border bg-card p-5 ${ativo ? 'border-border' : 'border-border opacity-75'}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Bot className="size-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Agente SDR — persona e tom de voz</h2>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Configure como o agente de IA conversa com os seus leads no WhatsApp.
+            Escolha o nome, o tom e o estilo que combinam com a sua empresa.
+          </p>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Configure como o agente de IA conversa com os seus leads no WhatsApp.
-          Escolha o nome, o tom e o estilo que combinam com a sua empresa.
-        </p>
+        {!ativo && (
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+            <Lock className="size-3" />
+            Não habilitado
+          </span>
+        )}
       </div>
 
-      {/* Sugestão de melhoria enviada pelo admin */}
-      {sugestao && (
+      {/* Banner quando módulo não está ativo */}
+      {!ativo && (
+        <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-5 text-center">
+          <p className="text-sm font-medium text-foreground">Módulo SDR não habilitado no seu plano</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Entre em contato com o suporte para ativar o Agente SDR e começar a atender leads automaticamente pelo WhatsApp.
+          </p>
+        </div>
+      )}
+
+      {/* Formulário — só aparece quando módulo está ativo */}
+      {ativo && sugestao && (
         <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
           <div className="flex items-center gap-2">
             <Lightbulb className="size-4 text-amber-600" />
@@ -92,7 +110,7 @@ export function ConfigSdrSection({ config }: { config: ConfigSdr | null }) {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      {ativo && <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
         {/* Formulário */}
         <div className="flex flex-col gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -170,7 +188,7 @@ export function ConfigSdrSection({ config }: { config: ConfigSdr | null }) {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

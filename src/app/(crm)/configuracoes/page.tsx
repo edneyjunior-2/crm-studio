@@ -164,20 +164,19 @@ export default async function ConfiguracoesPage() {
         />
       </section>
 
-      {/* SDR — aparece se o módulo SDR estiver ativo */}
-      {modulosDisponiveis.includes('sdr' as Modulo) && (
-        <section>
-          <ConfigSdrSection
-            config={{
-              wa_phone_number_id: empresa?.wa_phone_number_id ?? null,
-              nome_escritorio:    empresa?.nome_escritorio ?? null,
-              nome_assistente:    empresa?.nome_assistente ?? null,
-              tom_de_voz:         empresa?.tom_de_voz ?? null,
-              sugestao_sdr:       empresa?.sugestao_sdr ?? null,
-            }}
-          />
-        </section>
-      )}
+      {/* SDR — aparece sempre; desabilitado se módulo não estiver ativo */}
+      <section>
+        <ConfigSdrSection
+          ativo={modulosDisponiveis.includes('sdr' as Modulo)}
+          config={{
+            wa_phone_number_id: empresa?.wa_phone_number_id ?? null,
+            nome_escritorio:    empresa?.nome_escritorio ?? null,
+            nome_assistente:    empresa?.nome_assistente ?? null,
+            tom_de_voz:         empresa?.tom_de_voz ?? null,
+            sugestao_sdr:       empresa?.sugestao_sdr ?? null,
+          }}
+        />
+      </section>
 
       {empresa?.nome && (
         <ExcluirConta
