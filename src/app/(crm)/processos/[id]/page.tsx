@@ -12,8 +12,8 @@ import { MarcarLidoOnMount } from './marcar-lido-on-mount'
 import { ProcessoAcoes } from './processo-acoes'
 import { MovimentacoesTimeline } from './movimentacoes-timeline'
 import { IndicacaoParceiroPrompt } from './indicacao-parceiro-prompt'
-import { NovaMovimentacaoDialog } from './nova-movimentacao-dialog'
-import { HistoricoInterno } from './historico-interno'
+import { ProcessoDetalheTabs } from './processo-detalhe-tabs'
+
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -369,39 +369,13 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Timeline de movimentações */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-foreground">
-            Movimentações
-            {movimentacoes && movimentacoes.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({movimentacoes.length} registros)
-              </span>
-            )}
-          </h3>
-          <NovaMovimentacaoDialog processoId={id} />
-        </div>
-
-        {(!movimentacoes || movimentacoes.length === 0) ? (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-4 py-8 text-center">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <AlertCircle className="size-4 shrink-0" />
-              Nenhuma movimentação registrada ainda.
-            </div>
-            <p className="text-xs text-muted-foreground">
-              O cron das 5h buscará atualizações via DataJud. Para processos não indexados, use o botão acima para registrar manualmente.
-            </p>
-          </div>
-        ) : (
-          <MovimentacoesTimeline grupos={gruposTimeline} recenteId={recenteId} processoId={id} />
-        )}
-      </div>
-
-      {/* Histórico interno (movimentações manuais com assunto + descrição) */}
-      <HistoricoInterno
+      {/* Abas: Movimentações | Histórico Interno */}
+      <ProcessoDetalheTabs
         processoId={id}
-        movimentacoes={(movInternas ?? []).map((m) => {
+        gruposTimeline={gruposTimeline}
+        recenteId={recenteId}
+        totalMov={movimentacoes?.length ?? 0}
+        movInternas={(movInternas ?? []).map((m) => {
           const autorRaw = (m as Record<string, unknown>)['profiles!autor_id'] as { full_name?: string } | null
           return {
             id:         m.id,
