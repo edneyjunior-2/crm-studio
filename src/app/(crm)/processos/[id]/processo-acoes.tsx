@@ -5,13 +5,17 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { atualizarStatusProcesso, deletarProcesso } from './actions'
+import { ArquivarConcluirDialog } from './arquivar-concluir-dialog'
 
-const STATUS = [
+// Statuses controlados pelo select rápido (sem confirmação obrigatória)
+const STATUS_RAPIDOS = [
   { value: 'ativo',     label: 'Ativo' },
   { value: 'encerrado', label: 'Encerrado' },
   { value: 'suspenso',  label: 'Suspenso' },
-  { value: 'arquivado', label: 'Arquivado' },
 ]
+
+// Statuses que exigem o dialog com motivo obrigatório
+const STATUS_COM_DIALOG = ['arquivado', 'concluido']
 
 export function ProcessoAcoes({
   processoId,
@@ -27,6 +31,8 @@ export function ProcessoAcoes({
   const [salvando, startSalvar]       = useTransition()
   const [confirmando, setConfirmando] = useState(false)
   const [excluindo, setExcluindo]     = useState(false)
+
+  const isComDialog = STATUS_COM_DIALOG.includes(status)
 
   function handleStatus(novo: string) {
     const anterior = status
@@ -46,7 +52,6 @@ export function ProcessoAcoes({
   async function handleDelete() {
     setExcluindo(true)
     const res = await deletarProcesso(processoId)
-    // Em caso de sucesso a action redireciona para /processos; só chega aqui em erro.
     if (res?.error) {
       toast.error(res.error)
       setExcluindo(false)
@@ -55,21 +60,39 @@ export function ProcessoAcoes({
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <select
-        value={status}
-        onChange={(e) => handleStatus(e.target.value)}
-        disabled={salvando}
-        aria-label="Status do processo"
-        className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium outline-none focus:border-foreground/40 disabled:opacity-60"
-      >
-        {STATUS.map((s) => (
-          <option key={s.value} value={s.value}>{s.label}</option>
-        ))}
-      </select>
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Select rápido: só para ativos/encerrado/suspenso */}
+      {!isComDialog && (
+        <select
+          value={status}
+          onChange={(e) => handleStatus(e.target.value)}
+          disabled={salvando}
+          aria-label="Status do processo"
+          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium outline-none focus:border-foreground/40 disabled:opacity-60"
+        >
+          {STATUS_RAPIDOS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+      )}
+
+      {/* Badge quando está arquivado/concluído */}
+      {isComDialog && (
+        <span className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-sm font-medium ${
+          status === 'arquivado'
+            ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400'
+        }`}>
+          {status === 'arquivado' ? 'Arquivado' : 'Concluído'}
+        </span>
+      )}
 
       {salvando && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
 
+      {/* Botões Arquivar / Concluir / Reativar */}
+      <ArquivarConcluirDialog processoId={processoId} statusAtual={status} />
+
+      {/* Excluir (admin only) */}
       {podeExcluir && (
         confirmando ? (
           <div className="flex items-center gap-1.5">

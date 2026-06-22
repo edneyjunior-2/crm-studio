@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { ImportarExcelDialog } from './importar-excel-dialog'
 import { ProcessosPageContent } from './processos-page-content'
 import { SincronizarDataJudButton } from './sincronizar-datajud-button'
+import { ProcessosTabs } from './processos-tabs'
+import { ProcessosArquivados } from './processos-arquivados'
 import type { ProcessoStats } from './processos-dashboard'
 
 // ---------------------------------------------------------------------------
@@ -91,18 +93,27 @@ export function tribunalLabel(slug: string): string {
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
-export default async function ProcessosPage() {
+interface ProcessosPageProps {
+  searchParams: Promise<{ tab?: string }>
+}
+
+export default async function ProcessosPage({ searchParams }: ProcessosPageProps) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { tab } = await searchParams
+  const isArquivadosTab = tab === 'arquivados'
 
   const [
     { data: processos, error },
     { count: totalNaoLidosCount },
     { data: naoLidosPorProcessoRaw },
     { data: advogados },
+    { count: totalArquivados },
   ] = await Promise.all([
+    // Ativos (só quando na tab padrão) ou arquivados/concluídos (tab arquivados)
     supabase
       .from('processos_juridicos')
       .select(`
@@ -119,6 +130,7 @@ export default async function ProcessosPage() {
         clientes(id, razao_social),
         profiles!advogado_id(id, full_name)
       `)
+      .in('status', isArquivadosTab ? ['arquivado', 'concluido'] : ['ativo', 'encerrado', 'suspenso'])
       .order('created_at', { ascending: false }),
 
     // COUNT real — sem trazer linhas (head: true)
@@ -138,6 +150,12 @@ export default async function ProcessosPage() {
       .from('profiles')
       .select('id, full_name')
       .order('full_name'),
+
+    // Contagem de arquivados/concluídos para o badge da tab
+    supabase
+      .from('processos_juridicos')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['arquivado', 'concluido']),
   ])
 
   // Badge por processo (quantas não lidas cada um tem)
@@ -199,6 +217,10 @@ export default async function ProcessosPage() {
     label: tribunalLabel(slug),
   }))
 
+  const totalAtivos = isArquivadosTab
+    ? 0
+    : processosNorm.filter((p) => p.status === 'ativo').length
+
   return (
     <div className="flex flex-col gap-6">
       {/* Cabeçalho */}
@@ -224,6 +246,12 @@ export default async function ProcessosPage() {
         </div>
       </div>
 
+      {/* Tabs: Ativos | Arquivados / Concluídos */}
+      <ProcessosTabs
+        totalAtivos={isArquivadosTab ? (processosNorm.length + totalAtivos) : processosNorm.length}
+        totalArquivados={totalArquivados ?? 0}
+      />
+
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           <AlertCircle className="size-4 shrink-0" />
@@ -231,11 +259,29 @@ export default async function ProcessosPage() {
         </div>
       )}
 
-      {!error && processosNorm.length === 0 && (
+      {/* Tab: Arquivados / Concluídos */}
+      {isArquivadosTab && !error && (
+        <ProcessosArquivados
+          processos={processosNorm.map((p) => ({
+            id:           p.id,
+            numeroProcesso: p.numeroProcesso,
+            status:       p.status,
+            clienteNome:  p.clienteNome,
+            advogadoNome: p.advogadoNome,
+            area:         p.area,
+            areaLabel:    p.areaLabel,
+            assunto:      p.assunto,
+            tribunalSlug: p.tribunalSlug,
+          }))}
+        />
+      )}
+
+      {/* Tab: Ativos (padrão) */}
+      {!isArquivadosTab && !error && processosNorm.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border py-20 text-center">
           <Scale className="size-10 text-muted-foreground/40" />
           <div>
-            <p className="text-sm font-medium text-foreground">Nenhum processo cadastrado</p>
+            <p className="text-sm font-medium text-foreground">Nenhum processo ativo</p>
             <p className="mt-1 text-sm text-muted-foreground">Cadastre o primeiro processo do escritório.</p>
           </div>
           <Link
@@ -248,7 +294,7 @@ export default async function ProcessosPage() {
         </div>
       )}
 
-      {!error && processosNorm.length > 0 && (
+      {!isArquivadosTab && !error && processosNorm.length > 0 && (
         <ProcessosPageContent
           stats={stats}
           processos={processosNorm}

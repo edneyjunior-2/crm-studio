@@ -13,6 +13,7 @@ import { ProcessoAcoes } from './processo-acoes'
 import { MovimentacoesTimeline } from './movimentacoes-timeline'
 import { IndicacaoParceiroPrompt } from './indicacao-parceiro-prompt'
 import { NovaMovimentacaoDialog } from './nova-movimentacao-dialog'
+import { HistoricoInterno } from './historico-interno'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -81,6 +82,13 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   if (errMov) {
     console.error('[processos] erro ao carregar movimentações:', errMov.message)
   }
+
+  // Histórico interno (movimentações manuais com assunto + descrição + autor)
+  const { data: movInternas } = await supabase
+    .from('movimentacoes_internas_processo')
+    .select('id, assunto, descricao, created_at, profiles!autor_id(full_name)')
+    .eq('processo_id', id)
+    .order('created_at', { ascending: false })
 
   // Papel do usuário (só admin exclui processo)
   const admin = createAdminClient()
@@ -389,6 +397,21 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           <MovimentacoesTimeline grupos={gruposTimeline} recenteId={recenteId} processoId={id} />
         )}
       </div>
+
+      {/* Histórico interno (movimentações manuais com assunto + descrição) */}
+      <HistoricoInterno
+        processoId={id}
+        movimentacoes={(movInternas ?? []).map((m) => {
+          const autorRaw = (m as Record<string, unknown>)['profiles!autor_id'] as { full_name?: string } | null
+          return {
+            id:         m.id,
+            assunto:    m.assunto as string,
+            descricao:  m.descricao as string | null,
+            created_at: m.created_at as string,
+            autor_nome: autorRaw?.full_name ?? null,
+          }
+        })}
+      />
     </div>
   )
 }

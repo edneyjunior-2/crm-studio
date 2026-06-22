@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createEvent } from '@/lib/google-calendar'
 import { parseValorBR } from '@/lib/honorarios'
 
-const STATUS_VALIDOS = ['ativo', 'encerrado', 'suspenso', 'arquivado']
+const STATUS_VALIDOS = ['ativo', 'encerrado', 'suspenso', 'arquivado', 'concluido']
 
 export async function atualizarStatusProcesso(
   processoId: string,
@@ -100,6 +100,129 @@ export async function deletarProcesso(processoId: string): Promise<{ error?: str
 
   revalidatePath('/processos')
   redirect('/processos')
+}
+
+// ---------------------------------------------------------------------------
+// Movimentações internas
+// ---------------------------------------------------------------------------
+
+export async function criarMovimentacaoInterna(
+  processoId: string,
+  assunto: string,
+  descricao?: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado.' }
+  if (!assunto.trim()) return { error: 'Assunto é obrigatório.' }
+
+  const { error } = await supabase
+    .from('movimentacoes_internas_processo')
+    .insert({
+      processo_id: processoId,
+      autor_id:    user.id,
+      assunto:     assunto.trim(),
+      descricao:   descricao?.trim() || null,
+    })
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/processos/${processoId}`)
+  return {}
+}
+
+// ---------------------------------------------------------------------------
+// Arquivar / Concluir / Reativar (sempre geram movimentação interna)
+// ---------------------------------------------------------------------------
+
+export async function arquivarProcesso(
+  processoId: string,
+  motivo: string,
+  descricao?: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado.' }
+
+  const { data, error } = await supabase
+    .from('processos_juridicos')
+    .update({ status: 'arquivado' })
+    .eq('id', processoId)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data?.length) return { error: 'Sem permissão para alterar este processo.' }
+
+  await supabase.from('movimentacoes_internas_processo').insert({
+    processo_id: processoId,
+    autor_id:    user.id,
+    assunto:     `Processo arquivado — ${motivo.trim()}`,
+    descricao:   descricao?.trim() || null,
+  })
+
+  revalidatePath(`/processos/${processoId}`)
+  revalidatePath('/processos')
+  return {}
+}
+
+export async function concluirProcesso(
+  processoId: string,
+  motivo: string,
+  descricao?: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado.' }
+
+  const { data, error } = await supabase
+    .from('processos_juridicos')
+    .update({ status: 'concluido' })
+    .eq('id', processoId)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data?.length) return { error: 'Sem permissão para alterar este processo.' }
+
+  await supabase.from('movimentacoes_internas_processo').insert({
+    processo_id: processoId,
+    autor_id:    user.id,
+    assunto:     `Processo concluído — ${motivo.trim()}`,
+    descricao:   descricao?.trim() || null,
+  })
+
+  revalidatePath(`/processos/${processoId}`)
+  revalidatePath('/processos')
+  return {}
+}
+
+export async function reativarProcesso(
+  processoId: string,
+  motivo: string,
+  descricao?: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado.' }
+
+  const { data, error } = await supabase
+    .from('processos_juridicos')
+    .update({ status: 'ativo' })
+    .eq('id', processoId)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data?.length) return { error: 'Sem permissão para alterar este processo.' }
+
+  await supabase.from('movimentacoes_internas_processo').insert({
+    processo_id: processoId,
+    autor_id:    user.id,
+    assunto:     `Processo reativado — ${motivo.trim()}`,
+    descricao:   descricao?.trim() || null,
+  })
+
+  revalidatePath(`/processos/${processoId}`)
+  revalidatePath('/processos')
+  return {}
 }
 
 export async function marcarComoLido(processoId: string) {
