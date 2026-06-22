@@ -2,14 +2,15 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bot, Check, Loader2, Copy } from 'lucide-react'
+import { Bot, Check, Loader2, Copy, Lightbulb, Sparkles } from 'lucide-react'
 import { salvarConfigSdrEmpresa } from '@/app/(crm)/configuracoes/actions'
 
 interface ConfigSdr {
   wa_phone_number_id: string | null
-  nome_escritorio: string | null
-  nome_assistente: string | null
-  tom_de_voz: string | null
+  nome_escritorio:    string | null
+  nome_assistente:    string | null
+  tom_de_voz:         string | null
+  sugestao_sdr?:      string | null
 }
 
 const EXEMPLOS_TOM = [
@@ -29,13 +30,15 @@ const EXEMPLOS_TOM = [
 
 export function ConfigSdrSection({ config }: { config: ConfigSdr | null }) {
   const router = useRouter()
-  const [wa, setWa]               = useState(config?.wa_phone_number_id ?? '')
+  const [wa, setWa]                 = useState(config?.wa_phone_number_id ?? '')
   const [escritorio, setEscritorio] = useState(config?.nome_escritorio ?? '')
   const [assistente, setAssistente] = useState(config?.nome_assistente ?? 'Leila')
   const [tom, setTom]               = useState(config?.tom_de_voz ?? '')
   const [erro, setErro]             = useState<string | null>(null)
   const [ok, setOk]                 = useState(false)
   const [salvando, startSalvar]     = useTransition()
+
+  const sugestao = config?.sugestao_sdr ?? null
 
   const inputClass = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40'
 
@@ -56,7 +59,7 @@ export function ConfigSdrSection({ config }: { config: ConfigSdr | null }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5">
       <div>
         <div className="flex items-center gap-2">
           <Bot className="size-4 text-muted-foreground" />
@@ -67,6 +70,27 @@ export function ConfigSdrSection({ config }: { config: ConfigSdr | null }) {
           Escolha o nome, o tom e o estilo que combinam com a sua empresa.
         </p>
       </div>
+
+      {/* Sugestão de melhoria enviada pelo admin */}
+      {sugestao && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
+          <div className="flex items-center gap-2">
+            <Lightbulb className="size-4 text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800 dark:text-amber-400">
+              Sugestão de melhoria do seu suporte
+            </span>
+          </div>
+          <p className="whitespace-pre-wrap text-sm text-amber-900 dark:text-amber-300">{sugestao}</p>
+          <button
+            type="button"
+            onClick={() => setTom(sugestao)}
+            className="inline-flex items-center gap-1.5 self-start rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors"
+          >
+            <Sparkles className="size-3.5" />
+            Aplicar sugestão no tom de voz
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
         {/* Formulário */}

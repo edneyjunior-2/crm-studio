@@ -1,123 +1,144 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { Bot, Check, Loader2, Copy } from 'lucide-react'
-import { salvarConfigSdr } from '../actions'
+import { Bot, Lock, Lightbulb, Check, Loader2 } from 'lucide-react'
+import { salvarSugestaoSdr } from '../actions'
 
-interface ConfigSdr {
-  wa_phone_number_id: string | null
-  nome_escritorio: string | null
-  nome_assistente: string | null
-  tom_de_voz: string | null
+interface Props {
+  empresaId:      string
+  config: {
+    nome_assistente:    string | null
+    nome_escritorio:    string | null
+    wa_phone_number_id: string | null
+    tom_de_voz:         string | null
+    sugestao_sdr:       string | null
+  } | null
 }
 
-const EXEMPLOS_TOM = [
-  {
-    titulo: 'Acolhedor e consultivo',
-    texto: 'Linguagem simples e empática. Primeiro entenda a dor do cliente, depois oriente. Transmita cuidado e segurança. Nunca prometa resultado nem fale valores.',
-  },
-  {
-    titulo: 'Objetivo e profissional',
-    texto: 'Direto ao ponto, técnico mas claro. Poucas perguntas, bem escolhidas. Transmite expertise e seriedade. Não promete resultado.',
-  },
-  {
-    titulo: 'Próximo e informal',
-    texto: 'Tom de conversa, leve e descontraído (emojis com moderação), mas sempre respeitoso e profissional. Acolhe e conduz com naturalidade.',
-  },
-]
+function CampoReadOnly({ label, valor, mono }: { label: string; valor: string | null; mono?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      {valor ? (
+        <span className={`text-sm text-foreground ${mono ? 'font-mono text-xs' : ''}`}>{valor}</span>
+      ) : (
+        <span className="text-sm italic text-muted-foreground/40">Não configurado pelo cliente</span>
+      )}
+    </div>
+  )
+}
 
-export function ConfigSdrSection({ empresaId, config }: { empresaId: string; config: ConfigSdr | null }) {
-  const router = useRouter()
-  const [wa, setWa] = useState(config?.wa_phone_number_id ?? '')
-  const [escritorio, setEscritorio] = useState(config?.nome_escritorio ?? '')
-  const [assistente, setAssistente] = useState(config?.nome_assistente ?? 'Leila')
-  const [tom, setTom] = useState(config?.tom_de_voz ?? '')
-  const [erro, setErro] = useState<string | null>(null)
-  const [ok, setOk] = useState(false)
-  const [salvando, startSalvar] = useTransition()
+export function ConfigSdrSection({ empresaId, config }: Props) {
+  const [sugestao, setSugestao] = useState(config?.sugestao_sdr ?? '')
+  const [ok, setOk]             = useState(false)
+  const [erro, setErro]         = useState<string | null>(null)
+  const [salvando, start]       = useTransition()
 
-  const inputClass = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40'
+  const clienteConfigurou = !!(
+    config?.wa_phone_number_id ||
+    config?.nome_escritorio ||
+    config?.nome_assistente ||
+    config?.tom_de_voz
+  )
 
   function salvar() {
     setErro(null); setOk(false)
-    const fd = new FormData()
-    fd.set('wa_phone_number_id', wa)
-    fd.set('nome_escritorio', escritorio)
-    fd.set('nome_assistente', assistente)
-    fd.set('tom_de_voz', tom)
-    startSalvar(async () => {
-      const res = await salvarConfigSdr(empresaId, fd)
+    start(async () => {
+      const res = await salvarSugestaoSdr(empresaId, sugestao)
       if (res.error) { setErro(res.error); return }
       setOk(true)
       setTimeout(() => setOk(false), 2500)
-      router.refresh()
     })
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
-      <div>
-        <div className="flex items-center gap-2">
-          <Bot className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Configuração do robô (SDR) — persona e tom de voz</h2>
+    <div className="flex flex-col gap-5 rounded-xl border border-border bg-card p-5">
+      {/* Cabeçalho */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Bot className="size-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Agente SDR — configuração do cliente</h2>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Definida pelo próprio cliente em <strong>Configurações → Agente SDR</strong>.
+            Você pode visualizar e enviar uma sugestão de melhoria.
+          </p>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Define como a Leila atende os leads deste cliente. O número (ID da Meta) identifica de quem é a conversa.
-        </p>
+        <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+          <Lock className="size-3" />
+          Gerenciado pelo cliente
+        </span>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        {/* Form */}
-        <div className="flex flex-col gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Número do WhatsApp (phone_number_id da Meta)</label>
-              <input value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Ex.: 109987... (ou placeholder até a Meta liberar)" className={inputClass} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Nome da assistente</label>
-              <input value={assistente} onChange={(e) => setAssistente(e.target.value)} placeholder="Leila" className={inputClass} />
-            </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Nome do escritório / empresa</label>
-            <input value={escritorio} onChange={(e) => setEscritorio(e.target.value)} placeholder="Ex.: Saturnino & Coelho Advogados" className={inputClass} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Tom de voz</label>
-            <textarea value={tom} onChange={(e) => setTom(e.target.value)} rows={5} placeholder="Como a assistente deve falar com os leads deste cliente..." className={inputClass} />
-          </div>
-          {erro && <p className="text-xs text-destructive">{erro}</p>}
-          <button
-            onClick={salvar}
-            disabled={salvando}
-            className="inline-flex items-center gap-1.5 self-start rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90 disabled:opacity-60"
-          >
-            {salvando ? <Loader2 className="size-4 animate-spin" /> : ok ? <Check className="size-4" /> : null}
-            {ok ? 'Salvo!' : 'Salvar configuração'}
-          </button>
+      {/* Config atual (somente-leitura) */}
+      {!clienteConfigurou ? (
+        <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+          <p className="text-sm text-muted-foreground">O cliente ainda não configurou o SDR IA.</p>
+          <p className="mt-1 text-xs text-muted-foreground/60">
+            Quando ele preencher, a configuração aparece aqui.
+          </p>
         </div>
+      ) : (
+        <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted/20 p-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <CampoReadOnly label="Nome da assistente" valor={config?.nome_assistente ?? null} />
+            <CampoReadOnly label="Nome do escritório / empresa" valor={config?.nome_escritorio ?? null} />
+            <CampoReadOnly
+              label="phone_number_id (WhatsApp Meta)"
+              valor={config?.wa_phone_number_id ?? null}
+              mono
+            />
+          </div>
 
-        {/* Exemplos de tom de voz — copiar e colar */}
-        <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
-          <p className="text-xs font-semibold text-foreground">Exemplos de tom de voz</p>
-          <p className="text-[11px] text-muted-foreground">Clique pra usar como base e ajuste.</p>
-          {EXEMPLOS_TOM.map((ex) => (
-            <button
-              key={ex.titulo}
-              type="button"
-              onClick={() => setTom(ex.texto)}
-              className="flex flex-col gap-1 rounded-lg border border-border bg-background p-2.5 text-left transition-colors hover:border-foreground/30"
-            >
-              <span className="flex items-center justify-between gap-1 text-xs font-medium text-foreground">
-                {ex.titulo}
-                <Copy className="size-3 text-muted-foreground" />
+          {config?.tom_de_voz && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Tom de voz atual
               </span>
-              <span className="line-clamp-2 text-[11px] text-muted-foreground">{ex.texto}</span>
-            </button>
-          ))}
+              <div className="whitespace-pre-wrap rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground">
+                {config.tom_de_voz}
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Sugestão do admin */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Lightbulb className="size-4 text-amber-500" />
+          <span className="text-sm font-medium">Sua sugestão de melhoria</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Escreva abaixo uma sugestão de prompt aprimorado. O cliente verá isso em destaque na
+          página de configuração e poderá aplicar com um clique.
+        </p>
+
+        <textarea
+          value={sugestao}
+          onChange={(e) => setSugestao(e.target.value)}
+          rows={6}
+          placeholder="Ex.: Sugiro ajustar o tom para ser mais consultivo. Tente: 'Olá! Sou [nome], advogada do escritório [escritório]. Antes de tudo, quero entender melhor o que você precisa…'"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-amber-400 placeholder:text-muted-foreground/50 resize-none"
+        />
+
+        {erro && <p className="text-xs text-destructive">{erro}</p>}
+
+        <button
+          type="button"
+          onClick={salvar}
+          disabled={salvando}
+          className="inline-flex items-center gap-1.5 self-start rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-60"
+        >
+          {salvando
+            ? <Loader2 className="size-4 animate-spin" />
+            : ok
+            ? <Check className="size-4" />
+            : <Lightbulb className="size-4" />
+          }
+          {ok ? 'Sugestão enviada!' : 'Enviar sugestão'}
+        </button>
       </div>
     </div>
   )

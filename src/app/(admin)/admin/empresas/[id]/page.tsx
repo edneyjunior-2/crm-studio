@@ -40,10 +40,10 @@ export default async function EmpresaDetailPage({
   const { id } = await params
   const db = createAdminClient()
 
-  const [{ data: empresa }, { data: apiKeys }, { data: profiles }, { data: configSdr }] = await Promise.all([
+  const [{ data: empresa }, { data: apiKeys }, { data: profiles }] = await Promise.all([
     db
       .from('empresas')
-      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos')
+      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos, wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz, sugestao_sdr')
       .eq('id', id)
       .single(),
     db
@@ -56,12 +56,17 @@ export default async function EmpresaDetailPage({
       .select('id, full_name, role, created_at')
       .eq('empresa_id', id)
       .order('created_at'),
-    db
-      .from('clientes_sdr')
-      .select('wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz')
-      .eq('empresa_id', id)
-      .maybeSingle(),
   ])
+
+  const configSdr = empresa
+    ? {
+        wa_phone_number_id: (empresa as Record<string, unknown>).wa_phone_number_id as string | null,
+        nome_escritorio:    (empresa as Record<string, unknown>).nome_escritorio    as string | null,
+        nome_assistente:    (empresa as Record<string, unknown>).nome_assistente    as string | null,
+        tom_de_voz:         (empresa as Record<string, unknown>).tom_de_voz         as string | null,
+        sugestao_sdr:       (empresa as Record<string, unknown>).sugestao_sdr       as string | null,
+      }
+    : null
 
   if (!empresa) notFound()
 

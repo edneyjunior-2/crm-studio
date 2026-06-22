@@ -239,6 +239,27 @@ export async function atualizarNomeEmpresa(
 }
 
 // ---------------------------------------------------------------------------
+// Sugestão de melhoria do SDR escrita pelo admin (cliente visualiza como dica)
+// ---------------------------------------------------------------------------
+
+export async function salvarSugestaoSdr(
+  empresaId: string,
+  sugestao: string,
+): Promise<{ error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const db = createAdminClient()
+  const { error } = await db
+    .from('empresas')
+    .update({ sugestao_sdr: sugestao.trim() || null })
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  return {}
+}
+
+// ---------------------------------------------------------------------------
 // Config do SDR por empresa (agenda multi-cliente): persona + tom de voz + número
 // ---------------------------------------------------------------------------
 
