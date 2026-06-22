@@ -40,10 +40,10 @@ export default async function EmpresaDetailPage({
   const { id } = await params
   const db = createAdminClient()
 
-  const [{ data: empresa }, { data: apiKeys }, { data: profiles }] = await Promise.all([
+  const [{ data: empresa }, { data: apiKeys }, { data: profiles }, { data: sdrRaw }] = await Promise.all([
     db
       .from('empresas')
-      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos, wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz, sugestao_sdr')
+      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos')
       .eq('id', id)
       .single(),
     db
@@ -56,15 +56,21 @@ export default async function EmpresaDetailPage({
       .select('id, full_name, role, created_at')
       .eq('empresa_id', id)
       .order('created_at'),
+    // Query separada para as colunas SDR — falha não afeta o carregamento da página
+    db
+      .from('empresas')
+      .select('wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz, sugestao_sdr')
+      .eq('id', id)
+      .maybeSingle(),
   ])
 
-  const configSdr = empresa
+  const configSdr = sdrRaw
     ? {
-        wa_phone_number_id: (empresa as Record<string, unknown>).wa_phone_number_id as string | null,
-        nome_escritorio:    (empresa as Record<string, unknown>).nome_escritorio    as string | null,
-        nome_assistente:    (empresa as Record<string, unknown>).nome_assistente    as string | null,
-        tom_de_voz:         (empresa as Record<string, unknown>).tom_de_voz         as string | null,
-        sugestao_sdr:       (empresa as Record<string, unknown>).sugestao_sdr       as string | null,
+        wa_phone_number_id: (sdrRaw as Record<string, unknown>).wa_phone_number_id as string | null,
+        nome_escritorio:    (sdrRaw as Record<string, unknown>).nome_escritorio    as string | null,
+        nome_assistente:    (sdrRaw as Record<string, unknown>).nome_assistente    as string | null,
+        tom_de_voz:         (sdrRaw as Record<string, unknown>).tom_de_voz         as string | null,
+        sugestao_sdr:       (sdrRaw as Record<string, unknown>).sugestao_sdr       as string | null,
       }
     : null
 
