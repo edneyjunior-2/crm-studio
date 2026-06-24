@@ -17,7 +17,7 @@ export function ProcessosTabs({ totalAtivos, totalArquivados }: Props) {
     const p = new URLSearchParams(params.toString())
     if (t === 'ativos') p.delete('tab')
     else p.set('tab', t)
-    router.push(`/processos${p.size ? `?${p}` : ''}`)
+    router.push(`/processos${p.toString() ? `?${p}` : ''}`)
   }
 
   return (

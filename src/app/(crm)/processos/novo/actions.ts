@@ -67,6 +67,15 @@ export async function criarClienteInline(
   const nome = razaoSocial?.trim()
   if (!nome) return { error: 'Razão social é obrigatória.' }
 
+  // Buscar empresa_id explicitamente — não depender do trigger para multi-tenant
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+
   const { data, error } = await supabase
     .from('clientes')
     .insert({
@@ -77,6 +86,7 @@ export async function criarClienteInline(
       responsavel_id:    user.id,
       responsavel_desde: new Date().toISOString(),
       created_by:        user.id,
+      empresa_id:        profile.empresa_id,
     })
     .select('id, razao_social')
     .single()

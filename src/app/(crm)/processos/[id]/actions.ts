@@ -116,6 +116,24 @@ export async function criarMovimentacaoInterna(
   if (!user) return { error: 'Não autenticado.' }
   if (!assunto.trim()) return { error: 'Assunto é obrigatório.' }
 
+  // Verificar que o processoId pertence à empresa do usuário (guard cross-tenant)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+
+  const { data: processo } = await supabase
+    .from('processos_juridicos')
+    .select('id')
+    .eq('id', processoId)
+    .eq('empresa_id', profile.empresa_id)
+    .single()
+
+  if (!processo) return { error: 'Processo não encontrado ou sem permissão.' }
+
   const { error } = await supabase
     .from('movimentacoes_internas_processo')
     .insert({
@@ -230,10 +248,20 @@ export async function marcarComoLido(processoId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
+  // Buscar empresa_id do usuário para evitar escrita cross-tenant
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.empresa_id) return
+
   await supabase
     .from('movimentacoes_processo')
     .update({ lido: true })
     .eq('processo_id', processoId)
+    .eq('empresa_id', profile.empresa_id)
     .eq('lido', false)
 
   revalidatePath(`/processos/${processoId}`)
