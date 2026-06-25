@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, HardHat, AlertCircle } from 'lucide-react'
+import { Plus, HardHat } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 
 interface PageProps {
@@ -128,21 +128,14 @@ export default async function ObrasPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          <AlertCircle className="size-4 shrink-0" />
-          Erro ao carregar obras. Tente novamente.
-        </div>
-      )}
-
-      {!error && (obras ?? []).length === 0 && (
+      {(obras ?? []).length === 0 && (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border py-20 text-center">
           <HardHat className="size-10 text-muted-foreground/40" />
           <div>
-            <p className="text-sm font-medium text-foreground">Nenhuma obra encontrada</p>
+            <p className="text-sm font-medium text-foreground">Nenhuma obra cadastrada</p>
             <p className="mt-1 text-sm text-muted-foreground">
               {tabAtiva === 'ativas'
-                ? 'Cadastre a primeira obra do seu escritório.'
+                ? 'Nenhuma obra ativa no momento. Cadastre a primeira obra da empresa.'
                 : 'Nenhuma obra neste status.'}
             </p>
           </div>
@@ -158,7 +151,7 @@ export default async function ObrasPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {!error && (obras ?? []).length > 0 && (
+      {(obras ?? []).length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(obras ?? []).map((obra) => {
             const clienteRaw = obra.clientes as unknown
