@@ -22,10 +22,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createColaborador, updateColaborador } from '@/app/(crm)/rh/actions'
-import type { Colaborador, ColaboradorStatus, TipoContrato } from '@/types/rh'
+import type { Colaborador, ColaboradorStatus, TipoContrato, TipoRemuneracao } from '@/types/rh'
 import {
   COLABORADOR_STATUS_LABEL,
   TIPO_CONTRATO_LABEL,
+  TIPO_REMUNERACAO_LABEL,
 } from '@/types/rh'
 
 function formatCpf(value: string): string {
@@ -68,6 +69,9 @@ export function ColaboradorForm({ colaborador, trigger }: ColaboradorFormProps) 
   const [tipoContrato, setTipoContrato] = useState<TipoContrato | ''>(
     colaborador?.tipo_contrato ?? ''
   )
+  const [tipoRemuneracao, setTipoRemuneracao] = useState<TipoRemuneracao>(
+    colaborador?.tipo_remuneracao ?? 'mensal'
+  )
 
   function handleOpenChange(nextOpen: boolean) {
     if (!isPending) setOpen(nextOpen)
@@ -90,6 +94,7 @@ export function ColaboradorForm({ colaborador, trigger }: ColaboradorFormProps) 
     formData.set('telefone', telefone)
     formData.set('status', status)
     formData.set('tipo_contrato', tipoContrato)
+    formData.set('tipo_remuneracao', tipoRemuneracao)
 
     startTransition(async () => {
       const result = isEdicao
@@ -248,18 +253,42 @@ export function ColaboradorForm({ colaborador, trigger }: ColaboradorFormProps) 
                 </Select>
               </div>
 
-              {/* Salário */}
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="salario">Salário (R$)</Label>
-                <Input
-                  id="salario"
-                  name="salario"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  defaultValue={colaborador?.salario ?? ''}
-                  placeholder="0,00"
-                />
+              {/* Tipo de Remuneração + Salário */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="tipo_remuneracao">Tipo de Remuneração</Label>
+                  <Select
+                    value={tipoRemuneracao}
+                    onValueChange={(v) => setTipoRemuneracao(v as TipoRemuneracao)}
+                  >
+                    <SelectTrigger id="tipo_remuneracao" className="w-full">
+                      <span className="flex flex-1 text-left">
+                        {TIPO_REMUNERACAO_LABEL[tipoRemuneracao]}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(TIPO_REMUNERACAO_LABEL) as TipoRemuneracao[]).map((k) => (
+                        <SelectItem key={k} value={k}>
+                          {TIPO_REMUNERACAO_LABEL[k]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="salario">
+                    {tipoRemuneracao === 'diaria' ? 'Valor da Diária (R$)' : 'Salário Mensal (R$)'}
+                  </Label>
+                  <Input
+                    id="salario"
+                    name="salario"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    defaultValue={colaborador?.salario ?? ''}
+                    placeholder="0,00"
+                  />
+                </div>
               </div>
 
               {/* Datas */}

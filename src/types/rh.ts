@@ -6,6 +6,7 @@ export type ColaboradorStatus = 'ativo' | 'afastado' | 'desligado'
 export type TipoContrato = 'clt' | 'pj' | 'estagio' | 'outro'
 export type TipoAusencia = 'ferias' | 'atestado' | 'falta' | 'licenca'
 export type FolhaStatus = 'aberto' | 'pago'
+export type TipoRemuneracao = 'diaria' | 'mensal'
 
 export interface Colaborador {
   id: string
@@ -20,7 +21,20 @@ export interface Colaborador {
   data_desligamento: string | null  // 'YYYY-MM-DD'
   status: ColaboradorStatus
   tipo_contrato: TipoContrato | null
+  tipo_remuneracao: TipoRemuneracao
   salario: number | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface Ponto {
+  id: string
+  empresa_id: string
+  colaborador_id: string
+  data: string  // 'YYYY-MM-DD'
+  presente: boolean
+  justificativa: string | null
+  documento_path: string | null
   created_by: string | null
   created_at: string
 }
@@ -77,6 +91,11 @@ export const TIPO_AUSENCIA_LABEL: Record<TipoAusencia, string> = {
 export const FOLHA_STATUS_LABEL: Record<FolhaStatus, string> = {
   aberto: 'Em aberto',
   pago: 'Pago',
+}
+
+export const TIPO_REMUNERACAO_LABEL: Record<TipoRemuneracao, string> = {
+  diaria: 'Por diária',
+  mensal: 'Mensal (salário fixo)',
 }
 
 // ============================================================================

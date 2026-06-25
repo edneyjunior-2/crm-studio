@@ -25,6 +25,7 @@ export async function createColaborador(
     status: formData.get('status') || 'ativo',
     tipo_contrato: formData.get('tipo_contrato') || null,
     salario: formData.get('salario') || null,
+    tipo_remuneracao: formData.get('tipo_remuneracao') || 'mensal',
   }
 
   const parsed = colaboradorSchema.safeParse(raw)
@@ -61,6 +62,7 @@ export async function updateColaborador(
     status: formData.get('status') || 'ativo',
     tipo_contrato: formData.get('tipo_contrato') || null,
     salario: formData.get('salario') || null,
+    tipo_remuneracao: formData.get('tipo_remuneracao') || 'mensal',
   }
 
   const parsed = colaboradorSchema.safeParse(raw)

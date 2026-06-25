@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ListChecks, BarChart3, Plus, Trash2, ChevronDown } from 'lucide-react'
+import { ListChecks, BarChart3, Plus, Trash2, ChevronDown, Users, Loader2, UserMinus } from 'lucide-react'
 import { criarEtapa, atualizarStatusEtapa, excluirEtapa, criarMedicao, atualizarStatusMedicao, excluirMedicao } from './actions'
+import { adicionarColaboradorObra, removerColaboradorObra } from './equipe-actions'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,12 +22,29 @@ interface Medicao {
 }
 interface Membro { id: string; nome: string }
 
+interface ObraColaborador {
+  id: string
+  colaborador_id: string
+  colaborador_nome: string
+  funcao: string | null
+  data_inicio: string | null
+  ativo: boolean
+}
+
+interface ColaboradorDisponivel {
+  id: string
+  nome: string
+  cargo: string | null
+}
+
 interface Props {
   obraId:      string
   etapas:      Etapa[]
   medicoes:    Medicao[]
   membros:     Membro[]
   podeExcluir: boolean
+  equipe:      ObraColaborador[]
+  colaboradoresDisponiveis: ColaboradorDisponivel[]
 }
 
 // ---------------------------------------------------------------------------
@@ -76,9 +94,9 @@ const inp = 'h-9 w-full rounded-lg border border-border bg-background px-3 text-
 // Component
 // ---------------------------------------------------------------------------
 
-export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir }: Props) {
+export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir, equipe, colaboradoresDisponiveis }: Props) {
   const router = useRouter()
-  const [aba, setAba] = useState<'etapas' | 'medicoes'>('etapas')
+  const [aba, setAba] = useState<'etapas' | 'medicoes' | 'equipe'>('etapas')
   const [isPending, startTransition] = useTransition()
 
   // Etapa form
@@ -96,6 +114,13 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir }: Prop
   const [medicaoValor, setMedicaoValor] = useState('')
   const [medicaoData,  setMedicaoData]  = useState('')
   const [medicaoErro,  setMedicaoErro]  = useState<string | null>(null)
+
+  // Equipe form
+  const [showEquipeForm,    setShowEquipeForm]    = useState(false)
+  const [novoColaboradorId, setNovoColaboradorId] = useState('')
+  const [novaFuncao,        setNovaFuncao]        = useState('')
+  const [novaDataInicio,    setNovaDataInicio]    = useState('')
+  const [equipeErro,        setEquipeErro]        = useState<string | null>(null)
 
   function tabCls(t: typeof aba) {
     return `flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -163,10 +188,36 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir }: Prop
     startTransition(async () => { await excluirMedicao(medicaoId, obraId); router.refresh() })
   }
 
+  // --- Equipe actions ---
+  function handleAddEquipe() {
+    if (!novoColaboradorId) return setEquipeErro('Selecione um colaborador.')
+    setEquipeErro(null)
+    startTransition(async () => {
+      const res = await adicionarColaboradorObra(
+        obraId,
+        novoColaboradorId,
+        novaFuncao || null,
+        novaDataInicio || null,
+      )
+      if (res.error) { setEquipeErro(res.error); return }
+      setNovoColaboradorId(''); setNovaFuncao(''); setNovaDataInicio('')
+      setShowEquipeForm(false)
+      router.refresh()
+    })
+  }
+
+  function handleRemoverEquipe(obraColaboradorId: string) {
+    if (!confirm('Remover este colaborador da obra?')) return
+    startTransition(async () => {
+      await removerColaboradorObra(obraColaboradorId, obraId)
+      router.refresh()
+    })
+  }
+
   return (
     <div className="flex flex-col gap-0">
       {/* Tab bar */}
-      <div className="flex items-center gap-0 border-b border-border">
+      <div className="flex items-center gap-0 border-b border-border overflow-x-auto">
         <button type="button" className={tabCls('etapas')} onClick={() => setAba('etapas')}>
           <ListChecks className="size-4 shrink-0" />
           Etapas
@@ -182,6 +233,15 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir }: Prop
           {medicoes.length > 0 && (
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${aba === 'medicoes' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
               {medicoes.length}
+            </span>
+          )}
+        </button>
+        <button type="button" className={tabCls('equipe')} onClick={() => setAba('equipe')}>
+          <Users className="size-4 shrink-0" />
+          Equipe
+          {equipe.length > 0 && (
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${aba === 'equipe' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+              {equipe.length}
             </span>
           )}
         </button>
@@ -225,7 +285,6 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir }: Prop
             </div>
           ))}
 
-          {/* Formulário nova etapa */}
           {showEtapaForm ? (
             <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
               <input value={etapaNome} onChange={(e) => setEtapaNome(e.target.value)}
@@ -301,7 +360,6 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir }: Prop
             </div>
           ))}
 
-          {/* Formulário nova medição */}
           {showMedicaoForm ? (
             <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
               <input value={medicaoDesc} onChange={(e) => setMedicaoDesc(e.target.value)}
@@ -331,6 +389,109 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir }: Prop
               className="flex items-center gap-1.5 self-start rounded-lg border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
               <Plus className="size-3.5" />
               Nova medição
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Aba Equipe */}
+      {aba === 'equipe' && (
+        <div className="flex flex-col gap-3 pt-4">
+          {equipe.length === 0 && !showEquipeForm && (
+            <p className="text-sm text-muted-foreground">
+              Nenhum colaborador designado para esta obra. Adicione a equipe para controlar o ponto por centro de custo.
+            </p>
+          )}
+
+          {equipe.map((eq) => (
+            <div key={eq.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                <Users className="size-4 text-muted-foreground" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">{eq.colaborador_nome}</p>
+                <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                  {eq.funcao && <span>{eq.funcao}</span>}
+                  {eq.data_inicio && <span>desde {fmt(eq.data_inicio)}</span>}
+                  {!eq.ativo && (
+                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">Inativo</span>
+                  )}
+                </div>
+              </div>
+
+              {podeExcluir && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoverEquipe(eq.id)}
+                  disabled={isPending}
+                  className="shrink-0 text-muted-foreground/50 transition-colors hover:text-destructive disabled:opacity-50"
+                  title="Remover da obra"
+                >
+                  <UserMinus className="size-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+
+          {showEquipeForm ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+              <select
+                value={novoColaboradorId}
+                onChange={(e) => setNovoColaboradorId(e.target.value)}
+                className={inp}
+              >
+                <option value="">Selecione o colaborador *</option>
+                {colaboradoresDisponiveis
+                  .filter((c) => !equipe.some((e) => e.colaborador_id === c.id))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}{c.cargo ? ` — ${c.cargo}` : ''}
+                    </option>
+                  ))}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={novaFuncao}
+                  onChange={(e) => setNovaFuncao(e.target.value)}
+                  placeholder="Função na obra (ex: Pedreiro)"
+                  className={inp}
+                />
+                <input
+                  type="date"
+                  value={novaDataInicio}
+                  onChange={(e) => setNovaDataInicio(e.target.value)}
+                  className={inp}
+                  title="Data de início na obra"
+                />
+              </div>
+              {equipeErro && <p className="text-xs text-destructive">{equipeErro}</p>}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddEquipe}
+                  disabled={isPending}
+                  className="flex h-8 items-center gap-1.5 rounded-lg bg-foreground px-3 text-xs font-semibold text-background disabled:opacity-50"
+                >
+                  {isPending ? <><Loader2 className="size-3 animate-spin" />Adicionando…</> : 'Adicionar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowEquipeForm(false); setEquipeErro(null); setNovoColaboradorId('') }}
+                  className="h-8 rounded-lg border border-border px-3 text-xs font-medium text-foreground hover:bg-accent"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowEquipeForm(true)}
+              className="flex items-center gap-1.5 self-start rounded-lg border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+            >
+              <Plus className="size-3.5" />
+              Adicionar colaborador
             </button>
           )}
         </div>

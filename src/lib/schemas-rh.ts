@@ -61,6 +61,7 @@ export const colaboradorSchema = z.object({
     .nullable()
     .or(z.literal(''))
     .transform((v) => (v === '' ? null : v)),
+  tipo_remuneracao: z.enum(['diaria', 'mensal']).default('mensal'),
 })
 
 export const ausenciaSchema = z.object({

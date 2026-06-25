@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { DollarSign, Building2, CheckCircle2, Users, Clock, ArrowRight } from 'lucide-react'
+import { DollarSign, Building2, CheckCircle2, Users, Clock, ArrowRight, HardHat } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -32,10 +32,16 @@ function diasRestantes(iso: string, agora: number): number {
 
 export default async function AdminDashboardPage() {
   const db = createAdminClient()
-  const [{ data: empresas }, { data: assinaturas }, { count: totalUsuarios }] = await Promise.all([
+  const [
+    { data: empresas },
+    { data: assinaturas },
+    { count: totalUsuarios },
+    { count: obrasAtivas },
+  ] = await Promise.all([
     db.from('empresas').select('id, nome, plano, status, trial_ends_at, created_at'),
     db.from('assinaturas').select('value, status'),
     db.from('profiles').select('id', { count: 'exact', head: true }),
+    db.from('obras').select('id', { count: 'exact', head: true }).in('status', ['em_andamento', 'orcamento']),
   ])
 
   const emp = empresas ?? []
@@ -88,6 +94,7 @@ export default async function AdminDashboardPage() {
         <Kpi icon={Building2} label="Empresas" value={String(total)} hint={`${signupsRecentes.length} nos últimos 30d`} />
         <Kpi icon={CheckCircle2} label="Ativas (pagantes)" value={String(ativas)} hint={`${statusCount.trial ?? 0} em trial`} />
         <Kpi icon={Users} label="Usuários" value={String(totalUsuarios ?? 0)} hint="em todas as empresas" />
+        <Kpi icon={HardHat} label="Obras ativas" value={String(obrasAtivas ?? 0)} hint="em andamento + orçamento" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

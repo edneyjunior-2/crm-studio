@@ -83,12 +83,42 @@ export default async function ObraDetailPage({ params }: PageProps) {
     { data: medicoes },
     { data: perfil },
     { data: membros },
+    { data: equipeRaw },
+    { data: colaboradoresRaw },
   ] = await Promise.all([
     supabase.from('obras_etapas').select('*').eq('obra_id', id).order('ordem').order('created_at'),
     supabase.from('obras_medicoes').select('*').eq('obra_id', id).order('numero_medicao'),
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     supabase.from('profiles').select('id, full_name').order('full_name'),
+    supabase
+      .from('obras_colaboradores')
+      .select('*, colaboradores(id, nome, cargo)')
+      .eq('obra_id', id)
+      .order('created_at'),
+    supabase
+      .from('colaboradores')
+      .select('id, nome, cargo')
+      .eq('status', 'ativo')
+      .order('nome', { ascending: true }),
   ])
+
+  const equipe = (equipeRaw ?? []).map((e) => {
+    const col = e.colaboradores as { id: string; nome: string; cargo: string | null } | null
+    return {
+      id:               e.id as string,
+      colaborador_id:   e.colaborador_id as string,
+      colaborador_nome: col?.nome ?? '—',
+      funcao:           e.funcao as string | null,
+      data_inicio:      e.data_inicio as string | null,
+      ativo:            Boolean(e.ativo),
+    }
+  })
+
+  const colaboradoresDisponiveis = (colaboradoresRaw ?? []).map((c) => ({
+    id:    c.id as string,
+    nome:  c.nome as string,
+    cargo: c.cargo as string | null,
+  }))
 
   const podeExcluir = perfil?.role === 'admin'
 
@@ -209,6 +239,8 @@ export default async function ObraDetailPage({ params }: PageProps) {
         }))}
         membros={(membros ?? []).map((m) => ({ id: m.id, nome: m.full_name as string }))}
         podeExcluir={podeExcluir}
+        equipe={equipe}
+        colaboradoresDisponiveis={colaboradoresDisponiveis}
       />
     </div>
   )

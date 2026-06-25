@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
-import { Plus, CalendarMinus, DollarSign, Users } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, CalendarMinus, DollarSign, Users, ClipboardCheck } from 'lucide-react'
 import { getAuthAdmin } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -227,6 +228,23 @@ export default async function RhPage() {
           </p>
         </div>
       </div>
+
+      {/* Acesso rápido ao ponto */}
+      <Link
+        href="/rh/ponto"
+        className="flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-4 transition-colors hover:bg-muted/50"
+      >
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+          <ClipboardCheck className="size-5 text-primary" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-foreground">Registro de Ponto Diário</p>
+          <p className="text-xs text-muted-foreground">
+            Marque presenças e ausências de hoje — deduções calculadas automaticamente
+          </p>
+        </div>
+        <span className="text-xs font-medium text-primary">Acessar →</span>
+      </Link>
 
       <Suspense fallback={<RhSkeleton />}>
         <RhContent />
