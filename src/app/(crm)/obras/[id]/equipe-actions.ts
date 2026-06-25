@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getAuthUser, getAuthAdmin } from '@/lib/auth'
+import { getAuthUser } from '@/lib/auth'
 
 export async function adicionarColaboradorObra(
   obraId: string,
@@ -41,7 +41,8 @@ export async function removerColaboradorObra(
   obraColaboradorId: string,
   obraId: string,
 ): Promise<{ error?: string }> {
-  const { supabase } = await getAuthAdmin()
+  // Usa getAuthUser (RLS ativo): delete_admin policy verifica role='admin' do usuário
+  const { supabase } = await getAuthUser()
 
   const { error } = await supabase
     .from('obras_colaboradores')

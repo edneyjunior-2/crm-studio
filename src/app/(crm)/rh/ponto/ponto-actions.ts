@@ -51,6 +51,11 @@ export async function uploadDocumentoPonto(
   if (!(file instanceof File) || file.size === 0) return { error: 'Arquivo obrigatório.' }
   if (file.size > 10 * 1024 * 1024) return { error: 'Arquivo muito grande (máx 10 MB).' }
 
+  const ALLOWED_MIME = ['application/pdf', 'image/jpeg', 'image/png']
+  if (!ALLOWED_MIME.includes(file.type)) {
+    return { error: 'Tipo de arquivo não permitido. Use PDF, JPG ou PNG.' }
+  }
+
   const { data: ponto } = await supabase
     .from('pontos')
     .select('id, presente')
