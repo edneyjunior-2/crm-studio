@@ -60,18 +60,27 @@ export async function atualizarProcesso(
   const honValorNum = honValorRaw ? parseFloat(honValorRaw.replace(',', '.')) : null
   const honValor    = honTipo && honValorNum != null && !Number.isNaN(honValorNum) ? honValorNum : null
 
+  const poloPassivoNome       = (formData.get('polo_passivo_nome') as string)?.trim() || null
+  const poloPassivoCpfCnpj    = (formData.get('polo_passivo_cpf_cnpj') as string)?.trim() || null
+  const advNomeAdvers         = (formData.get('advogado_adversario_nome') as string)?.trim() || null
+  const advOabAdvers          = (formData.get('advogado_adversario_oab') as string)?.trim() || null
+
   const { data, error } = await supabase
     .from('processos_juridicos')
     .update({
-      cliente_id:       clienteId,
-      advogado_id:      advogadoId,
+      cliente_id:               clienteId,
+      advogado_id:              advogadoId,
       area,
       assunto,
       vara,
       comarca,
-      valor_causa:      valor,
-      honorarios_tipo:  honTipo,
-      honorarios_valor: honValor,
+      valor_causa:              valor,
+      honorarios_tipo:          honTipo,
+      honorarios_valor:         honValor,
+      polo_passivo_nome:        poloPassivoNome,
+      polo_passivo_cpf_cnpj:    poloPassivoCpfCnpj,
+      advogado_adversario_nome: advNomeAdvers,
+      advogado_adversario_oab:  advOabAdvers,
     })
     .eq('id', processoId)
     .select('id')
@@ -162,14 +171,17 @@ export async function arquivarProcesso(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data, error } = await supabase
+  const { data: profile } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
+  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', profile.empresa_id).single()
+  if (!proc) return { error: 'Processo não encontrado ou sem permissão.' }
+
+  const { error } = await supabase
     .from('processos_juridicos')
     .update({ status: 'arquivado' })
     .eq('id', processoId)
-    .select('id')
 
   if (error) return { error: error.message }
-  if (!data?.length) return { error: 'Sem permissão para alterar este processo.' }
 
   await supabase.from('movimentacoes_internas_processo').insert({
     processo_id: processoId,
@@ -192,14 +204,17 @@ export async function concluirProcesso(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data, error } = await supabase
+  const { data: profile } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
+  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', profile.empresa_id).single()
+  if (!proc) return { error: 'Processo não encontrado ou sem permissão.' }
+
+  const { error } = await supabase
     .from('processos_juridicos')
     .update({ status: 'concluido' })
     .eq('id', processoId)
-    .select('id')
 
   if (error) return { error: error.message }
-  if (!data?.length) return { error: 'Sem permissão para alterar este processo.' }
 
   await supabase.from('movimentacoes_internas_processo').insert({
     processo_id: processoId,
@@ -222,14 +237,17 @@ export async function reativarProcesso(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data, error } = await supabase
+  const { data: profile } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
+  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', profile.empresa_id).single()
+  if (!proc) return { error: 'Processo não encontrado ou sem permissão.' }
+
+  const { error } = await supabase
     .from('processos_juridicos')
     .update({ status: 'ativo' })
     .eq('id', processoId)
-    .select('id')
 
   if (error) return { error: error.message }
-  if (!data?.length) return { error: 'Sem permissão para alterar este processo.' }
 
   await supabase.from('movimentacoes_internas_processo').insert({
     processo_id: processoId,

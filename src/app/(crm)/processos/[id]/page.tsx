@@ -13,6 +13,7 @@ import { ProcessoAcoes } from './processo-acoes'
 import { MovimentacoesTimeline } from './movimentacoes-timeline'
 import { IndicacaoParceiroPrompt } from './indicacao-parceiro-prompt'
 import { ProcessoDetalheTabs } from './processo-detalhe-tabs'
+import type { DocItem } from './doc-actions'
 
 
 interface PageProps {
@@ -73,31 +74,29 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
 
   if (error || !processo) notFound()
 
-  const { data: movimentacoes, error: errMov } = await supabase
-    .from('movimentacoes_processo')
-    .select('*')
-    .eq('processo_id', id)
-    .order('data_movimentacao', { ascending: false })
+  // Busca paralela: movimentações, histórico interno, prazos, documentos, perfil, auth users
+  const admin = createAdminClient()
+  const [
+    { data: movimentacoes, error: errMov },
+    { data: movInternas },
+    { data: prazosRaw },
+    { data: documentosRaw },
+    { data: perfil },
+    { data: authUsers },
+    { data: empresaProfiles },
+  ] = await Promise.all([
+    supabase.from('movimentacoes_processo').select('*').eq('processo_id', id).order('data_movimentacao', { ascending: false }),
+    supabase.from('movimentacoes_internas_processo').select('id, assunto, descricao, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
+    supabase.from('processos_prazos').select('id, descricao, data_prazo, cumprido, responsavel_id, profiles!responsavel_id(full_name)').eq('processo_id', id).order('data_prazo', { ascending: true }),
+    supabase.from('processos_documentos').select('id, nome, storage_path, mime_type, tamanho, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    admin.auth.admin.listUsers(),
+    supabase.from('profiles').select('id, full_name'),
+  ])
 
   if (errMov) {
     console.error('[processos] erro ao carregar movimentações:', errMov.message)
   }
-
-  // Histórico interno (movimentações manuais com assunto + descrição + autor)
-  const { data: movInternas } = await supabase
-    .from('movimentacoes_internas_processo')
-    .select('id, assunto, descricao, created_at, profiles!autor_id(full_name)')
-    .eq('processo_id', id)
-    .order('created_at', { ascending: false })
-
-  // Papel do usuário (só admin exclui processo)
-  const admin = createAdminClient()
-  const [{ data: perfil }, { data: authUsers }, { data: empresaProfiles }] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user.id).single(),
-    admin.auth.admin.listUsers(),
-    // RLS scoped: apenas profiles da mesma empresa
-    supabase.from('profiles').select('id, full_name'),
-  ])
   const podeExcluir = perfil?.role === 'admin'
 
   // Filtra authUsers para conter apenas membros desta empresa (via RLS nos profiles)
@@ -274,6 +273,16 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           {!!(processo as Record<string, unknown>).indicacao && (
             <InfoItem icon={Users} label="Indicação" value={String((processo as Record<string, unknown>).indicacao)} />
           )}
+          {!!(processo as Record<string, unknown>).polo_passivo_nome && (
+            <InfoItem icon={Users} label="Polo passivo" value={String((processo as Record<string, unknown>).polo_passivo_nome)} />
+          )}
+          {!!(processo as Record<string, unknown>).advogado_adversario_nome && (
+            <InfoItem
+              icon={User}
+              label="Adv. adversário"
+              value={`${String((processo as Record<string, unknown>).advogado_adversario_nome)}${(processo as Record<string, unknown>).advogado_adversario_oab ? ` (OAB: ${String((processo as Record<string, unknown>).advogado_adversario_oab)})` : ''}`}
+            />
+          )}
         </div>
 
         {/* Dados do escritório (importados da planilha) */}
@@ -369,7 +378,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Abas: Movimentações | Histórico Interno */}
+      {/* Abas: Movimentações | Histórico Interno | Prazos | Documentos */}
       <ProcessoDetalheTabs
         processoId={id}
         gruposTimeline={gruposTimeline}
@@ -385,6 +394,27 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
             autor_nome: autorRaw?.full_name ?? null,
           }
         })}
+        prazos={(prazosRaw ?? []).map((p) => ({
+          id:               p.id,
+          descricao:        p.descricao as string,
+          data_prazo:       p.data_prazo as string,
+          cumprido:         p.cumprido as boolean,
+          responsavel_id:   p.responsavel_id as string | null,
+          responsavel_nome: ((p as Record<string, unknown>)['profiles!responsavel_id'] as { full_name?: string } | null)?.full_name ?? null,
+        }))}
+        documentos={(documentosRaw ?? []).map((d) => {
+          const autorRaw = (d as Record<string, unknown>)['profiles!autor_id'] as { full_name?: string } | null
+          return {
+            id:           d.id,
+            nome:         d.nome as string,
+            storage_path: d.storage_path as string,
+            mime_type:    d.mime_type as string | null,
+            tamanho:      d.tamanho as number | null,
+            created_at:   d.created_at as string,
+            autor_nome:   autorRaw?.full_name ?? null,
+          } satisfies DocItem
+        })}
+        membros={membros}
       />
     </div>
   )

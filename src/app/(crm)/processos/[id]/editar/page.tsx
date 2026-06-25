@@ -18,7 +18,7 @@ export default async function EditarProcessoPage({ params }: PageProps) {
   const [{ data: processo, error }, { data: clientes }, { data: advogados }] = await Promise.all([
     supabase
       .from('processos_juridicos')
-      .select('id, numero_processo, assunto, area, vara, comarca, valor_causa, honorarios_tipo, honorarios_valor, cliente_id, advogado_id')
+      .select('id, numero_processo, assunto, area, vara, comarca, valor_causa, honorarios_tipo, honorarios_valor, cliente_id, advogado_id, polo_passivo_nome, polo_passivo_cpf_cnpj, advogado_adversario_nome, advogado_adversario_oab')
       .eq('id', id)
       .single(),
     supabase.from('clientes').select('id, razao_social').order('razao_social'),
@@ -56,8 +56,12 @@ export default async function EditarProcessoPage({ params }: PageProps) {
           valor_causa:      processo.valor_causa,
           honorarios_tipo:  processo.honorarios_tipo,
           honorarios_valor: processo.honorarios_valor,
-          cliente_id:       processo.cliente_id,
-          advogado_id:      processo.advogado_id,
+          cliente_id:                processo.cliente_id,
+          advogado_id:               processo.advogado_id,
+          polo_passivo_nome:         (processo as Record<string, unknown>).polo_passivo_nome as string | null ?? null,
+          polo_passivo_cpf_cnpj:     (processo as Record<string, unknown>).polo_passivo_cpf_cnpj as string | null ?? null,
+          advogado_adversario_nome:  (processo as Record<string, unknown>).advogado_adversario_nome as string | null ?? null,
+          advogado_adversario_oab:   (processo as Record<string, unknown>).advogado_adversario_oab as string | null ?? null,
         }}
         clientes={(clientes ?? []).map((c) => ({ id: c.id, razao_social: c.razao_social }))}
         advogados={(advogados ?? []).map((a) => ({ id: a.id, full_name: a.full_name }))}

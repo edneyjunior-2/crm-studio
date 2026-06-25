@@ -16,6 +16,10 @@ interface ProcessoEdit {
   honorarios_valor: number | null
   cliente_id: string | null
   advogado_id: string | null
+  polo_passivo_nome:        string | null
+  polo_passivo_cpf_cnpj:    string | null
+  advogado_adversario_nome: string | null
+  advogado_adversario_oab:  string | null
 }
 
 interface Props {
@@ -148,6 +152,49 @@ export function EditarProcessoForm({ processo, clientes, advogados }: Props) {
             <option value="">Nenhum</option>
             {advogados.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
           </select>
+        </div>
+
+        {/* Polo passivo */}
+        <div className="flex flex-col gap-3 border-t border-border pt-4 sm:col-span-2">
+          <p className="text-sm font-semibold text-foreground">Polo passivo (parte adversa)</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass} htmlFor="polo_passivo_nome">Nome da parte adversa</label>
+              <input
+                id="polo_passivo_nome" name="polo_passivo_nome"
+                defaultValue={processo.polo_passivo_nome ?? ''}
+                placeholder="Razão social ou nome completo"
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass} htmlFor="polo_passivo_cpf_cnpj">CPF / CNPJ</label>
+              <input
+                id="polo_passivo_cpf_cnpj" name="polo_passivo_cpf_cnpj"
+                defaultValue={processo.polo_passivo_cpf_cnpj ?? ''}
+                placeholder="Opcional"
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass} htmlFor="advogado_adversario_nome">Advogado adversário</label>
+              <input
+                id="advogado_adversario_nome" name="advogado_adversario_nome"
+                defaultValue={processo.advogado_adversario_nome ?? ''}
+                placeholder="Nome do advogado"
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className={labelClass} htmlFor="advogado_adversario_oab">OAB do adversário</label>
+              <input
+                id="advogado_adversario_oab" name="advogado_adversario_oab"
+                defaultValue={processo.advogado_adversario_oab ?? ''}
+                placeholder="Ex.: SP 123456"
+                className={inputClass}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
