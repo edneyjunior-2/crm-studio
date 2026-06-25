@@ -100,19 +100,21 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
   free: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
   ],
-  // trial = acesso total por 7 dias (cliente experimenta o produto completo)
+  // trial = acesso total por 7 dias, mas verticais exigem área definida no admin
   trial: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',
     'financeiro', 'comissoes', 'automacoes',
-    'estoque', 'rh', 'processos', 'obras',
+    'estoque', 'rh',
+    // 'processos' e 'obras' entram via modulos_ativos (Área de atuação no admin)
   ],
-  // interno = acesso total (empresas internas da plataforma)
+  // interno = acesso total, mas verticais exigem área definida no admin
   interno: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',
     'financeiro', 'comissoes', 'automacoes',
-    'estoque', 'rh', 'processos', 'obras',
+    'estoque', 'rh',
+    // 'processos' e 'obras' entram via modulos_ativos (Área de atuação no admin)
   ],
   starter: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
