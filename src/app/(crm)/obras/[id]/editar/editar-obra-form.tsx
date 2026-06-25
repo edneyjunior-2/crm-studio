@@ -1,8 +1,9 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { atualizarObra } from '../../actions'
+import { ClienteForm } from '@/components/crm/clientes/cliente-form'
 
 const TIPOS = [
   { value: 'residencial',    label: 'Residencial' },
@@ -46,6 +47,18 @@ const lbl = 'text-sm font-medium text-foreground'
 export function EditarObraForm({ obra, clientes, responsaveis }: Props) {
   const [state, action, isPending] = useActionState(atualizarObra, null)
 
+  const [clientesList, setClientesList] = useState(clientes)
+  const [clienteId, setClienteId]       = useState(obra.cliente_id ?? '')
+  const [novoClienteOpen, setNovoClienteOpen] = useState(false)
+
+  function handleNovoClienteSuccess(c: { id: string; razao_social: string }) {
+    setClientesList((prev) =>
+      [...prev, c].sort((a, b) => a.razao_social.localeCompare(b.razao_social, 'pt-BR')),
+    )
+    setClienteId(c.id)
+    setNovoClienteOpen(false)
+  }
+
   const valorInicial = obra.valor_contrato != null
     ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(obra.valor_contrato)
     : ''
@@ -83,10 +96,28 @@ export function EditarObraForm({ obra, clientes, responsaveis }: Props) {
 
         <div className="flex flex-col gap-1.5">
           <label className={lbl} htmlFor="cliente_id">Cliente</label>
-          <select id="cliente_id" name="cliente_id" defaultValue={obra.cliente_id ?? ''} className={inp}>
+          <select
+            id="cliente_id"
+            name="cliente_id"
+            value={clienteId}
+            onChange={(e) => setClienteId(e.target.value)}
+            className={inp}
+          >
             <option value="">Nenhum</option>
-            {clientes.map((c) => <option key={c.id} value={c.id}>{c.razao_social}</option>)}
+            {clientesList.map((c) => <option key={c.id} value={c.id}>{c.razao_social}</option>)}
           </select>
+          <button
+            type="button"
+            onClick={() => setNovoClienteOpen(true)}
+            className="self-start text-sm text-primary hover:underline cursor-pointer"
+          >
+            Novo cliente +
+          </button>
+          <ClienteForm
+            open={novoClienteOpen}
+            onOpenChange={setNovoClienteOpen}
+            onSuccess={handleNovoClienteSuccess}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className={lbl} htmlFor="responsavel_id">Responsável</label>

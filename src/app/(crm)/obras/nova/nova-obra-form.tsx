@@ -1,10 +1,11 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { criarObra } from './actions'
+import { ClienteForm } from '@/components/crm/clientes/cliente-form'
 
 interface Cliente { id: string; razao_social: string }
 interface Responsavel { id: string; full_name: string }
@@ -39,6 +40,19 @@ const btnSecondary =
 export function NovaObraForm({ clientes, responsaveis }: Props) {
   const [state, action, isPending] = useActionState(criarObra, null)
   const router = useRouter()
+
+  // Cliente: lista mutável (para cadastro inline) + seleção controlada
+  const [clientesList, setClientesList] = useState<Cliente[]>(clientes)
+  const [clienteId, setClienteId]       = useState('')
+  const [novoClienteOpen, setNovoClienteOpen] = useState(false)
+
+  function handleNovoClienteSuccess(cliente: { id: string; razao_social: string }) {
+    setClientesList((prev) =>
+      [...prev, cliente].sort((a, b) => a.razao_social.localeCompare(b.razao_social, 'pt-BR')),
+    )
+    setClienteId(cliente.id)
+    setNovoClienteOpen(false)
+  }
 
   useEffect(() => {
     if (state?.id) router.push(`/obras/${state.id}`)
@@ -87,12 +101,30 @@ export function NovaObraForm({ clientes, responsaveis }: Props) {
       {/* Cliente */}
       <div className="flex flex-col gap-1.5">
         <label className={labelClass} htmlFor="cliente_id">Cliente</label>
-        <select id="cliente_id" name="cliente_id" className={inputClass}>
+        <select
+          id="cliente_id"
+          name="cliente_id"
+          value={clienteId}
+          onChange={(e) => setClienteId(e.target.value)}
+          className={inputClass}
+        >
           <option value="">Selecione…</option>
-          {clientes.map((c) => (
+          {clientesList.map((c) => (
             <option key={c.id} value={c.id}>{c.razao_social}</option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => setNovoClienteOpen(true)}
+          className="self-start text-sm text-primary hover:underline cursor-pointer"
+        >
+          Novo cliente +
+        </button>
+        <ClienteForm
+          open={novoClienteOpen}
+          onOpenChange={setNovoClienteOpen}
+          onSuccess={handleNovoClienteSuccess}
+        />
       </div>
 
       {/* Responsável */}
