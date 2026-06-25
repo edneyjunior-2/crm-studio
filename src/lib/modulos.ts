@@ -122,13 +122,14 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',
     'financeiro', 'comissoes', 'automacoes',
-    'processos', 'obras',
+    // 'processos' e 'obras' são verticais: entram via modulos_ativos (Área de atuação no admin)
   ],
   business: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',
     'financeiro', 'comissoes', 'automacoes',
-    'estoque', 'rh', 'processos', 'obras',
+    'estoque', 'rh',
+    // 'processos' e 'obras' são verticais: entram via modulos_ativos (Área de atuação no admin)
   ],
 }
 
@@ -186,6 +187,11 @@ export const LIMITES_POR_PLANO: Record<
  *
  * Slugs inválidos em `extras` são silenciosamente ignorados.
  */
+// Módulos verticais mutuamente exclusivos.
+// Se a empresa escolheu um vertical (via modulos_ativos), os demais são removidos
+// mesmo que estejam embutidos no plano (ex.: trial/interno têm tudo).
+const VERTICAIS: Modulo[] = ['processos', 'obras']
+
 export function modulosEfetivos(
   plano: PlanoEmpresa,
   extras: string[] = [],
@@ -196,6 +202,15 @@ export function modulosEfetivos(
   for (const e of extras) {
     if ((MODULOS as readonly string[]).includes(e)) {
       base.add(e as Modulo)
+    }
+  }
+
+  // Isolamento de verticais: se um vertical está em extras (área escolhida pelo admin),
+  // remove os outros verticais do conjunto — mesmo que estejam no plano base.
+  const verticalAtivo = VERTICAIS.find((v) => extras.includes(v))
+  if (verticalAtivo) {
+    for (const v of VERTICAIS) {
+      if (v !== verticalAtivo) base.delete(v)
     }
   }
 
