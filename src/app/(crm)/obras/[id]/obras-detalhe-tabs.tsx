@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListChecks, BarChart3, Plus, Trash2, ChevronDown, Users, Loader2, UserMinus } from 'lucide-react'
-import { criarEtapa, atualizarStatusEtapa, excluirEtapa, criarMedicao, atualizarStatusMedicao, excluirMedicao } from './actions'
+import { criarEtapa, atualizarStatusEtapa, excluirEtapa, criarMedicao, atualizarStatusMedicao, excluirMedicao } from '../actions'
 import { adicionarColaboradorObra, removerColaboradorObra } from './equipe-actions'
 
 // ---------------------------------------------------------------------------
