@@ -34,6 +34,7 @@ const MODULO_LABEL: Record<Modulo, string> = {
   estoque:    'Gestão de estoque',
   rh:         'Recursos Humanos',
   processos:  'Processos Jurídicos',
+  obras:      'Obras e Construção Civil',
 }
 
 type StatusConfig = {

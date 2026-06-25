@@ -36,6 +36,7 @@ export const MODULOS = [
   'estoque',    // /estoque
   'rh',         // /rh
   'processos',  // /processos — módulo vertical Advocacia (processos jurídicos + DataJud)
+  'obras',      // /obras — módulo vertical Engenharia/Construção Civil
 ] as const
 
 export type Modulo = (typeof MODULOS)[number]
@@ -54,6 +55,7 @@ export const MODULO_LABEL: Record<Modulo, string> = {
   estoque:    'Gestão de estoque',
   rh:         'Recursos Humanos',
   processos:  'Processos Jurídicos',
+  obras:      'Obras e Construção Civil',
 }
 
 // ---------------------------------------------------------------------------
@@ -103,14 +105,14 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',
     'financeiro', 'comissoes', 'automacoes',
-    'estoque', 'rh', 'processos',
+    'estoque', 'rh', 'processos', 'obras',
   ],
   // interno = acesso total (empresas internas da plataforma)
   interno: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',
     'financeiro', 'comissoes', 'automacoes',
-    'estoque', 'rh', 'processos',
+    'estoque', 'rh', 'processos', 'obras',
   ],
   starter: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
@@ -120,13 +122,13 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',
     'financeiro', 'comissoes', 'automacoes',
-    'processos',
+    'processos', 'obras',
   ],
   business: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',
     'financeiro', 'comissoes', 'automacoes',
-    'estoque', 'rh', 'processos',
+    'estoque', 'rh', 'processos', 'obras',
   ],
 }
 

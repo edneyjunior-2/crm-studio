@@ -28,6 +28,7 @@ import {
   Scale,
   MessagesSquare,
   UserCheck,
+  HardHat,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
@@ -146,6 +147,14 @@ const navItems: NavItem[] = [
     modulo: 'processos',
     isSubItem: true,
     parentHref: '/processos',
+  },
+  {
+    href: '/obras',
+    label: 'Obras',
+    icon: HardHat,
+    modulo: 'obras',
+    exactMatch: true,
+    tourSlug: 'obras',
   },
   {
     href: '/contratos',
