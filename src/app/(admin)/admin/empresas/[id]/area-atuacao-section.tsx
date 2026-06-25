@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Briefcase, Scale } from 'lucide-react'
+import { Briefcase, Scale, HardHat } from 'lucide-react'
 import { atualizarAreaAtuacao } from '../actions'
 
 const AREAS = [
-  { value: 'vendas',    label: 'CRM de Vendas', desc: 'Pipeline, clientes, financeiro, contratos', icon: Briefcase },
-  { value: 'advocacia', label: 'CRM Advocacia', desc: 'Tudo + Processos Jurídicos (DataJud)',       icon: Scale },
+  { value: 'vendas',      label: 'CRM de Vendas',    desc: 'Pipeline, clientes, financeiro, contratos',    icon: Briefcase },
+  { value: 'advocacia',   label: 'CRM Advocacia',    desc: 'Tudo + Processos Jurídicos (DataJud)',          icon: Scale    },
+  { value: 'engenharia',  label: 'CRM Engenharia',   desc: 'Tudo + Obras, equipe e ponto diário',           icon: HardHat  },
 ]
 
 export function AreaAtuacaoSection({
@@ -14,9 +15,9 @@ export function AreaAtuacaoSection({
   area,
 }: {
   empresaId: string
-  area: 'vendas' | 'advocacia'
+  area: 'vendas' | 'advocacia' | 'engenharia'
 }) {
-  const [selecionada, setSelecionada] = useState<string>(area)
+  const [selecionada, setSelecionada] = useState<'vendas' | 'advocacia' | 'engenharia'>(area)
   const atualizar = atualizarAreaAtuacao.bind(null, empresaId)
   const mudou = selecionada !== area
 
@@ -34,7 +35,7 @@ export function AreaAtuacaoSection({
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-3">
         {AREAS.map((a) => {
           const Icon = a.icon
           const ativa = selecionada === a.value
@@ -42,7 +43,7 @@ export function AreaAtuacaoSection({
             <button
               key={a.value}
               type="button"
-              onClick={() => setSelecionada(a.value)}
+              onClick={() => setSelecionada(a.value as 'vendas' | 'advocacia' | 'engenharia')}
               className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
                 ativa ? 'border-foreground bg-foreground/5' : 'border-border hover:border-foreground/30'
               }`}

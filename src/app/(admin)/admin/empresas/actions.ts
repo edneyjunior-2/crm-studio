@@ -307,15 +307,18 @@ export async function salvarConfigSdr(
 }
 
 // ---------------------------------------------------------------------------
-// Trocar a área de atuação (CRM Vendas <-> CRM Advocacia)
-// Advocacia = módulo 'processos' ativo em modulos_ativos. Vendas = sem ele.
+// Trocar a área de atuação (Vendas | Advocacia | Engenharia)
+// Cada vertical controla um módulo em modulos_ativos:
+//   advocacia  → 'processos'
+//   engenharia → 'obras'
+//   vendas     → nenhum extra
 // ---------------------------------------------------------------------------
 
 export async function atualizarAreaAtuacao(empresaId: string, formData: FormData) {
   await getAuthPlatformAdmin()
 
   const area = formData.get('tipo_atuacao') as string | null
-  if (area !== 'vendas' && area !== 'advocacia') return
+  if (area !== 'vendas' && area !== 'advocacia' && area !== 'engenharia') return
 
   const db = createAdminClient()
 
@@ -325,13 +328,13 @@ export async function atualizarAreaAtuacao(empresaId: string, formData: FormData
     .eq('id', empresaId)
     .single()
 
-  const atuais: string[] = emp?.modulos_ativos ?? []
-  const novos =
-    area === 'advocacia'
-      ? atuais.includes('processos')
-        ? atuais
-        : [...atuais, 'processos']
-      : atuais.filter((m) => m !== 'processos')
+  // Remove módulos verticais anteriores e adiciona o novo
+  let novos: string[] = (emp?.modulos_ativos ?? []).filter(
+    (m: string) => m !== 'processos' && m !== 'obras',
+  )
+
+  if (area === 'advocacia')  novos = [...novos, 'processos']
+  if (area === 'engenharia') novos = [...novos, 'obras']
 
   await db.from('empresas').update({ modulos_ativos: novos }).eq('id', empresaId)
 

@@ -180,10 +180,16 @@ export default async function EmpresaDetailPage({
         </dl>
       </div>
 
-      {/* Área de atuação — troca CRM Vendas <-> Advocacia */}
+      {/* Área de atuação */}
       <AreaAtuacaoSection
         empresaId={id}
-        area={empresa.modulos_ativos?.includes('processos') ? 'advocacia' : 'vendas'}
+        area={
+          empresa.modulos_ativos?.includes('processos')
+            ? 'advocacia'
+            : empresa.modulos_ativos?.includes('obras')
+              ? 'engenharia'
+              : 'vendas'
+        }
       />
 
       {/* Usuários da empresa + botão de link de acesso */}
