@@ -13,6 +13,7 @@ import { ProcessoAcoes } from './processo-acoes'
 import { MovimentacoesTimeline } from './movimentacoes-timeline'
 import { IndicacaoParceiroPrompt } from './indicacao-parceiro-prompt'
 import { ProcessoDetalheTabs } from './processo-detalhe-tabs'
+import { SolicitarGuiaDialog } from './solicitar-guia-dialog'
 import type { DocItem } from './doc-actions'
 
 
@@ -197,13 +198,16 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           <ArrowLeft className="size-4" />
           Processos
         </Link>
-        <Link
-          href={`/processos/${id}/editar`}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          <Pencil className="size-3.5" />
-          Editar
-        </Link>
+        <div className="flex items-center gap-2">
+          <SolicitarGuiaDialog processoId={id} numeroProcesso={processo.numero_processo} />
+          <Link
+            href={`/processos/${id}/editar`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <Pencil className="size-3.5" />
+            Editar
+          </Link>
+        </div>
       </div>
 
       {/* Cabeçalho do processo */}
