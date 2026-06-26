@@ -64,7 +64,7 @@ export default async function ConfiguracoesPage() {
     created_at: p.created_at,
   }))
 
-  const empresa = empresaResult.data as {
+  let empresa = empresaResult.data as {
     nome: string
     status: string
     encarregado_nome: string | null
@@ -82,6 +82,24 @@ export default async function ConfiguracoesPage() {
     tom_de_voz:         string | null
     sugestao_sdr:       string | null
   } | null
+
+  // Auto-gera código de acesso se a empresa ainda não tiver um
+  if (empresa && !empresa.codigo_acesso && empresaId) {
+    const prefixo = (empresa.nome ?? 'EMP')
+      .replace(/[^a-zA-Z]/g, '')
+      .slice(0, 3)
+      .toUpperCase()
+      .padEnd(3, 'X')
+    const sufixo = String(Math.floor(1000 + Math.random() * 9000))
+    const novoCode = `${prefixo}-${sufixo}`
+    const { error: codeErr } = await admin
+      .from('empresas')
+      .update({ codigo_acesso: novoCode })
+      .eq('id', empresaId)
+    if (!codeErr) {
+      empresa = { ...empresa, codigo_acesso: novoCode }
+    }
+  }
 
   const modulosDisponiveis = Array.from(
     modulosEfetivos(empresa?.plano ?? 'free', empresa?.modulos_ativos ?? [])
