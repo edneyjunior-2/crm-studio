@@ -20,7 +20,11 @@ async function enviarConvitePrimeiroAcesso(
   empresaNome: string,
 ): Promise<void> {
   try {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+    const siteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL
+    const siteUrl =
+      siteUrlRaw && (siteUrlRaw.startsWith('https://') || siteUrlRaw.startsWith('http://localhost'))
+        ? siteUrlRaw
+        : 'https://app.crmstudio.com.br'
     const { data, error } = await db.auth.admin.generateLink({
       type:    'recovery',
       email,
@@ -393,6 +397,52 @@ export async function gerarApiKey(
 
   revalidatePath(`/admin/empresas/${empresaId}`)
   return { token }
+}
+
+// ---------------------------------------------------------------------------
+// Reenviar convite por e-mail (gera novo link + envia Resend)
+// ---------------------------------------------------------------------------
+
+export async function reenviarConviteEmail(
+  userId: string,
+  empresaId: string,
+): Promise<{ sent: boolean; email?: string; error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const db = createAdminClient()
+
+  const [{ data: userData }, { data: empresa }, { data: profile }] = await Promise.all([
+    db.auth.admin.getUserById(userId),
+    db.from('empresas').select('nome').eq('id', empresaId).single(),
+    db.from('profiles').select('full_name').eq('id', userId).single(),
+  ])
+
+  const email = userData.user?.email ?? ''
+  if (!email) return { sent: false, error: 'Usuário não encontrado.' }
+
+  const nome       = profile?.full_name ?? email
+  const empresaNome = empresa?.nome ?? 'CRM Studio'
+
+  const siteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL
+  const siteUrl =
+    siteUrlRaw && (siteUrlRaw.startsWith('https://') || siteUrlRaw.startsWith('http://localhost'))
+      ? siteUrlRaw
+      : 'https://app.crmstudio.com.br'
+
+  const { data, error } = await db.auth.admin.generateLink({
+    type:    'recovery',
+    email,
+    options: { redirectTo: `${siteUrl}/reset-password` },
+  })
+
+  if (error || !data?.properties?.action_link) {
+    return { sent: false, error: error?.message ?? 'Não foi possível gerar o link.' }
+  }
+
+  const res = await sendInviteEmail({ to: email, nome, empresaNome, linkAcesso: data.properties.action_link })
+  if (!res.sent) return { sent: false, error: res.reason ?? 'Falha ao enviar.' }
+
+  return { sent: true, email }
 }
 
 // ---------------------------------------------------------------------------

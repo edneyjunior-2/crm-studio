@@ -229,7 +229,7 @@ export default async function EmpresaDetailPage({
       />
 
       {/* Usuários da empresa + botão de link de acesso */}
-      <UsuariosSection usuarios={usuariosComEmail} />
+      <UsuariosSection usuarios={usuariosComEmail} empresaId={id} />
 
       {/* Configuração do robô SDR (persona + tom de voz) */}
       <ConfigSdrSection empresaId={id} config={configSdr ?? null} />
