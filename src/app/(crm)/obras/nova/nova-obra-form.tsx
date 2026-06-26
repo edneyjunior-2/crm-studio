@@ -100,7 +100,16 @@ export function NovaObraForm({ clientes, responsaveis }: Props) {
 
       {/* Cliente */}
       <div className="flex flex-col gap-1.5">
-        <label className={labelClass} htmlFor="cliente_id">Cliente</label>
+        <div className="flex items-center justify-between">
+          <label className={labelClass} htmlFor="cliente_id">Cliente</label>
+          <button
+            type="button"
+            onClick={() => setNovoClienteOpen(true)}
+            className="text-xs text-primary hover:underline cursor-pointer font-medium"
+          >
+            + Novo cliente
+          </button>
+        </div>
         <select
           id="cliente_id"
           name="cliente_id"
@@ -113,13 +122,6 @@ export function NovaObraForm({ clientes, responsaveis }: Props) {
             <option key={c.id} value={c.id}>{c.razao_social}</option>
           ))}
         </select>
-        <button
-          type="button"
-          onClick={() => setNovoClienteOpen(true)}
-          className="self-start text-sm text-primary hover:underline cursor-pointer"
-        >
-          Novo cliente +
-        </button>
         <ClienteForm
           open={novoClienteOpen}
           onOpenChange={setNovoClienteOpen}

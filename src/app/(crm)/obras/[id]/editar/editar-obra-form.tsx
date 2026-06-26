@@ -95,7 +95,16 @@ export function EditarObraForm({ obra, clientes, responsaveis }: Props) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className={lbl} htmlFor="cliente_id">Cliente</label>
+          <div className="flex items-center justify-between">
+            <label className={lbl} htmlFor="cliente_id">Cliente</label>
+            <button
+              type="button"
+              onClick={() => setNovoClienteOpen(true)}
+              className="text-xs text-primary hover:underline cursor-pointer font-medium"
+            >
+              + Novo cliente
+            </button>
+          </div>
           <select
             id="cliente_id"
             name="cliente_id"
@@ -106,13 +115,6 @@ export function EditarObraForm({ obra, clientes, responsaveis }: Props) {
             <option value="">Nenhum</option>
             {clientesList.map((c) => <option key={c.id} value={c.id}>{c.razao_social}</option>)}
           </select>
-          <button
-            type="button"
-            onClick={() => setNovoClienteOpen(true)}
-            className="self-start text-sm text-primary hover:underline cursor-pointer"
-          >
-            Novo cliente +
-          </button>
           <ClienteForm
             open={novoClienteOpen}
             onOpenChange={setNovoClienteOpen}
