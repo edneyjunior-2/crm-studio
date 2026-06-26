@@ -81,7 +81,7 @@ export default async function MinhaContaPage({
           <p className="text-sm text-muted-foreground">Suas informações no CRM Studio.</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Nome</p>
               <p className="mt-1 text-sm font-medium text-foreground">{profile?.full_name ?? '—'}</p>
@@ -91,6 +91,10 @@ export default async function MinhaContaPage({
               <p className="mt-1 text-sm font-medium text-foreground">
                 {profile?.role ? (roleLabel[profile.role] ?? profile.role) : '—'}
               </p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">E-mail</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{user.email ?? '—'}</p>
             </div>
           </div>
         </div>
