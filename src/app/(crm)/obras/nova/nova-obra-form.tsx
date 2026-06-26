@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { criarObra } from './actions'
 import { ClienteForm } from '@/components/crm/clientes/cliente-form'
+import { EnderecoAutocomplete } from '@/components/crm/endereco-autocomplete'
 
 interface Cliente { id: string; razao_social: string }
 interface Responsavel { id: string; full_name: string }
@@ -45,6 +46,11 @@ export function NovaObraForm({ clientes, responsaveis }: Props) {
   const [clientesList, setClientesList] = useState<Cliente[]>(clientes)
   const [clienteId, setClienteId]       = useState('')
   const [novoClienteOpen, setNovoClienteOpen] = useState(false)
+
+  // Endereço controlado (preenchido pelo autocomplete do Google)
+  const [endereco, setEndereco] = useState('')
+  const [cidade,   setCidade]   = useState('')
+  const [estado,   setEstado]   = useState('')
 
   function handleNovoClienteSuccess(cliente: { id: string; razao_social: string }) {
     setClientesList((prev) =>
@@ -142,10 +148,20 @@ export function NovaObraForm({ clientes, responsaveis }: Props) {
 
       {/* Endereço */}
       <div className="flex flex-col gap-1.5">
-        <label className={labelClass} htmlFor="endereco">Endereço</label>
+        <label className={labelClass}>Endereço</label>
+        <EnderecoAutocomplete
+          placeholder="Buscar endereço no Google…"
+          onSelect={(d) => {
+            setEndereco(d.endereco)
+            setCidade(d.cidade)
+            setEstado(d.estado)
+          }}
+        />
         <input
           id="endereco"
           name="endereco"
+          value={endereco}
+          onChange={(e) => setEndereco(e.target.value)}
           placeholder="Rua, número, bairro"
           className={inputClass}
         />
@@ -155,11 +171,26 @@ export function NovaObraForm({ clientes, responsaveis }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="cidade">Cidade</label>
-          <input id="cidade" name="cidade" placeholder="Ex.: Florianópolis" className={inputClass} />
+          <input
+            id="cidade"
+            name="cidade"
+            value={cidade}
+            onChange={(e) => setCidade(e.target.value)}
+            placeholder="Ex.: Florianópolis"
+            className={inputClass}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="estado">Estado</label>
-          <input id="estado" name="estado" placeholder="Ex.: SC" maxLength={2} className={inputClass} />
+          <input
+            id="estado"
+            name="estado"
+            value={estado}
+            onChange={(e) => setEstado(e.target.value)}
+            placeholder="Ex.: SC"
+            maxLength={2}
+            className={inputClass}
+          />
         </div>
       </div>
 
