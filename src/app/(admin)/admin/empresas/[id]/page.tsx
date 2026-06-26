@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { atualizarEmpresa } from '../actions'
+import { atualizarEmpresa, salvarValorMensalidade } from '../actions'
 import { ApiKeysSection } from './api-keys-section'
 import { UsuariosSection } from './usuarios-section'
 import { AreaAtuacaoSection } from './area-atuacao-section'
@@ -43,7 +43,7 @@ export default async function EmpresaDetailPage({
   const [{ data: empresa }, { data: apiKeys }, { data: profiles }, { data: sdrRaw }] = await Promise.all([
     db
       .from('empresas')
-      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos')
+      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos, valor_mensalidade, primeiro_acesso_em')
       .eq('id', id)
       .single(),
     db
@@ -170,15 +170,51 @@ export default async function EmpresaDetailPage({
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Módulos extras</dt>
+            <dt className="text-muted-foreground">1º acesso ao CRM</dt>
             <dd className="font-medium">
-              {empresa.modulos_ativos?.length
-                ? empresa.modulos_ativos.join(', ')
-                : '—'}
+              {(empresa as Record<string, unknown>).primeiro_acesso_em
+                ? new Date((empresa as Record<string, unknown>).primeiro_acesso_em as string).toLocaleDateString('pt-BR')
+                : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">Aguardando</span>}
             </dd>
           </div>
         </dl>
       </div>
+
+      {/* Mensalidade acordada (faturamento fora do sistema) */}
+      <form
+        action={salvarValorMensalidade.bind(null, id)}
+        className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5"
+      >
+        <div>
+          <h2 className="text-sm font-semibold">Mensalidade (MRR)</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Valor acordado com o cliente. Usado no cálculo do MRR do dashboard admin.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">R$</span>
+          <input
+            name="valor_mensalidade"
+            type="text"
+            inputMode="decimal"
+            defaultValue={
+              (empresa as Record<string, unknown>).valor_mensalidade != null
+                ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+                    Number((empresa as Record<string, unknown>).valor_mensalidade),
+                  )
+                : ''
+            }
+            placeholder="0,00"
+            className="w-40 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40"
+          />
+          <button
+            type="submit"
+            className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90"
+          >
+            Salvar
+          </button>
+        </div>
+      </form>
 
       {/* Área de atuação */}
       <AreaAtuacaoSection

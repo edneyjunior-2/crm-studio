@@ -34,12 +34,10 @@ export default async function AdminDashboardPage() {
   const db = createAdminClient()
   const [
     { data: empresas },
-    { data: assinaturas },
     { count: totalUsuarios },
     { count: obrasAtivas },
   ] = await Promise.all([
-    db.from('empresas').select('id, nome, plano, status, trial_ends_at, created_at'),
-    db.from('assinaturas').select('value, status'),
+    db.from('empresas').select('id, nome, plano, status, trial_ends_at, created_at, valor_mensalidade'),
     db.from('profiles').select('id', { count: 'exact', head: true }),
     db.from('obras').select('id', { count: 'exact', head: true }).in('status', ['em_andamento', 'orcamento']),
   ])
@@ -47,10 +45,10 @@ export default async function AdminDashboardPage() {
   const emp = empresas ?? []
   const total = emp.length
 
-  // MRR = soma das assinaturas pagantes (status ativo)
-  const mrr = (assinaturas ?? [])
-    .filter((a) => a.status === 'ativo')
-    .reduce((s, a) => s + Number(a.value ?? 0), 0)
+  // MRR = soma do valor_mensalidade acordado manualmente nas empresas ativas
+  const mrr = emp
+    .filter((e) => e.status === 'ativo')
+    .reduce((s, e) => s + Number((e as Record<string, unknown>).valor_mensalidade ?? 0), 0)
 
   const ativas = emp.filter((e) => e.status === 'ativo').length
 
@@ -90,7 +88,7 @@ export default async function AdminDashboardPage() {
 
       {/* KPIs principais */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi icon={DollarSign} label="MRR estimado" value={brl(mrr)} hint="assinaturas ativas" accent />
+        <Kpi icon={DollarSign} label="MRR estimado" value={brl(mrr)} hint="mensalidades das ativas" accent />
         <Kpi icon={Building2} label="Empresas" value={String(total)} hint={`${signupsRecentes.length} nos últimos 30d`} />
         <Kpi icon={CheckCircle2} label="Ativas (pagantes)" value={String(ativas)} hint={`${statusCount.trial ?? 0} em trial`} />
         <Kpi icon={Users} label="Usuários" value={String(totalUsuarios ?? 0)} hint="em todas as empresas" />

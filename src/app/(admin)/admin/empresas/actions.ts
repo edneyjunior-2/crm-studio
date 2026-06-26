@@ -69,7 +69,9 @@ export async function criarEmpresa(
   const planoRaw    = (formData.get('plano') as string) || 'trial'
   const tipoAtuacao = (formData.get('tipo_atuacao') as string) || 'vendas'
   // Módulos extras ativados por tipo de atuação
-  const modulosExtras = tipoAtuacao === 'advocacia' ? ['processos'] : []
+  const modulosExtras =
+    tipoAtuacao === 'advocacia'  ? ['processos'] :
+    tipoAtuacao === 'engenharia' ? ['obras']     : []
 
   if (!nome || !email) return { error: 'Nome e e-mail são obrigatórios.' }
 
@@ -339,6 +341,27 @@ export async function atualizarAreaAtuacao(empresaId: string, formData: FormData
   await db.from('empresas').update({ modulos_ativos: novos }).eq('id', empresaId)
 
   revalidatePath(`/admin/empresas/${empresaId}`)
+}
+
+// ---------------------------------------------------------------------------
+// Valor da mensalidade acordado (cobrança feita fora do sistema)
+// ---------------------------------------------------------------------------
+
+export async function salvarValorMensalidade(
+  empresaId: string,
+  formData: FormData,
+): Promise<void> {
+  await getAuthPlatformAdmin()
+
+  const rawValor = (formData.get('valor_mensalidade') as string ?? '').replace(/\./g, '').replace(',', '.')
+  const valor = parseFloat(rawValor)
+  if (isNaN(valor) || valor < 0) return
+
+  const db = createAdminClient()
+  await db.from('empresas').update({ valor_mensalidade: valor }).eq('id', empresaId)
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  revalidatePath('/admin')
 }
 
 // ---------------------------------------------------------------------------

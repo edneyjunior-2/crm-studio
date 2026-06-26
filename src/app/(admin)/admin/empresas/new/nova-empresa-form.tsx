@@ -5,8 +5,9 @@ import { useActionState } from 'react'
 import { criarEmpresa } from '../actions'
 
 const TIPOS_ATUACAO = [
-  { value: 'vendas',    label: 'CRM de Vendas',  desc: 'Pipeline, clientes, financeiro, contratos' },
-  { value: 'advocacia', label: 'CRM Advocacia',   desc: 'Tudo + Processos Jurídicos (DataJud)' },
+  { value: 'vendas',     label: 'CRM de Vendas',    desc: 'Pipeline, clientes, financeiro, contratos' },
+  { value: 'advocacia',  label: 'CRM Advocacia',    desc: 'Tudo + Processos Jurídicos (DataJud)' },
+  { value: 'engenharia', label: 'CRM Engenharia',   desc: 'Tudo + Obras, equipe e ponto diário' },
 ]
 
 export function NovaEmpresaForm() {

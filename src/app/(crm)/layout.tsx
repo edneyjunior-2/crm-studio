@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuthUser } from '@/lib/auth'
 import { acessoLiberado } from '@/lib/gating'
 import { modulosEfetivos } from '@/lib/modulos'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CRMShell } from '@/components/crm/crm-shell'
 import { BannerAssinatura } from '@/components/crm/banner-assinatura'
 import { Toaster } from '@/components/ui/sonner'
@@ -36,7 +37,7 @@ export default async function CRMLayout({
   const [{ data: empresaData }, { data: profile }] = await Promise.all([
     supabase
       .from('empresas')
-      .select('modulos_ativos, modulos_ocultos, nome')
+      .select('modulos_ativos, modulos_ocultos, nome, primeiro_acesso_em')
       .eq('id', empresaId)
       .single(),
     supabase
@@ -47,6 +48,17 @@ export default async function CRMLayout({
   ])
 
   if (!profile) redirect('/login')
+
+  // Registra o primeiro acesso do cliente ao CRM (fire-and-forget, idempotente)
+  if (!empresaData?.primeiro_acesso_em && empresaId) {
+    const adminDb = createAdminClient()
+    adminDb
+      .from('empresas')
+      .update({ primeiro_acesso_em: new Date().toISOString() })
+      .eq('id', empresaId)
+      .is('primeiro_acesso_em', null)
+      .then(() => {})
+  }
 
   const modulosAtivosExtras: string[] = empresaData?.modulos_ativos ?? []
   const modulosOcultos: string[] = empresaData?.modulos_ocultos ?? []

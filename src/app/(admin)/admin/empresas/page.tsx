@@ -21,7 +21,7 @@ export default async function EmpresasPage({
   const db = createAdminClient()
   let query = db
     .from('empresas')
-    .select('id, nome, plano, status, trial_ends_at, created_at')
+    .select('id, nome, plano, status, trial_ends_at, created_at, primeiro_acesso_em, valor_mensalidade')
     .order('created_at', { ascending: false })
 
   if (filtroStatus) query = query.eq('status', filtroStatus)
@@ -83,7 +83,8 @@ export default async function EmpresasPage({
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Nome</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Plano</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Trial vence</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mensalidade</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">1º acesso</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Criada em</th>
               </tr>
             </thead>
@@ -109,10 +110,21 @@ export default async function EmpresasPage({
                       {e.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {e.trial_ends_at
-                      ? new Date(e.trial_ends_at).toLocaleDateString('pt-BR')
+                  <td className="px-4 py-3 text-muted-foreground text-sm">
+                    {(e as Record<string, unknown>).valor_mensalidade
+                      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number((e as Record<string, unknown>).valor_mensalidade))
                       : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {(e as Record<string, unknown>).primeiro_acesso_em ? (
+                      <span className="text-xs text-muted-foreground">
+                        {new Date((e as Record<string, unknown>).primeiro_acesso_em as string).toLocaleDateString('pt-BR')}
+                      </span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">
+                        Aguardando acesso
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {new Date(e.created_at).toLocaleDateString('pt-BR')}
