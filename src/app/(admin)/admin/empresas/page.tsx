@@ -27,7 +27,19 @@ export default async function EmpresasPage({
   if (filtroStatus) query = query.eq('status', filtroStatus)
   if (busca) query = query.ilike('nome', `%${busca}%`)
 
-  const { data: empresas } = await query
+  let { data: empresas, error: qErr } = await query
+
+  // Colunas novas ainda não existem no banco de produção → fallback sem elas
+  if (qErr && qErr.code === '42703') {
+    let fallback = db
+      .from('empresas')
+      .select('id, nome, plano, status, trial_ends_at, created_at')
+      .order('created_at', { ascending: false })
+    if (filtroStatus) fallback = fallback.eq('status', filtroStatus)
+    if (busca) fallback = fallback.ilike('nome', `%${busca}%`)
+    const { data: base } = await fallback
+    empresas = base as typeof empresas
+  }
 
   return (
     <div className="flex flex-col gap-6">

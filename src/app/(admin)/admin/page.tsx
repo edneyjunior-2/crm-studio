@@ -33,7 +33,7 @@ function diasRestantes(iso: string, agora: number): number {
 export default async function AdminDashboardPage() {
   const db = createAdminClient()
   const [
-    { data: empresas },
+    { data: empresasRaw, error: empresasErr },
     { count: totalUsuarios },
     { count: obrasAtivas },
   ] = await Promise.all([
@@ -41,6 +41,13 @@ export default async function AdminDashboardPage() {
     db.from('profiles').select('id', { count: 'exact', head: true }),
     db.from('obras').select('id', { count: 'exact', head: true }).in('status', ['em_andamento', 'orcamento']),
   ])
+
+  // Fallback: coluna valor_mensalidade ainda não existe no banco de produção
+  let empresas = empresasRaw
+  if (empresasErr && empresasErr.code === '42703') {
+    const { data: base } = await db.from('empresas').select('id, nome, plano, status, trial_ends_at, created_at')
+    empresas = base as typeof empresas
+  }
 
   const emp = empresas ?? []
   const total = emp.length
