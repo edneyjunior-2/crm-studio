@@ -21,20 +21,21 @@ const PLANOS_CONFIG: Record<PlanoEmpresa, { label: string; price: string; taglin
 }
 
 const MODULO_LABEL: Record<Modulo, string> = {
-  pipeline:   'Pipeline de vendas',
-  clientes:   'Gestão de clientes',
-  solucoes:   'Portfólio de soluções',
-  parceiros:  'Parceiros e representantes',
-  financeiro: 'Financeiro (AP/AR)',
-  comissoes:  'Controle de comissões',
-  fluxos:     'Fluxos de trabalho',
-  calendario: 'Calendário',
-  contratos:  'Contratos',
-  automacoes: 'Automações de funil',
-  estoque:    'Gestão de estoque',
-  rh:         'Recursos Humanos',
-  processos:  'Processos Jurídicos',
-  obras:      'Obras e Construção Civil',
+  pipeline:     'Pipeline de vendas',
+  clientes:     'Gestão de clientes',
+  solucoes:     'Portfólio de soluções',
+  parceiros:    'Parceiros e representantes',
+  financeiro:   'Financeiro (AP/AR)',
+  comissoes:    'Controle de comissões',
+  fluxos:       'Fluxos de trabalho',
+  calendario:   'Calendário',
+  contratos:    'Contratos',
+  automacoes:   'Automações de funil',
+  estoque:      'Gestão de estoque',
+  rh:           'Recursos Humanos',
+  processos:    'Processos Jurídicos',
+  obras:        'Obras e Construção Civil',
+  atendimentos: 'Atendimentos WhatsApp',
 }
 
 type StatusConfig = {

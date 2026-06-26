@@ -59,10 +59,10 @@ const navItems: NavItem[] = [
   },
   {
     href: '/atendimento',
-    label: 'Atendimento',
+    label: 'WhatsApp',
     icon: MessagesSquare,
+    modulo: 'atendimentos',
     tourSlug: 'atendimento',
-    // sem modulo → sem gating por enquanto (consistente com o restante)
   },
   {
     href: '/solucoes',

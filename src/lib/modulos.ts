@@ -23,39 +23,41 @@ export type { PlanoEmpresa, StatusEmpresa }
  * Dashboard, configuracoes e minha-conta são INFRA de conta — não recebem flag.
  */
 export const MODULOS = [
-  'pipeline',   // /pipeline
-  'clientes',   // /clientes
-  'solucoes',   // /solucoes
-  'parceiros',  // /parceiros
-  'financeiro', // /financeiro (AP/AR, bancos, fornecedores, relatório, dashboard fin.)
-  'comissoes',  // /financeiro/comissoes — depende de 'financeiro'
-  'fluxos',     // /fluxos
-  'calendario', // /calendario
-  'contratos',  // /contratos
-  'automacoes', // /automacoes
-  'estoque',    // /estoque
-  'rh',         // /rh
-  'processos',  // /processos — módulo vertical Advocacia (processos jurídicos + DataJud)
-  'obras',      // /obras — módulo vertical Engenharia/Construção Civil
+  'pipeline',      // /pipeline
+  'clientes',      // /clientes
+  'solucoes',      // /solucoes
+  'parceiros',     // /parceiros
+  'financeiro',    // /financeiro (AP/AR, bancos, fornecedores, relatório, dashboard fin.)
+  'comissoes',     // /financeiro/comissoes — depende de 'financeiro'
+  'fluxos',        // /fluxos
+  'calendario',    // /calendario
+  'contratos',     // /contratos
+  'automacoes',    // /automacoes
+  'estoque',       // /estoque
+  'rh',            // /rh
+  'processos',     // /processos — módulo vertical Advocacia (processos jurídicos + DataJud)
+  'obras',         // /obras — módulo vertical Engenharia/Construção Civil
+  'atendimentos',  // /atendimentos — inbox WhatsApp (reservado, não ativável via plano)
 ] as const
 
 export type Modulo = (typeof MODULOS)[number]
 
 export const MODULO_LABEL: Record<Modulo, string> = {
-  pipeline:   'Pipeline de vendas',
-  clientes:   'Gestão de clientes',
-  solucoes:   'Portfólio de soluções',
-  parceiros:  'Parceiros e representantes',
-  financeiro: 'Financeiro (AP/AR)',
-  comissoes:  'Controle de comissões',
-  fluxos:     'Fluxos de trabalho',
-  calendario: 'Calendário',
-  contratos:  'Contratos',
-  automacoes: 'Automações de funil',
-  estoque:    'Gestão de estoque',
-  rh:         'Recursos Humanos',
-  processos:  'Processos Jurídicos',
-  obras:      'Obras e Construção Civil',
+  pipeline:     'Pipeline de vendas',
+  clientes:     'Gestão de clientes',
+  solucoes:     'Portfólio de soluções',
+  parceiros:    'Parceiros e representantes',
+  financeiro:   'Financeiro (AP/AR)',
+  comissoes:    'Controle de comissões',
+  fluxos:       'Fluxos de trabalho',
+  calendario:   'Calendário',
+  contratos:    'Contratos',
+  automacoes:   'Automações de funil',
+  estoque:      'Gestão de estoque',
+  rh:           'Recursos Humanos',
+  processos:    'Processos Jurídicos',
+  obras:        'Obras e Construção Civil',
+  atendimentos: 'Atendimentos WhatsApp',
 }
 
 // ---------------------------------------------------------------------------
@@ -64,11 +66,10 @@ export const MODULO_LABEL: Record<Modulo, string> = {
 
 /**
  * Módulos globalmente bloqueados que nunca são adicionados via plano.
- * Vazio: estoque e rh já estão construídos (M7 concluído) e entram no Business.
- *
- * ⚠️  PROVISÓRIO — ajustar se algum módulo precisar ser desligado globalmente.
+ * 'atendimentos' (inbox WhatsApp) está reservado — só ativável manualmente
+ * pelo admin da plataforma via modulos_ativos na empresa.
  */
-export const MODULOS_RESERVADOS: Modulo[] = []
+export const MODULOS_RESERVADOS: Modulo[] = ['atendimentos']
 
 // ---------------------------------------------------------------------------
 // 3. Dependências entre módulos

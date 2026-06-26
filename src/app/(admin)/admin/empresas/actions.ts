@@ -400,6 +400,44 @@ export async function gerarApiKey(
 }
 
 // ---------------------------------------------------------------------------
+// Remover usuário de uma empresa (deleta profile + auth user)
+// ---------------------------------------------------------------------------
+
+export async function removerUsuario(
+  userId: string,
+  empresaId: string,
+): Promise<{ error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const db = createAdminClient()
+
+  // Proteger: não permitir remover o último admin da empresa
+  const { data: admins } = await db
+    .from('profiles')
+    .select('id')
+    .eq('empresa_id', empresaId)
+    .eq('role', 'admin')
+
+  if ((admins?.length ?? 0) <= 1) {
+    const { data: target } = await db.from('profiles').select('role').eq('id', userId).single()
+    if (target?.role === 'admin') {
+      return { error: 'Não é possível remover o único administrador da empresa.' }
+    }
+  }
+
+  // Deletar profile (FK cascade limpa registros dependentes)
+  const { error: profileErr } = await db.from('profiles').delete().eq('id', userId).eq('empresa_id', empresaId)
+  if (profileErr) return { error: profileErr.message }
+
+  // Deletar auth user
+  const { error: authErr } = await db.auth.admin.deleteUser(userId)
+  if (authErr) return { error: authErr.message }
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  return {}
+}
+
+// ---------------------------------------------------------------------------
 // Reenviar convite por e-mail (gera novo link + envia Resend)
 // ---------------------------------------------------------------------------
 

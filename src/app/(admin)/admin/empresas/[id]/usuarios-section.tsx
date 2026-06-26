@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Users, Link2, Copy, Check, X, Mail, Send } from 'lucide-react'
-import { gerarLinkAcesso, reenviarConviteEmail } from '../actions'
+import { Users, Link2, Copy, Check, X, Mail, Send, Trash2 } from 'lucide-react'
+import { gerarLinkAcesso, reenviarConviteEmail, removerUsuario } from '../actions'
 
 interface Usuario {
   id:         string
@@ -19,12 +19,13 @@ const ROLE_LABEL: Record<string, string> = {
 }
 
 export function UsuariosSection({ usuarios, empresaId }: { usuarios: Usuario[]; empresaId: string }) {
-  const [link,      setLink]      = useState<string | null>(null)
-  const [emailDo,   setEmailDo]   = useState<string>('')
-  const [erro,      setErro]      = useState<string | null>(null)
-  const [copiado,   setCopiado]   = useState(false)
-  const [enviado,   setEnviado]   = useState<string | null>(null)
-  const [isPending, start]        = useTransition()
+  const [link,          setLink]          = useState<string | null>(null)
+  const [emailDo,       setEmailDo]       = useState<string>('')
+  const [erro,          setErro]          = useState<string | null>(null)
+  const [copiado,       setCopiado]       = useState(false)
+  const [enviado,       setEnviado]       = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; nome: string } | null>(null)
+  const [isPending, start]                = useTransition()
 
   function handleGerar(userId: string) {
     setErro(null)
@@ -53,6 +54,15 @@ export function UsuariosSection({ usuarios, empresaId }: { usuarios: Usuario[]; 
         setEnviado(res.email ?? 'e-mail')
         setTimeout(() => setEnviado(null), 5000)
       }
+    })
+  }
+
+  function handleRemover(userId: string) {
+    setErro(null)
+    setConfirmDelete(null)
+    start(async () => {
+      const res = await removerUsuario(userId, empresaId)
+      if (res.error) setErro(res.error)
     })
   }
 
@@ -103,11 +113,20 @@ export function UsuariosSection({ usuarios, empresaId }: { usuarios: Usuario[]; 
                     type="button"
                     onClick={() => handleGerar(u.id)}
                     disabled={isPending}
-                    title="Gerar link de primeiro acesso"
+                    title="Gerar link de acesso"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-60"
                   >
                     <Link2 className="size-3.5" />
                     Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete({ id: u.id, nome: u.full_name })}
+                    disabled={isPending}
+                    title="Remover usuário"
+                    className="inline-flex items-center rounded-lg border border-destructive/30 bg-destructive/5 p-1.5 text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-60"
+                  >
+                    <Trash2 className="size-3.5" />
                   </button>
                 </div>
               </div>
@@ -124,6 +143,45 @@ export function UsuariosSection({ usuarios, empresaId }: { usuarios: Usuario[]; 
         <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-800">
           <Mail className="size-4 shrink-0" />
           Convite enviado para <strong>{enviado}</strong>. Peça ao cliente para verificar a caixa de spam se não chegar em 2 minutos.
+        </div>
+      )}
+
+      {/* Modal de confirmação de remoção */}
+      {confirmDelete && (
+        <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Remover usuário?</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                <strong>{confirmDelete.nome}</strong> perderá o acesso permanentemente.
+                Esta ação não pode ser desfeita.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(null)}
+              className="rounded p-1 text-muted-foreground hover:bg-muted"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleRemover(confirmDelete.id)}
+              disabled={isPending}
+              className="rounded-lg bg-destructive px-4 py-2 text-xs font-semibold text-white hover:bg-destructive/90 disabled:opacity-60"
+            >
+              {isPending ? 'Removendo...' : 'Sim, remover'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(null)}
+              className="rounded-lg border border-border px-4 py-2 text-xs font-medium hover:bg-muted"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 

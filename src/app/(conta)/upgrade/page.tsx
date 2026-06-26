@@ -22,20 +22,21 @@ const planoLabel: Record<PlanoEmpresa, string> = {
 }
 
 const moduloLabel: Record<Modulo, string> = {
-  pipeline:   'Pipeline',
-  clientes:   'Clientes',
-  solucoes:   'Soluções',
-  parceiros:  'Parceiros',
-  financeiro: 'Financeiro',
-  comissoes:  'Comissões',
-  fluxos:     'Fluxos',
-  calendario: 'Calendário',
-  contratos:  'Contratos',
-  automacoes: 'Automações',
-  estoque:    'Estoque',
-  rh:         'RH',
-  processos:  'Processos Jurídicos',
-  obras:      'Obras e Construção Civil',
+  pipeline:     'Pipeline',
+  clientes:     'Clientes',
+  solucoes:     'Soluções',
+  parceiros:    'Parceiros',
+  financeiro:   'Financeiro',
+  comissoes:    'Comissões',
+  fluxos:       'Fluxos',
+  calendario:   'Calendário',
+  contratos:    'Contratos',
+  automacoes:   'Automações',
+  estoque:      'Estoque',
+  rh:           'RH',
+  processos:    'Processos Jurídicos',
+  obras:        'Obras e Construção Civil',
+  atendimentos: 'Atendimentos WhatsApp',
 }
 
 // Módulos que estarão disponíveis no futuro (em breve)
