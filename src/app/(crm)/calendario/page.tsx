@@ -101,7 +101,8 @@ export default async function CalendarioPage({
         )
 
   const configured = isConfigured()
-  const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token').eq('id', user.id).single()
+  const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token, empresa_id').eq('id', user.id).single()
+  const empresaId = myProfile?.empresa_id ?? ''
   const isGoogleConnected = !!myProfile?.google_refresh_token
   let events: Awaited<ReturnType<typeof listEvents>> = []
 
@@ -124,10 +125,11 @@ export default async function CalendarioPage({
     { data: notasRaw },
   ] = await Promise.all([
     admin.auth.admin.listUsers(),
-    admin.from('profiles').select('id, full_name'),
-    admin.from('calendario_contatos').select('email, nome').order('email'),
+    admin.from('profiles').select('id, full_name').eq('empresa_id', empresaId),
+    admin.from('calendario_contatos').select('email, nome').eq('empresa_id', empresaId).order('email'),
     admin.from('agenda_bloqueios')
       .select('id, user_id, titulo, descricao, data, hora_inicio, hora_fim, created_at')
+      .eq('empresa_id', empresaId)
       .gte('data', bloqueioInicio)
       .lte('data', bloqueioFim)
       .order('data', { ascending: true })
@@ -140,12 +142,15 @@ export default async function CalendarioPage({
       .order('created_at', { ascending: false }),
     admin
       .from('calendario_notas')
-      .select('event_id, texto, updated_by, updated_at'),
+      .select('event_id, texto, updated_by, updated_at')
+      .eq('empresa_id', empresaId),
   ])
 
   const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name as string]))
+  // Só membros do próprio tenant: profileMap já vem filtrado por empresa_id,
+  // então restringe a lista (authUsers vem global do listUsers, que não filtra).
   const membrosInternos: MembroInterno[] = (authUsers?.users ?? [])
-    .filter((u) => u.email)
+    .filter((u) => u.email && profileMap[u.id])
     .map((u) => ({ id: u.id, nome: profileMap[u.id] ?? u.email!.split('@')[0], email: u.email! }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   const contatosExternos: string[] = (contatosSalvos ?? []).map((c) => c.email)
