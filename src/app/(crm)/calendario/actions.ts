@@ -12,6 +12,9 @@ export async function criarEvento(formData: FormData) {
   } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autorizado' }
 
+  const { data: meuPerfil } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
+  const empresaId = meuPerfil?.empresa_id ?? null
+
   const title = formData.get('title') as string
   const description = formData.get('description') as string
   const start = formData.get('start') as string
@@ -56,6 +59,7 @@ export async function criarEvento(formData: FormData) {
         organizer_email: user.email ?? '',
         organizer_user_id: user.id,
         titulo: title,
+        empresa_id: empresaId,
       })
     }
 
@@ -68,7 +72,7 @@ export async function criarEvento(formData: FormData) {
       if (externos.length > 0) {
         await admin
           .from('calendario_contatos')
-          .upsert(externos.map((email) => ({ email })), { onConflict: 'email', ignoreDuplicates: true })
+          .upsert(externos.map((email) => ({ email, empresa_id: empresaId })), { onConflict: 'email', ignoreDuplicates: true })
       }
     }
 
@@ -92,6 +96,9 @@ export async function editarEvento(
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autorizado' }
+
+  const { data: meuPerfil } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
+  const empresaId = meuPerfil?.empresa_id ?? null
 
   const title = (formData.get('title') as string)?.trim()
   const description = (formData.get('description') as string)?.trim() || ''
@@ -223,7 +230,9 @@ export async function editarEvento(
     }
 
     if (notificacoes.length > 0) {
-      await admin.from('calendario_notificacoes').insert(notificacoes)
+      await admin.from('calendario_notificacoes').insert(
+        notificacoes.map((n) => ({ ...n, empresa_id: empresaId })),
+      )
     }
   }
 
