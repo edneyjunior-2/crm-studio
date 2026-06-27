@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
-import { FileText, History, Trash2, UserPlus } from 'lucide-react'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { FileText, History, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
 
@@ -9,11 +9,6 @@ interface HistEntry {
   nome: string
   tipo: 'PJ' | 'PF'
   data: string
-}
-
-interface ParceiroPendente {
-  mode: 'pf' | 'pj'
-  fields: Record<string, string>
 }
 
 const HIST_KEY = 'aurum_contratos_hist_v2'
@@ -45,9 +40,10 @@ function readHist(): HistEntry[] {
 
 export function ContratosView({ templateUrl }: { templateUrl?: string | null }) {
   const [historico, setHistorico] = useState<HistEntry[]>([])
-  const [pendente, setPendente] = useState<ParceiroPendente | null>(null)
   const [activeTab, setActiveTab] = useState<'gerador' | 'historico'>('gerador')
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
+  // Evita cadastrar o mesmo contrato duas vezes se o iframe disparar a mensagem repetida
+  const ultimoDoc = useRef<string | null>(null)
 
   useEffect(() => {
     setHistorico(readHist())
@@ -58,11 +54,30 @@ export function ContratosView({ templateUrl }: { templateUrl?: string | null }) 
       if (e.data?.type !== 'aurum_contrato_gerado') return
       if (e.data?.entry) setHistorico(readHist())
       const p = e.data?.parceiro
-      if (p?.mode && p?.fields) setPendente({ mode: p.mode, fields: p.fields })
+      if (!p?.mode || !p?.fields) return
+
+      // Cadastro AUTOMÁTICO do parceiro a partir do contrato gerado.
+      const doc = p.mode === 'pf' ? p.fields.PF_CPF : p.fields.PARCEIRO_CNPJ
+      const chave = `${p.mode}:${doc || p.fields.PF_NOME || p.fields.PARCEIRO_RAZAO || ''}`
+      if (chave === ultimoDoc.current) return // dedup de mensagem repetida
+      ultimoDoc.current = chave
+
+      startTransition(async () => {
+        const res = await salvarParceiroDoContrato({ mode: p.mode, fields: p.fields })
+        if (res.error) {
+          toast.error(`Não foi possível cadastrar o parceiro: ${res.error}`)
+          return
+        }
+        toast.success(
+          res.created
+            ? `Parceiro "${res.nome}" cadastrado automaticamente nos Parceiros`
+            : `Parceiro "${res.nome}" atualizado a partir do contrato`,
+        )
+      })
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [])
+  }, [startTransition])
 
   useEffect(() => {
     function onStorage(e: StorageEvent) {
@@ -91,28 +106,9 @@ export function ContratosView({ templateUrl }: { templateUrl?: string | null }) 
     )
   }
 
-  const pf = pendente?.mode === 'pf'
-  const nomeExib = pendente ? (pf ? pendente.fields.PF_NOME : pendente.fields.REP_NOME) : ''
-  const empresaExib = pendente && !pf ? pendente.fields.PARCEIRO_RAZAO : ''
-  const docExib = pendente ? (pf ? pendente.fields.PF_CPF : pendente.fields.PARCEIRO_CNPJ) : ''
-
   function limparHistorico() {
     try { localStorage.removeItem(HIST_KEY) } catch {}
     setHistorico([])
-  }
-
-  function confirmarParceiro() {
-    if (!pendente) return
-    startTransition(async () => {
-      const res = await salvarParceiroDoContrato({ mode: pendente.mode, fields: pendente.fields })
-      if (res.error) { toast.error(res.error); return }
-      toast.success(
-        res.created
-          ? `Parceiro "${res.nome}" adicionado aos Parceiros`
-          : `Parceiro "${res.nome}" já existia — dados atualizados`
-      )
-      setPendente(null)
-    })
   }
 
   return (
@@ -192,35 +188,6 @@ export function ContratosView({ templateUrl }: { templateUrl?: string | null }) 
         </div>
       )}
 
-      {/* Confirmação: adicionar parceiro ao CRM */}
-      {pendente && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <div className="mb-1 flex items-center gap-2">
-              <UserPlus className="size-4 text-primary" />
-              <h3 className="font-semibold">Adicionar parceiro ao CRM?</h3>
-            </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-              O contrato foi exportado. Deseja cadastrar este parceiro na aba Parceiros?
-            </p>
-            <div className="mb-4 flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Tipo</span><span className="font-medium">{pf ? 'Pessoa Física' : 'Pessoa Jurídica'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Nome</span><span className="min-w-0 break-words text-right font-medium">{nomeExib || '—'}</span></div>
-              {empresaExib && <div className="flex justify-between"><span className="text-muted-foreground">Empresa</span><span className="min-w-0 break-words text-right font-medium">{empresaExib}</span></div>}
-              <div className="flex justify-between"><span className="text-muted-foreground">{pf ? 'CPF' : 'CNPJ'}</span><span className="font-medium">{docExib || '—'}</span></div>
-            </div>
-            {!docExib && <p className="mb-4 text-xs text-amber-600">Sem {pf ? 'CPF' : 'CNPJ'} — não dá pra evitar duplicação por documento.</p>}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setPendente(null)} disabled={isPending}
-                className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-muted">Agora não</button>
-              <button type="button" onClick={confirmarParceiro} disabled={isPending}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
-                {isPending ? 'Salvando...' : 'Adicionar aos Parceiros'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
