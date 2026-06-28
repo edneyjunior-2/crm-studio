@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAuthUser } from '@/lib/auth'
 
 export async function DELETE(
   _req: NextRequest,
@@ -11,12 +12,8 @@ export async function DELETE(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-  const { data: perfil } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-  if (!perfil?.empresa_id) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 403 })
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 403 })
 
   const admin = createAdminClient()
 
@@ -26,7 +23,7 @@ export async function DELETE(
     .delete()
     .eq('id', movId)
     .eq('processo_id', processoId)
-    .eq('empresa_id', perfil.empresa_id)
+    .eq('empresa_id', empresaId)
     .is('codigo_movimento', null)
     .select('id')
 

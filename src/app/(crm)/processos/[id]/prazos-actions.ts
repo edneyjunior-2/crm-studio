@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getAuthUser } from '@/lib/auth'
 
 export async function criarPrazo(
   processoId:    string,
@@ -14,13 +15,12 @@ export async function criarPrazo(
   if (!user) return { error: 'Não autenticado.' }
   if (!descricao.trim() || !dataPrazo) return { error: 'Descrição e data são obrigatórios.' }
 
-  const { data: profile } = await supabase
-    .from('profiles').select('empresa_id').eq('id', user.id).single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const { data: proc } = await supabase
     .from('processos_juridicos').select('id')
-    .eq('id', processoId).eq('empresa_id', profile.empresa_id).single()
+    .eq('id', processoId).eq('empresa_id', empresaId).single()
   if (!proc) return { error: 'Processo não encontrado.' }
 
   const { error } = await supabase.from('processos_prazos').insert({

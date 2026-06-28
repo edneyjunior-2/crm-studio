@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAuthUser } from '@/lib/auth'
 
 export async function POST(
   req: NextRequest,
@@ -11,19 +12,15 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-  const { data: perfil } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-  if (!perfil?.empresa_id) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 403 })
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 403 })
 
-  // Garante que o processo pertence à empresa do usuário
+  // Garante que o processo pertence à empresa (ativa) do usuário
   const { data: processo } = await supabase
     .from('processos_juridicos')
     .select('id')
     .eq('id', processoId)
-    .eq('empresa_id', perfil.empresa_id)
+    .eq('empresa_id', empresaId)
     .maybeSingle()
   if (!processo) return NextResponse.json({ error: 'Processo não encontrado' }, { status: 404 })
 
@@ -38,7 +35,7 @@ export async function POST(
     .from('movimentacoes_processo')
     .insert({
       processo_id: processoId,
-      empresa_id: perfil.empresa_id,
+      empresa_id: empresaId,
       codigo_movimento: null, // null = movimentação manual (sem código DataJud)
       descricao: descricao.trim(),
       complemento: complemento?.trim() || null,

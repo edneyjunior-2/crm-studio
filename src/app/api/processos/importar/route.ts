@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizarNumeroCNJ, detectarTribunal } from '@/lib/datajud'
+import { getAuthUser } from '@/lib/auth'
 
 export interface ProcessoImportRow {
   numero_processo:   string
@@ -81,13 +82,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-
-  const empresaId = profile?.empresa_id
+  // empresaId efetivo (tenant ativo p/ platform admin; empresa_id p/ usuário comum)
+  const { empresaId } = await getAuthUser()
   if (!empresaId) return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 403 })
 
   let rows: ProcessoImportRow[]

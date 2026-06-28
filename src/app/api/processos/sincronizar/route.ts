@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buscarProcessoDataJud } from '@/lib/datajud'
+import { getAuthUser } from '@/lib/auth'
 
 const THROTTLE_MS = 300
 const LOTE        = 5    // DataJud tem timeout de 8s/req → 5 × (8 + 0.3) = 41s worst case, seguro em 60s
@@ -14,17 +15,12 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-  // Só admin e sócio podem disparar sincronização manual
-  const { data: perfil } = await supabase
-    .from('profiles')
-    .select('role, empresa_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!perfil?.empresa_id) {
+  // Só admin e sócio podem disparar; empresaId efetivo (tenant ativo p/ platform admin)
+  const { empresaId, role } = await getAuthUser()
+  if (!empresaId) {
     return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 403 })
   }
-  if (!['admin', 'socio'].includes(perfil.role ?? '')) {
+  if (!['admin', 'socio'].includes(role)) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 
@@ -36,7 +32,7 @@ export async function POST(req: NextRequest) {
   const { data: processos, error } = await admin
     .from('processos_juridicos')
     .select('id, numero_processo, tribunal_slug, empresa_id')
-    .eq('empresa_id', perfil.empresa_id)
+    .eq('empresa_id', empresaId)
     .eq('status', 'ativo')
     .order('ultimo_datajud_update', { ascending: true, nullsFirst: true })
     .range(offset, offset + LOTE - 1)
@@ -49,7 +45,7 @@ export async function POST(req: NextRequest) {
     const { count } = await admin
       .from('processos_juridicos')
       .select('id', { count: 'exact', head: true })
-      .eq('empresa_id', perfil.empresa_id)
+      .eq('empresa_id', empresaId)
       .eq('status', 'ativo')
     total = count ?? 0
   }
