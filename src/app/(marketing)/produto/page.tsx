@@ -28,6 +28,18 @@ const FEATURES = [
     body: 'Cadastro com busca de CNPJ automática, carteira protegida por território e reuniões sincronizadas com o Google Calendar de cada vendedor. Todo mundo enxerga a mesma informação.',
     points: ['Busca de CNPJ automática', 'Carteira protegida por território', 'Calendário integrado ao Google'],
   },
+  {
+    eyebrow: 'Advocacia',
+    title: 'O processo se atualiza sozinho.',
+    body: 'A integração com o DataJud puxa as novas movimentações de cada processo e avisa o advogado responsável por e-mail. Os prazos avisam antes de vencer, as audiências viram evento no Google Calendar e os documentos ficam anexados ao processo. Honorários e custas viram lançamento no financeiro, sem digitar duas vezes.',
+    points: ['Movimentações automáticas via DataJud', 'Prazos e audiências com alerta', 'Honorários e guias no financeiro'],
+  },
+  {
+    eyebrow: 'Engenharia',
+    title: 'Do orçamento à medição, sem planilha solta.',
+    body: 'Monte o orçamento buscando composições e insumos direto no catálogo SINAPI, com BDI e desoneração, e gere o PDF para o cliente. Cada obra acompanha etapas, medições e a equipe alocada no mesmo lugar.',
+    points: ['Orçamento com catálogo SINAPI, BDI e desoneração', 'Etapas e medições com avanço de status', 'Equipe por obra e ponto integrado'],
+  },
 ]
 
 export default function ProdutoPage() {

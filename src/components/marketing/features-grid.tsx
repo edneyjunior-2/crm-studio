@@ -9,6 +9,7 @@ import {
   Package,
   MessageSquare,
   Scale,
+  HardHat,
   FileSignature,
   Bot,
 } from 'lucide-react'
@@ -36,13 +37,19 @@ const FEATURES = [
   {
     icon: Scale,
     title: 'Processos jurídicos',
-    desc: 'Acompanhamento de processos via DataJud, honorários e prazos integrados ao CRM. Módulo sob medida para escritórios de advocacia.',
+    desc: 'Movimentações automáticas via DataJud, prazos com alerta de vencimento, audiências na agenda e documentos por processo. Honorários e custas caem direto no financeiro. Módulo sob medida para advocacia.',
+    accent: false,
+  },
+  {
+    icon: HardHat,
+    title: 'Obras e engenharia',
+    desc: 'Orçamento com base SINAPI, etapas, medições e equipe por obra. Do orçamento ao acompanhamento da execução, no mesmo CRM.',
     accent: false,
   },
   {
     icon: FileSignature,
-    title: 'Contratos e assinatura',
-    desc: 'Geração de contratos e assinatura eletrônica dentro do próprio CRM. Sem sair do sistema para fechar negócio.',
+    title: 'Contratos',
+    desc: 'Gerador de contratos white-label, com a sua marca e os seus modelos. O parceiro do contrato entra no cadastro automaticamente, sem retrabalho.',
     accent: false,
   },
   {
