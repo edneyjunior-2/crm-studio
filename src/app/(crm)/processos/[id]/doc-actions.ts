@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 
 export interface DocItem {
@@ -25,13 +26,12 @@ export async function uploadDocumento(
   if (!file || !processoId) return { error: 'Arquivo ou processo inválido.' }
   if (file.size > 10 * 1024 * 1024) return { error: 'Arquivo muito grande. Limite: 10 MB.' }
 
-  const { data: profile } = await supabase
-    .from('profiles').select('empresa_id').eq('id', user.id).single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const { data: proc } = await supabase
     .from('processos_juridicos').select('id')
-    .eq('id', processoId).eq('empresa_id', profile.empresa_id).single()
+    .eq('id', processoId).eq('empresa_id', empresaId).single()
   if (!proc) return { error: 'Processo não encontrado.' }
 
   const ext  = file.name.split('.').pop() ?? 'bin'

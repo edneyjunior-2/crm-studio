@@ -15,10 +15,15 @@ export default async function CRMLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, empresaId, plano, status, trialEndsAt, supabase } = await getAuthUser()
+  const { user, empresaId, isPlatformAdmin, plano, status, trialEndsAt, supabase } = await getAuthUser()
 
-  // Conta sem empresa → fluxo de vinculação por código
-  if (!empresaId) redirect('/entrar/empresa')
+  // Conta sem empresa → fluxo de vinculação
+  // Platform admin sem empresa ativa → seletor de tenant (evita loop: /selecionar-empresa está fora deste grupo)
+  // Usuário comum sem empresa → tela de código de acesso
+  if (!empresaId) {
+    if (isPlatformAdmin) redirect('/selecionar-empresa')
+    else redirect('/entrar/empresa')
+  }
 
   // Assinatura suspensa/cancelada → paywall (sem loop: /assinatura fica fora deste grupo)
   if (!acessoLiberado(status)) redirect('/assinatura')
@@ -78,6 +83,7 @@ export default async function CRMLayout({
           modulosAtivos={modulosAtivos}
           empresaId={empresaId}
           empresaNome={empresaData?.nome ?? null}
+          isPlatformAdmin={isPlatformAdmin}
         >{children}</CRMShell>
 
         <Toaster richColors position="top-right" />

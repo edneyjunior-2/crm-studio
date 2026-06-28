@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
@@ -13,12 +13,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * são garantidos aqui: resolvemos a empresa do usuário e filtramos por empresa_id.
  */
 async function authEmpresa(): Promise<{ empresaId: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const { data: perfil } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
-  if (!perfil?.empresa_id) redirect('/login')
-  return { empresaId: perfil.empresa_id }
+  // Tenant EFETIVO: para platform admin é empresa_ativa_id; p/ usuário comum é empresa_id.
+  // (Não reler profiles.empresa_id direto: daria vazio/órfão p/ platform admin.)
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) redirect('/login')
+  return { empresaId }
 }
 
 /** Humano assume a conversa: status=humano e o bot cala (ia_ativa=false). */

@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 import {
   buscarProcessoDataJud,
   detectarTribunal,
@@ -60,21 +60,13 @@ export async function criarClienteInline(
   cnpj?: string,
   contatoNome?: string,
 ): Promise<CriarClienteInlineResult> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
+  const { supabase, user, empresaId } = await getAuthUser()
 
   const nome = razaoSocial?.trim()
   if (!nome) return { error: 'Razão social é obrigatória.' }
 
-  // Buscar empresa_id explicitamente — não depender do trigger para multi-tenant
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  // Tenant efetivo (empresa_ativa_id p/ platform admin) — não depender do trigger para multi-tenant
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const { data, error } = await supabase
     .from('clientes')
@@ -86,7 +78,7 @@ export async function criarClienteInline(
       responsavel_id:    user.id,
       responsavel_desde: new Date().toISOString(),
       created_by:        user.id,
-      empresa_id:        profile.empresa_id,
+      empresa_id:        empresaId,
     })
     .select('id, razao_social')
     .single()
@@ -108,20 +100,12 @@ export async function criarProcesso(
   _prev: CriarProcessoState | null,
   formData: FormData,
 ): Promise<CriarProcessoState | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
+  const { supabase, empresaId } = await getAuthUser()
 
-  // Precisamos do empresa_id para as movimentações (o trigger preenche em
-  // processos_juridicos, mas precisamos explicitamente em movimentacoes_processo)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
-  const empresaId = profile.empresa_id
+  // Precisamos do empresa_id efetivo (empresa_ativa_id p/ platform admin) para as
+  // movimentações (o trigger preenche em processos_juridicos, mas precisamos
+  // explicitamente em movimentacoes_processo)
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const numero     = (formData.get('numero_processo') as string)?.trim()
   const clienteId  = (formData.get('cliente_id') as string)?.trim() || null

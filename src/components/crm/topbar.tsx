@@ -2,7 +2,8 @@
 
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Menu } from 'lucide-react'
+import { Sun, Moon, Menu, Building2, ArrowLeftRight } from 'lucide-react'
+import Link from 'next/link'
 import type { Profile } from '@/types'
 
 const pageTitles: Record<string, string> = {
@@ -47,9 +48,11 @@ function getInitials(name: string): string {
 interface TopbarProps {
   profile: Profile
   onMenuClick?: () => void
+  isPlatformAdmin?: boolean
+  empresaNome?: string | null
 }
 
-export function Topbar({ profile, onMenuClick }: TopbarProps) {
+export function Topbar({ profile, onMenuClick, isPlatformAdmin = false, empresaNome }: TopbarProps) {
   const pathname = usePathname()
   const title = getPageTitle(pathname)
   const { resolvedTheme, setTheme } = useTheme()
@@ -71,6 +74,21 @@ export function Topbar({ profile, onMenuClick }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Switcher de tenant — apenas para platform admin */}
+        {isPlatformAdmin && (
+          <Link
+            href="/selecionar-empresa"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Trocar empresa ativa"
+          >
+            <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="max-w-[120px] truncate">
+              {empresaNome ?? 'Selecionar empresa'}
+            </span>
+            <ArrowLeftRight className="size-3 shrink-0 text-muted-foreground" />
+          </Link>
+        )}
+
         {/* Dark / Light toggle */}
         <button
           type="button"

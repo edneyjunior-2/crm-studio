@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 
 const STATUS_OBRA  = ['orcamento', 'em_andamento', 'pausada', 'concluida', 'cancelada'] as const
 const STATUS_ETAPA = ['pendente', 'em_andamento', 'concluida'] as const
@@ -16,22 +17,14 @@ export async function atualizarStatusObra(
     return { error: 'Status inválido.' }
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { supabase, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const { error } = await supabase
     .from('obras')
     .update({ status })
     .eq('id', id)
-    .eq('empresa_id', profile.empresa_id)
+    .eq('empresa_id', empresaId)
 
   if (error) return { error: error.message }
 
@@ -44,16 +37,8 @@ export async function atualizarObra(
   _prev: { error?: string } | null,
   formData: FormData,
 ): Promise<{ error?: string } | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { supabase, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const obraId = (formData.get('obra_id') as string)?.trim()
   if (!obraId) return { error: 'ID da obra não informado.' }
@@ -95,7 +80,7 @@ export async function atualizarObra(
       valor_contrato:        valorContrato,
     })
     .eq('id', obraId)
-    .eq('empresa_id', profile.empresa_id)
+    .eq('empresa_id', empresaId)
 
   if (error) return { error: error.message }
 
@@ -105,23 +90,15 @@ export async function atualizarObra(
 }
 
 export async function deletarObra(id: string): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id, role')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
-  if (profile.role !== 'admin') return { error: 'Apenas administradores podem excluir obras.' }
+  const { supabase, empresaId, role } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
+  if (role !== 'admin') return { error: 'Apenas administradores podem excluir obras.' }
 
   const { error } = await supabase
     .from('obras')
     .delete()
     .eq('id', id)
-    .eq('empresa_id', profile.empresa_id)
+    .eq('empresa_id', empresaId)
 
   if (error) return { error: error.message }
 
@@ -140,23 +117,15 @@ export async function criarEtapa(
     ordem: number
   },
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { supabase, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   // Verifica que a obra pertence à empresa antes de inserir
   const { data: obra } = await supabase
     .from('obras')
     .select('id')
     .eq('id', obraId)
-    .eq('empresa_id', profile.empresa_id)
+    .eq('empresa_id', empresaId)
     .single()
   if (!obra) return { error: 'Obra não encontrada.' }
 
@@ -240,16 +209,8 @@ export async function criarMedicao(
     data_medicao?: string | null
   },
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { supabase, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   // Verifica ownership e calcula próximo número de medição
   const [{ data: obra }, { data: ultimaMedicao }] = await Promise.all([
@@ -257,7 +218,7 @@ export async function criarMedicao(
       .from('obras')
       .select('id')
       .eq('id', obraId)
-      .eq('empresa_id', profile.empresa_id)
+      .eq('empresa_id', empresaId)
       .single(),
     supabase
       .from('obras_medicoes')

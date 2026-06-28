@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 import { createEvent } from '@/lib/google-calendar'
 import { parseValorBR } from '@/lib/honorarios'
 
@@ -120,25 +121,18 @@ export async function criarMovimentacaoInterna(
   assunto: string,
   descricao?: string,
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, empresaId } = await getAuthUser()
   if (!user) return { error: 'Não autenticado.' }
   if (!assunto.trim()) return { error: 'Assunto é obrigatório.' }
 
-  // Verificar que o processoId pertence à empresa do usuário (guard cross-tenant)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  // Verificar que o processoId pertence à empresa efetiva do usuário (guard cross-tenant)
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const { data: processo } = await supabase
     .from('processos_juridicos')
     .select('id')
     .eq('id', processoId)
-    .eq('empresa_id', profile.empresa_id)
+    .eq('empresa_id', empresaId)
     .single()
 
   if (!processo) return { error: 'Processo não encontrado ou sem permissão.' }
@@ -167,13 +161,11 @@ export async function arquivarProcesso(
   motivo: string,
   descricao?: string,
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, empresaId } = await getAuthUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data: profile } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
-  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', profile.empresa_id).single()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
+  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', empresaId).single()
   if (!proc) return { error: 'Processo não encontrado ou sem permissão.' }
 
   const { error } = await supabase
@@ -200,13 +192,11 @@ export async function concluirProcesso(
   motivo: string,
   descricao?: string,
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, empresaId } = await getAuthUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data: profile } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
-  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', profile.empresa_id).single()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
+  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', empresaId).single()
   if (!proc) return { error: 'Processo não encontrado ou sem permissão.' }
 
   const { error } = await supabase
@@ -233,13 +223,11 @@ export async function reativarProcesso(
   motivo: string,
   descricao?: string,
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, empresaId } = await getAuthUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data: profile } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
-  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', profile.empresa_id).single()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
+  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', empresaId).single()
   if (!proc) return { error: 'Processo não encontrado ou sem permissão.' }
 
   const { error } = await supabase
@@ -262,24 +250,17 @@ export async function reativarProcesso(
 }
 
 export async function marcarComoLido(processoId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, empresaId } = await getAuthUser()
   if (!user) return
 
-  // Buscar empresa_id do usuário para evitar escrita cross-tenant
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.empresa_id) return
+  // Empresa efetiva para evitar escrita cross-tenant
+  if (!empresaId) return
 
   await supabase
     .from('movimentacoes_processo')
     .update({ lido: true })
     .eq('processo_id', processoId)
-    .eq('empresa_id', profile.empresa_id)
+    .eq('empresa_id', empresaId)
     .eq('lido', false)
 
   revalidatePath(`/processos/${processoId}`)

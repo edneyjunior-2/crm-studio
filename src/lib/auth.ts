@@ -10,12 +10,15 @@ export interface AuthResult {
   supabase: Awaited<ReturnType<typeof createClient>>
   user: { id: string; email?: string }
   role: Role
-  /** Tenant ao qual o usuário pertence. Null só em conta órfã (criação manual fora do fluxo). */
+  /** Tenant ao qual o usuário pertence. Null só em conta órfã (criação manual fora do fluxo).
+   *  Para platform admin, reflete o tenant ativo (empresa_ativa_id), não o empresa_id fixo. */
   empresaId: string | null
   plano: PlanoEmpresa
   status: StatusEmpresa
   /** ISO string de expiração do trial; null quando não aplicável. */
   trialEndsAt: string | null
+  /** Verdadeiro quando o usuário está na tabela platform_admins. */
+  isPlatformAdmin: boolean
 }
 
 /** Memoizado por request (React cache) — layout + página compartilham o mesmo resultado sem novo round-trip. */
@@ -24,26 +27,43 @@ export const getAuthUser = cache(async (): Promise<AuthResult> => {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, empresa_id, empresas(plano, status, trial_ends_at)')
-    .eq('id', user.id)
-    .single()
+  // Busca profile e verifica se é platform admin em paralelo
+  const [{ data: profile }, { data: isPlatformAdminRaw }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role, empresa_id, empresa_ativa_id')
+      .eq('id', user.id)
+      .single(),
+    supabase.rpc('is_platform_admin'),
+  ])
 
-  const empresa = (profile?.empresas ?? null) as {
-    plano?: string
-    status?: string
-    trial_ends_at?: string | null
-  } | null
+  const isPlatformAdmin = isPlatformAdminRaw === true
+
+  // Empresa efetiva: platform admin usa empresa_ativa_id; usuário comum usa empresa_id
+  const empresaIdEfetivo: string | null = isPlatformAdmin
+    ? ((profile?.empresa_ativa_id ?? null) as string | null)
+    : ((profile?.empresa_id ?? null) as string | null)
+
+  // Carrega dados do plano da empresa efetiva (quando há empresa ativa)
+  let empresa: { plano?: string; status?: string; trial_ends_at?: string | null } | null = null
+  if (empresaIdEfetivo) {
+    const { data } = await supabase
+      .from('empresas')
+      .select('plano, status, trial_ends_at')
+      .eq('id', empresaIdEfetivo)
+      .maybeSingle()
+    empresa = data
+  }
 
   return {
     supabase,
     user,
     role: (profile?.role ?? 'comercial') as Role,
-    empresaId: (profile?.empresa_id ?? null) as string | null,
+    empresaId: empresaIdEfetivo,
     plano: (empresa?.plano ?? 'free') as PlanoEmpresa,
     status: (empresa?.status ?? 'trial') as StatusEmpresa,
     trialEndsAt: empresa?.trial_ends_at ?? null,
+    isPlatformAdmin,
   }
 })
 
@@ -64,7 +84,6 @@ export async function getAuthAdmin(): Promise<AuthResult> {
 /** Apenas platform admins (tabela platform_admins). Redireciona para /dashboard. */
 export const getAuthPlatformAdmin = cache(async (): Promise<AuthResult> => {
   const auth = await getAuthUser()
-  const { data: isPlatformAdmin } = await auth.supabase.rpc('is_platform_admin')
-  if (!isPlatformAdmin) redirect('/dashboard')
+  if (!auth.isPlatformAdmin) redirect('/dashboard')
   return auth
 })

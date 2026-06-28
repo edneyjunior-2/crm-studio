@@ -12,6 +12,7 @@ import { avaliarPagamento } from './actions'
 import { ConfigSdrSection } from '@/components/crm/configuracoes/config-sdr-section'
 import { modulosEfetivos } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
+import { getAuthUser } from '@/lib/auth'
 import type { PlanoEmpresa } from '@/lib/auth'
 import type { Profile, Role } from '@/types'
 
@@ -30,7 +31,10 @@ export default async function ConfiguracoesPage() {
 
   const admin = createAdminClient()
 
-  const empresaId = profile?.empresa_id as string | null
+  // Tenant efetivo: para platform admin reflete empresa_ativa_id; para usuário
+  // comum é igual a profiles.empresa_id. NÃO reler profiles.empresa_id direto —
+  // daria vazio/órfão p/ platform admin. (ver atendimento/page.tsx)
+  const { empresaId } = await getAuthUser()
 
   const [profilesResult, authUsersResult, empresaResult] = await Promise.all([
     supabase.from('profiles').select('*').order('created_at', { ascending: true }),

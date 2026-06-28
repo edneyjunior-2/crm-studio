@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 
 export interface CriarObraState { error?: string; id?: string }
 
@@ -13,12 +14,8 @@ export async function criarObra(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const nome = (formData.get('nome') as string)?.trim()
   if (!nome) return { error: 'Nome da obra é obrigatório.' }
@@ -42,7 +39,7 @@ export async function criarObra(
   const { data, error } = await supabase
     .from('obras')
     .insert({
-      empresa_id:            profile.empresa_id,
+      empresa_id:            empresaId,
       nome,
       tipo,
       cliente_id:            clienteId || null,

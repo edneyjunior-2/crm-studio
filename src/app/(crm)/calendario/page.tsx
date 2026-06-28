@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, CalendarDays, LayoutGrid } from 'lucide-react'
 import { GoogleCalendarConnect } from '@/components/crm/google/google-calendar-connect'
+import { getAuthUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listCalendarEvents, listEvents, isConfigured, CALENDAR_ID } from '@/lib/google-calendar'
@@ -101,8 +102,10 @@ export default async function CalendarioPage({
         )
 
   const configured = isConfigured()
-  const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token, empresa_id').eq('id', user.id).single()
-  const empresaId = myProfile?.empresa_id ?? ''
+  // empresaId EFETIVO (empresa_ativa_id p/ platform admin; empresa_id p/ usuário comum)
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) redirect('/login')
+  const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token').eq('id', user.id).single()
   const isGoogleConnected = !!myProfile?.google_refresh_token
   let events: Awaited<ReturnType<typeof listEvents>> = []
 

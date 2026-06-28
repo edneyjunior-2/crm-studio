@@ -409,19 +409,11 @@ export async function toggleModuloVisibilidade(
   modulo: string,
   ocultar: boolean,
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autorizado' }
+  // getAuthAdmin já valida a role 'admin' (redireciona) e resolve o tenant
+  // EFETIVO (empresa_ativa_id p/ platform admin, empresa_id p/ usuário comum).
+  const { supabase, empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, empresa_id')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') return { error: 'Sem permissão' }
-
-  const empresaId = profile.empresa_id as string
   const { data: empresa } = await supabase
     .from('empresas')
     .select('modulos_ocultos')

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 
 export interface CriarGuiaInput {
   processoId:     string
@@ -18,20 +19,15 @@ export async function criarGuiaProcesso(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('empresa_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.empresa_id) return { error: 'Empresa não encontrada.' }
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   // Verifica que o processo pertence à mesma empresa
   const { data: proc } = await supabase
     .from('processos_juridicos')
     .select('id')
     .eq('id', input.processoId)
-    .eq('empresa_id', profile.empresa_id)
+    .eq('empresa_id', empresaId)
     .single()
 
   if (!proc) return { error: 'Processo não encontrado ou sem permissão.' }

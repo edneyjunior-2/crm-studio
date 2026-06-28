@@ -3,17 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAuthUser } from '@/lib/auth'
 import { createEvent, deleteEvent, updateEvent, CALENDAR_ID } from '@/lib/google-calendar'
 
 export async function criarEvento(formData: FormData) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autorizado' }
-
-  const { data: meuPerfil } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
-  const empresaId = meuPerfil?.empresa_id ?? null
+  const { user, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const title = formData.get('title') as string
   const description = formData.get('description') as string
@@ -91,14 +86,8 @@ export async function editarEvento(
   eventId: string,
   formData: FormData,
 ): Promise<{ error?: string; success?: boolean }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autorizado' }
-
-  const { data: meuPerfil } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
-  const empresaId = meuPerfil?.empresa_id ?? null
+  const { user, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const title = (formData.get('title') as string)?.trim()
   const description = (formData.get('description') as string)?.trim() || ''
