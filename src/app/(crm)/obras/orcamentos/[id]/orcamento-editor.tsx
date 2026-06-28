@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import Link from 'next/link'
-import { Search, Trash2, Printer, Plus, Loader2 } from 'lucide-react'
+import { Search, Trash2, Printer, Plus, Loader2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   buscarCatalogo, adicionarItem, atualizarItem, removerItem, atualizarOrcamento, excluirOrcamento,
@@ -10,6 +10,17 @@ import {
 } from '../actions'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+const CONECTORES = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'para', 'com', 'sem', 'em', 'a', 'o'])
+// SINAPI traz o grupo/classe em CAIXA ALTA — deixa legível pra usar como etapa automática.
+function etapaDoGrupo(grupo: string | null): string {
+  if (!grupo) return ''
+  return grupo
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w, i) => (i > 0 && CONECTORES.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ')
+}
 
 interface Item {
   id: string; etapa: string | null; categoria: string | null; codigo_sinapi: string | null
@@ -33,6 +44,7 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
   const [tipoFiltro, setTipoFiltro] = useState<'' | 'composicao' | 'insumo'>('')
   const [resultados, setResultados] = useState<CatalogoResultado[]>([])
   const [buscando, setBuscando] = useState(false)
+  const [termoBuscado, setTermoBuscado] = useState('')
   const [, start] = useTransition()
 
   const mesRef = orc.data_ref_sinapi ? orc.data_ref_sinapi.slice(0, 7) : ''
@@ -50,28 +62,51 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
     if (!mesRef) { toast.error('Defina o mês SINAPI no cabeçalho.'); return }
     setBuscando(true)
     try {
-      const r = await buscarCatalogo(termo, {
+      const r = await buscarCatalogo(termo.trim(), {
         uf: orc.uf, data_ref: `${mesRef}-01`, fonte: orc.fonte,
         desoneracao: orc.desoneracao, tipo: tipoFiltro || undefined,
       })
       setResultados(r)
-      if (r.length === 0) toast.message('Nada encontrado. O catálogo desta UF/mês foi importado?')
+      setTermoBuscado(termo.trim())
     } finally {
       setBuscando(false)
     }
   }
 
+  // Busca incremental: abre o painel e atualiza os resultados conforme digita (debounce 300ms)
+  useEffect(() => {
+    const t = termo.trim()
+    if (t.length < 2 || !mesRef) { setResultados([]); setTermoBuscado(''); return }
+    let cancelado = false
+    setBuscando(true)
+    const handle = setTimeout(async () => {
+      try {
+        const r = await buscarCatalogo(t, {
+          uf: orc.uf, data_ref: `${mesRef}-01`, fonte: orc.fonte,
+          desoneracao: orc.desoneracao, tipo: tipoFiltro || undefined,
+        })
+        if (!cancelado) { setResultados(r); setTermoBuscado(t) }
+      } finally {
+        if (!cancelado) setBuscando(false)
+      }
+    }, 300)
+    return () => { cancelado = true; clearTimeout(handle) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termo, tipoFiltro, mesRef, orc.uf, orc.fonte, orc.desoneracao])
+
   function adicionar(r: CatalogoResultado) {
     const categoria = r.tipo === 'composicao' ? 'composicao' : 'material'
+    // Etapa digitada à mão tem prioridade; senão classifica pelo grupo SINAPI; senão "Geral".
+    const etapa = etapaAtual.trim() || etapaDoGrupo(r.grupo) || 'Geral'
     const novo: Item = {
-      id: `tmp-${Date.now()}`, etapa: etapaAtual.trim() || 'Geral', categoria,
+      id: `tmp-${Date.now()}`, etapa, categoria,
       codigo_sinapi: r.codigo, descricao: r.descricao, unidade: r.unidade,
       quantidade: 1, custo_unitario: r.custo ?? 0, subtotal: r.custo ?? 0,
     }
     setItens((prev) => [...prev, novo])
     start(async () => {
       const res = await adicionarItem(orc.id, {
-        etapa: novo.etapa!, categoria, codigo_sinapi: r.codigo, descricao: r.descricao,
+        etapa, categoria, codigo_sinapi: r.codigo, descricao: r.descricao,
         unidade: r.unidade, quantidade: 1, custo_unitario: r.custo ?? 0,
       })
       if (res.error) toast.error(res.error)
@@ -103,6 +138,9 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
+          <Link href="/obras/orcamentos" className="mb-1 inline-flex items-center gap-1 px-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-4" /> Orçamentos
+          </Link>
           <input value={orc.titulo} onChange={(e) => setOrc((o) => ({ ...o, titulo: e.target.value }))}
             onBlur={(e) => salvarCampo({ titulo: e.target.value })}
             className="w-full rounded-lg border border-transparent bg-transparent px-1 text-xl font-semibold hover:border-border focus:border-border" />
@@ -153,7 +191,8 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
       <div className="rounded-xl border border-border bg-card p-4">
         <p className="mb-2 text-sm font-medium">Adicionar item do catálogo {orc.fonte}</p>
         <div className="flex flex-wrap items-center gap-2">
-          <input value={etapaAtual} onChange={(e) => setEtapaAtual(e.target.value)} placeholder="Etapa (ex.: Fundação)"
+          <input value={etapaAtual} onChange={(e) => setEtapaAtual(e.target.value)} placeholder="Etapa (auto se vazio)"
+            title="Deixe vazio para classificar automaticamente pelo grupo SINAPI, ou digite uma etapa para forçar."
             className="w-40 rounded-lg border border-border bg-background px-3 py-2 text-sm" />
           <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as never)}
             className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
@@ -170,18 +209,29 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
             </button>
           </div>
         </div>
-        {resultados.length > 0 && (
+        {termo.trim().length >= 2 && mesRef && (
           <div className="mt-3 max-h-72 overflow-y-auto rounded-lg border border-border">
-            {resultados.map((r) => (
-              <button key={`${r.tipo}-${r.codigo}`} type="button" onClick={() => adicionar(r)}
-                className="flex w-full items-center gap-3 border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-muted/50">
-                <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{r.codigo}</span>
-                <span className="min-w-0 flex-1 truncate">{r.descricao}</span>
-                <span className="text-xs text-muted-foreground">{r.unidade}</span>
-                <span className="w-24 text-right font-medium tabular-nums">{r.custo != null ? BRL.format(r.custo) : '—'}</span>
-                <Plus className="size-4 text-primary" />
-              </button>
-            ))}
+            {resultados.length > 0 ? (
+              resultados.map((r) => (
+                <button key={`${r.tipo}-${r.codigo}`} type="button" onClick={() => adicionar(r)}
+                  className="flex w-full items-center gap-3 border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-muted/50">
+                  <span className="self-start rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{r.codigo}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{r.descricao}</span>
+                    {r.grupo && <span className="block truncate text-[11px] text-muted-foreground">Etapa: {etapaDoGrupo(r.grupo)}</span>}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{r.unidade}</span>
+                  <span className="w-24 text-right font-medium tabular-nums">{r.custo != null ? BRL.format(r.custo) : '—'}</span>
+                  <Plus className="size-4 text-primary" />
+                </button>
+              ))
+            ) : buscando || termoBuscado !== termo.trim() ? (
+              <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Buscando…
+              </div>
+            ) : (
+              <p className="px-3 py-3 text-sm text-muted-foreground">Nada encontrado. O catálogo desta UF/mês foi importado?</p>
+            )}
           </div>
         )}
       </div>
@@ -196,28 +246,30 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
                 <h3 className="text-sm font-semibold">{etapa}</h3>
                 <span className="text-sm font-medium tabular-nums">{BRL.format(sub)}</span>
               </div>
-              <table className="w-full text-sm">
-                <tbody className="divide-y divide-border">
-                  {lista.map((i) => (
-                    <tr key={i.id}>
-                      <td className="px-4 py-2">
-                        <p className="truncate">{i.descricao}</p>
-                        <p className="text-[11px] text-muted-foreground">{i.codigo_sinapi} · {i.unidade}</p>
-                      </td>
-                      <td className="px-2 py-2 text-right">
-                        <input type="number" step="0.01" defaultValue={i.quantidade}
-                          onBlur={(e) => mudarQtd(i, Number(e.target.value))}
-                          className="w-20 rounded border border-border bg-background px-2 py-1 text-right text-sm" />
-                      </td>
-                      <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{BRL.format(i.custo_unitario)}</td>
-                      <td className="px-2 py-2 text-right font-medium tabular-nums">{BRL.format(i.subtotal)}</td>
-                      <td className="px-2 py-2 text-right">
-                        <button type="button" onClick={() => remover(i)} className="rounded p-1 text-destructive hover:bg-destructive/10"><Trash2 className="size-3.5" /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed text-sm">
+                  <tbody className="divide-y divide-border">
+                    {lista.map((i) => (
+                      <tr key={i.id}>
+                        <td className="px-4 py-2">
+                          <p className="truncate">{i.descricao}</p>
+                          <p className="text-[11px] text-muted-foreground">{i.codigo_sinapi} · {i.unidade}</p>
+                        </td>
+                        <td className="w-24 px-2 py-2 text-right">
+                          <input type="number" step="0.01" defaultValue={i.quantidade}
+                            onBlur={(e) => mudarQtd(i, Number(e.target.value))}
+                            className="w-20 rounded border border-border bg-background px-2 py-1 text-right text-sm" />
+                        </td>
+                        <td className="w-24 whitespace-nowrap px-2 py-2 text-right tabular-nums text-muted-foreground">{BRL.format(i.custo_unitario)}</td>
+                        <td className="w-28 whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums">{BRL.format(i.subtotal)}</td>
+                        <td className="w-10 px-2 py-2 text-right">
+                          <button type="button" onClick={() => remover(i)} className="rounded p-1 text-destructive hover:bg-destructive/10"><Trash2 className="size-3.5" /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )
         })}
