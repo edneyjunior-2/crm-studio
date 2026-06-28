@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/auth'
 
 /**
@@ -24,5 +25,8 @@ export async function selecionarEmpresa(empresaId: string): Promise<{ error: str
     return { error: `Não foi possível selecionar a empresa: ${error.message}` }
   }
 
+  // Trocar de tenant muda os dados de TODAS as rotas → invalida o cache do app
+  // inteiro pra nenhuma tela ficar mostrando o tenant anterior (cache velho).
+  revalidatePath('/', 'layout')
   redirect('/dashboard')
 }
