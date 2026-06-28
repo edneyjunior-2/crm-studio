@@ -239,9 +239,15 @@ export async function editarEvento(
     const emailsInternos = new Set((internos?.users ?? []).map((u) => u.email))
     const externos = attendees.filter((e) => !emailsInternos.has(e))
     if (externos.length > 0) {
-      await admin
+      const { error: contatosError } = await admin
         .from('calendario_contatos')
-        .upsert(externos.map((email) => ({ email })), { onConflict: 'email', ignoreDuplicates: true })
+        .upsert(
+          externos.map((email) => ({ email, empresa_id: empresaId })),
+          { onConflict: 'email', ignoreDuplicates: true },
+        )
+      if (contatosError) {
+        console.error('Erro ao salvar contatos externos do calendário:', contatosError)
+      }
     }
   }
 

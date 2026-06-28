@@ -57,7 +57,7 @@ async function FinanceiroContent() {
     { data: contasPagar, error: errPagar },
     { data: clientes },
     { data: negocios },
-    { data: comissoes },
+    { data: comissoes, error: errComissoes },
     { data: comerciais },
     { data: bancosData },
     { data: movsData },
@@ -80,9 +80,12 @@ async function FinanceiroContent() {
       .from('negocios')
       .select('id, titulo')
       .order('titulo', { ascending: true }),
+    // O embed `profiles!comercial_id(full_name)` falha com PGRST200 porque
+    // comissoes_comercial.comercial_id tem FK para auth.users, não para profiles.
+    // Buscamos o nome do comercial numa 2ª query (ver abaixo).
     supabase
       .from('comissoes_comercial')
-      .select('*, profiles!comercial_id(full_name), negocios(titulo), parceiros_comissao(nome)')
+      .select('*, negocios(titulo), parceiros_comissao(nome)')
       .order('data_previsao', { ascending: false }),
     supabase
       .from('profiles')
@@ -130,7 +133,37 @@ async function FinanceiroContent() {
   const pagarList = (contasPagar ?? []) as ContaPagar[]
   const clientesList = (clientes ?? []) as Pick<Cliente, 'id' | 'razao_social'>[]
   const negociosList = (negocios ?? []) as Pick<Negocio, 'id' | 'titulo'>[]
-  const comissoesList = (comissoes ?? []) as ComissaoComRelacoes[]
+  if (errComissoes) {
+    console.error('Erro ao carregar comissões:', errComissoes)
+  }
+
+  // O nome do comercial não pode vir por embed (comercial_id → auth.users, não
+  // profiles). Buscamos os profiles dos comerciais referenciados numa 2ª query e
+  // montamos um Map id→full_name para exibir o nome em cada comissão.
+  const comissoesRaw = (comissoes ?? []) as Omit<ComissaoComRelacoes, 'profiles'>[]
+  const comerciaisIds = [...new Set(comissoesRaw.map((c) => c.comercial_id).filter(Boolean))]
+
+  const nomesComerciais = new Map<string, string>()
+  if (comerciaisIds.length > 0) {
+    const { data: profilesComissoes, error: errProfilesComissoes } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', comerciaisIds)
+
+    if (errProfilesComissoes) {
+      console.error('Erro ao carregar nomes dos comerciais das comissões:', errProfilesComissoes)
+    }
+
+    for (const p of (profilesComissoes ?? []) as { id: string; full_name: string }[]) {
+      nomesComerciais.set(p.id, p.full_name)
+    }
+  }
+
+  const comissoesList: ComissaoComRelacoes[] = comissoesRaw.map((c) => {
+    const fullName = nomesComerciais.get(c.comercial_id)
+    return { ...c, profiles: fullName ? { full_name: fullName } : null }
+  })
+
   const comerciaisList = (comerciais ?? []) as { id: string; full_name: string }[]
 
   const fornecedoresList = (fornecedoresData ?? []) as Fornecedor[]

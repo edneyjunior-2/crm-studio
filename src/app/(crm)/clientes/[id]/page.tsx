@@ -58,7 +58,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     // Processos jurídicos do cliente (módulo advocacia) — apenas ATIVOS (exclui encerrado/arquivado).
     supabase
       .from('processos_juridicos')
-      .select('id, numero_processo, titulo, status, valor_causa, honorarios_tipo, honorarios_valor')
+      .select('id, numero_processo, assunto, status, valor_causa, honorarios_tipo, honorarios_valor')
       .eq('cliente_id', id)
       .not('status', 'in', '("encerrado","arquivado")')
       .order('created_at', { ascending: false }),
@@ -66,6 +66,14 @@ export default async function ClienteDetailPage({ params }: PageProps) {
 
   if (clienteResult.error || !clienteResult.data) {
     notFound()
+  }
+
+  // Erro da query de processos não pode derrubar a página: loga e segue com lista vazia.
+  if (processosResult.error) {
+    console.error(
+      '[cliente/detalhe] Falha ao buscar processos jurídicos do cliente:',
+      processosResult.error,
+    )
   }
 
   const cliente = clienteResult.data as Cliente
@@ -77,7 +85,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   //  - "valor em causas" = soma dos valores das causas, mantido para RELATÓRIO
   //    (é o total em disputa, não o ganho).
   type ProcessoLite = {
-    id: string; numero_processo: string; titulo: string | null; status: string; valor_causa: number | null
+    id: string; numero_processo: string; assunto: string | null; status: string; valor_causa: number | null
     honorarios_tipo: string | null; honorarios_valor: number | null
   }
   // Resultado já filtrado: apenas processos ativos (encerrado/arquivado excluídos na query)
@@ -232,9 +240,9 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                       className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 transition-colors hover:bg-accent"
                     >
                       <div className="flex flex-col gap-0.5 overflow-hidden">
-                        {p.titulo && (
+                        {p.assunto && (
                           <span className="truncate text-xs font-medium text-foreground">
-                            {p.titulo}
+                            {p.assunto}
                           </span>
                         )}
                         <span className="truncate font-mono text-xs text-muted-foreground">

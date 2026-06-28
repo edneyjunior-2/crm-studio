@@ -141,15 +141,21 @@ async function EstoqueContent() {
       </div>
 
       {/* Lista de movimentações recentes */}
-      {(errMovs == null) && (
-        <div className="flex flex-col gap-4">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Movimentações recentes</h3>
-            <p className="text-xs text-muted-foreground">Últimas 50 movimentações registradas.</p>
-          </div>
-          <MovimentacoesLista movimentacoes={listaMovimentacoes} />
+      <div className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Movimentações recentes</h3>
+          <p className="text-xs text-muted-foreground">Últimas 50 movimentações registradas.</p>
         </div>
-      )}
+        {errMovs ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-sm text-destructive">
+              Erro ao carregar movimentações: {errMovs.message}
+            </p>
+          </div>
+        ) : (
+          <MovimentacoesLista movimentacoes={listaMovimentacoes} />
+        )}
+      </div>
     </div>
   )
 }

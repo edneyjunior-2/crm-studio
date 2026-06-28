@@ -55,7 +55,7 @@ export default async function ObrasPage({ searchParams }: PageProps) {
   const [{ data: obras, error }, { data: kpiRaw }] = await Promise.all([
     supabase
       .from('obras')
-      .select('id, nome, tipo, status, valor_contrato, data_previsao_termino, cidade, estado, clientes(razao_social), profiles!responsavel_id(full_name)')
+      .select('id, nome, tipo, status, valor_contrato, data_previsao_termino, cidade, estado, clientes(razao_social), responsavel:profiles!responsavel_id(full_name)')
       .in('status', statusFiltro)
       .order('created_at', { ascending: false }),
     supabase
@@ -155,7 +155,7 @@ export default async function ObrasPage({ searchParams }: PageProps) {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(obras ?? []).map((obra) => {
             const clienteRaw = obra.clientes as unknown
-            const respRaw    = (obra as Record<string, unknown>)['profiles!responsavel_id'] as unknown
+            const respRaw    = (obra as Record<string, unknown>)['responsavel'] as unknown
             const clienteNome = (clienteRaw as { razao_social?: string } | null)?.razao_social ?? null
             const respNome    = (respRaw as { full_name?: string } | null)?.full_name ?? null
 

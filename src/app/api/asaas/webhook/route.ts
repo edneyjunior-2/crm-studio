@@ -18,10 +18,17 @@ interface AsaasPaymentPayload {
   invoiceUrl?:  string
 }
 
+interface AsaasSubscriptionPayload {
+  id:        string          // sub_...
+  customer:  string          // cus_...
+  status?:   string
+}
+
 interface AsaasWebhookBody {
-  id:      string            // evt_... — chave de idempotência
-  event:   string            // PAYMENT_RECEIVED, PAYMENT_OVERDUE, etc.
-  payment: AsaasPaymentPayload
+  id:            string       // evt_... — chave de idempotência
+  event:         string       // PAYMENT_RECEIVED, SUBSCRIPTION_DELETED, etc.
+  payment?:      AsaasPaymentPayload       // presente nos eventos PAYMENT_*
+  subscription?: AsaasSubscriptionPayload  // presente nos eventos SUBSCRIPTION_*
 }
 
 // ---------------------------------------------------------------------------
@@ -77,9 +84,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Payload inválido' }, { status: 400 })
   }
 
-  const { id: asaasEventId, event, payment } = body
+  const { id: asaasEventId, event, payment, subscription } = body
 
-  if (!asaasEventId || !event || !payment?.id) {
+  // Eventos SUBSCRIPTION_* trazem body.subscription (não body.payment).
+  // Os demais (PAYMENT_*) trazem body.payment. Ramificamos por prefixo do
+  // evento para não exigir payment.id em cancelamentos de assinatura.
+  const isSubscriptionEvent = typeof event === 'string' && event.startsWith('SUBSCRIPTION_')
+
+  if (!asaasEventId || !event) {
+    return NextResponse.json({ error: 'Payload incompleto' }, { status: 400 })
+  }
+
+  if (isSubscriptionEvent) {
+    if (!subscription?.id) {
+      return NextResponse.json({ error: 'Payload incompleto' }, { status: 400 })
+    }
+  } else if (!payment?.id) {
     return NextResponse.json({ error: 'Payload incompleto' }, { status: 400 })
   }
 
@@ -91,7 +111,7 @@ export async function POST(request: NextRequest) {
     .insert({
       asaas_event_id:   asaasEventId,
       event,
-      asaas_payment_id: payment.id,
+      asaas_payment_id: payment?.id ?? null,
       payload:          body,
     })
 
@@ -106,39 +126,54 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Resolver empresa_id
+  // Em eventos SUBSCRIPTION_*, a chave é subscription.id; nos PAYMENT_*,
+  // payment.subscription. O fallback por customer usa o customer do payload
+  // correspondente.
+  const subscriptionId = isSubscriptionEvent ? subscription?.id : payment?.subscription
+  const customerId = isSubscriptionEvent ? subscription?.customer : payment?.customer
+
   let empresaId: string | null = null
   let empresaPlano: string | null = null
 
-  if (payment.subscription) {
-    const { data: assinatura } = await supabase
+  if (subscriptionId) {
+    const { data: assinatura, error: assinaturaErr } = await supabase
       .from('assinaturas')
       .select('empresa_id')
-      .eq('asaas_subscription_id', payment.subscription)
-      .single()
+      .eq('asaas_subscription_id', subscriptionId)
+      .maybeSingle()
+    if (assinaturaErr) {
+      console.error('[webhook] Erro ao buscar assinatura:', assinaturaErr.message)
+    }
     empresaId = assinatura?.empresa_id ?? null
   }
 
   if (!empresaId) {
-    const { data: empresa } = await supabase
+    const { data: empresa, error: empresaErr } = await supabase
       .from('empresas')
       .select('id, plano')
-      .eq('asaas_customer_id', payment.customer)
-      .single()
+      .eq('asaas_customer_id', customerId ?? '')
+      .maybeSingle()
+    if (empresaErr) {
+      console.error('[webhook] Erro ao buscar empresa por customer:', empresaErr.message)
+    }
     empresaId = empresa?.id ?? null
     empresaPlano = empresa?.plano ?? null
   } else {
-    const { data: empresa } = await supabase
+    const { data: empresa, error: empresaErr } = await supabase
       .from('empresas')
       .select('plano')
       .eq('id', empresaId)
-      .single()
+      .maybeSingle()
+    if (empresaErr) {
+      console.error('[webhook] Erro ao buscar empresa por id:', empresaErr.message)
+    }
     empresaPlano = empresa?.plano ?? null
   }
 
   if (!empresaId) {
     await supabase
       .from('eventos_webhook')
-      .update({ error: `empresa_id não encontrada para customer=${payment.customer}`, processed: true, processed_at: new Date().toISOString() })
+      .update({ error: `empresa_id não encontrada para customer=${customerId ?? '(sem customer)'}`, processed: true, processed_at: new Date().toISOString() })
       .eq('asaas_event_id', asaasEventId)
     return NextResponse.json({ ok: true })
   }
@@ -158,9 +193,9 @@ export async function POST(request: NextRequest) {
     .update({ empresa_id: empresaId })
     .eq('asaas_event_id', asaasEventId)
 
-  // 5. UPSERT em faturas
+  // 5. UPSERT em faturas (somente eventos PAYMENT_*, que carregam payment)
   const faturaStatus = faturasStatusFromEvent(event)
-  if (faturaStatus) {
+  if (faturaStatus && payment?.id) {
     await supabase
       .from('faturas')
       .upsert({
@@ -198,11 +233,11 @@ export async function POST(request: NextRequest) {
       updateAssinatura.dunning_since = new Date().toISOString()
     }
 
-    if (payment.subscription) {
+    if (subscriptionId) {
       await supabase
         .from('assinaturas')
         .update(updateAssinatura)
-        .eq('asaas_subscription_id', payment.subscription)
+        .eq('asaas_subscription_id', subscriptionId)
     }
 
     // Cache de status na empresa (lido pelo gate de acesso)

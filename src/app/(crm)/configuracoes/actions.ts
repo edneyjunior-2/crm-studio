@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getAuthAdmin } from '@/lib/auth'
+import { getAuthAdmin, getAuthUser } from '@/lib/auth'
 import type { StatusEmpresa } from '@/lib/auth'
 import { cancelSubscription } from '@/lib/asaas'
 import { encarregadoSchema } from '@/lib/schemas'
@@ -45,12 +45,16 @@ export interface StatusPagamento {
  *  - status 'cancelado' → já cancelado, sem cobrança ativa → pode (idempotente).
  */
 export async function avaliarPagamento(empresaId: string): Promise<StatusPagamento> {
-  // Garante que o chamador autenticado pertence à empresa solicitada (protege invocação remota)
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não autenticado.')
-  const { data: callerProfile } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).single()
-  if (!callerProfile || callerProfile.empresa_id !== empresaId) throw new Error('Sem permissão.')
+  // Garante que o chamador autenticado pode agir sobre a empresa solicitada
+  // (protege invocação remota). NÃO relemos profiles.empresa_id aqui: para
+  // platform admin esse campo é o tenant FIXO, enquanto getAuthUser() já resolve
+  // o tenant EFETIVO (empresa_ativa_id p/ platform admin, empresa_id p/ comum).
+  // Comparar contra o tenant fixo bloquearia o platform admin no tenant ativo.
+  const { empresaId: empresaIdEfetivo } = await getAuthUser()
+  // Autoriza pelo tenant EFETIVO, que já é o ativo p/ platform admin e o próprio
+  // p/ usuário comum. Assim o platform admin age sobre o tenant ativo, e o admin
+  // comum só sobre o seu — sem nunca usar o tenant fixo do platform admin.
+  if (empresaIdEfetivo !== empresaId) throw new Error('Sem permissão.')
 
   const db = createAdminClient()
 

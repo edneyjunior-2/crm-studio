@@ -72,7 +72,7 @@ export default async function ObraDetailPage({ params }: PageProps) {
 
   const { data: obra, error } = await supabase
     .from('obras')
-    .select('*, clientes(id, razao_social), profiles!responsavel_id(id, full_name)')
+    .select('*, clientes(id, razao_social), responsavel:profiles!responsavel_id(id, full_name)')
     .eq('id', id)
     .single()
 
@@ -123,7 +123,7 @@ export default async function ObraDetailPage({ params }: PageProps) {
   const podeExcluir = perfil?.role === 'admin'
 
   const clienteRaw  = obra.clientes as unknown
-  const respRaw     = (obra as Record<string, unknown>)['profiles!responsavel_id'] as unknown
+  const respRaw     = obra.responsavel as unknown
   const clienteNome = (clienteRaw as { razao_social?: string } | null)?.razao_social ?? null
   const clienteId   = (clienteRaw as { id?: string } | null)?.id ?? null
   const respNome    = (respRaw as { full_name?: string } | null)?.full_name ?? null

@@ -105,7 +105,7 @@ export default async function CalendarioPage({
   // empresaId EFETIVO (empresa_ativa_id p/ platform admin; empresa_id p/ usuário comum)
   const { empresaId } = await getAuthUser()
   if (!empresaId) redirect('/login')
-  const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token').eq('id', user.id).single()
+  const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token').eq('id', user.id).maybeSingle()
   const isGoogleConnected = !!myProfile?.google_refresh_token
   let events: Awaited<ReturnType<typeof listEvents>> = []
 

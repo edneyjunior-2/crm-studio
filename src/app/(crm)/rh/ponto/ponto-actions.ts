@@ -61,7 +61,7 @@ export async function uploadDocumentoPonto(
     .select('id, presente')
     .eq('colaborador_id', colaboradorId)
     .eq('data', data)
-    .single()
+    .maybeSingle()
 
   if (!ponto) return { error: 'Registre a falta antes de anexar o documento.' }
   if (ponto.presente) return { error: 'Documento é permitido apenas para faltas.' }
@@ -101,7 +101,7 @@ export async function removerDocumentoPonto(
     .select('id, documento_path')
     .eq('colaborador_id', colaboradorId)
     .eq('data', data)
-    .single()
+    .maybeSingle()
 
   if (!ponto?.documento_path) return {}
 
@@ -129,7 +129,7 @@ export async function gerarUrlDocumentoPonto(
     .select('documento_path')
     .eq('colaborador_id', colaboradorId)
     .eq('data', data)
-    .single()
+    .maybeSingle()
 
   if (!ponto?.documento_path) return { error: 'Nenhum documento encontrado.' }
 
