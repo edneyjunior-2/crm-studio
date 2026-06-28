@@ -1,19 +1,19 @@
-export const maxDuration = 60 // SINAPI tem milhares de linhas
+export const maxDuration = 60 // SINAPI tem ~15 mil linhas (insumos + composições)
 
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { parseSinapiMatrix, type TipoPreco, type PrecoReferenciaRow } from '@/lib/sinapi'
+import { parseSinapiReferencia } from '@/lib/sinapi'
 
 /**
  * POST /api/obras/sinapi/importar  (platform admin)
- * FormData: arquivo (.xlsx), uf, data_ref (YYYY-MM), tipo (insumo|composicao), fonte?
- * Importa o catálogo SINAPI para precos_referencia (upsert por código).
+ * FormData: arquivo (SINAPI_Referência_AAAA_MM.xlsx), uf, data_ref (AAAA-MM), fonte?
+ * Importa insumos + composições (com e sem desoneração) da UF escolhida.
  */
 export async function POST(req: NextRequest) {
   try {
-    await getAuthPlatformAdmin() // 401/redirect se não for admin da plataforma
+    await getAuthPlatformAdmin()
   } catch {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
@@ -21,42 +21,33 @@ export async function POST(req: NextRequest) {
   const form = await req.formData()
   const file = form.get('arquivo') as File | null
   const uf = (form.get('uf') as string)?.trim().toUpperCase()
-  const dataRefMes = (form.get('data_ref') as string)?.trim() // YYYY-MM
-  const tipo = (form.get('tipo') as string)?.trim() as TipoPreco
+  const dataRefMes = (form.get('data_ref') as string)?.trim()
   const fonte = ((form.get('fonte') as string)?.trim() || 'SINAPI').toUpperCase()
 
-  if (!file || file.size === 0) return NextResponse.json({ error: 'Envie a planilha (.xlsx).' }, { status: 400 })
+  if (!file || file.size === 0) return NextResponse.json({ error: 'Envie o arquivo SINAPI_Referência (.xlsx).' }, { status: 400 })
   if (!uf || uf.length !== 2) return NextResponse.json({ error: 'UF inválida (ex.: BA).' }, { status: 400 })
-  if (!/^\d{4}-\d{2}$/.test(dataRefMes || '')) return NextResponse.json({ error: 'Data de referência inválida (use AAAA-MM).' }, { status: 400 })
-  if (tipo !== 'insumo' && tipo !== 'composicao') return NextResponse.json({ error: 'Tipo deve ser insumo ou composicao.' }, { status: 400 })
+  if (!/^\d{4}-\d{2}$/.test(dataRefMes || '')) return NextResponse.json({ error: 'Mês de referência inválido (use AAAA-MM).' }, { status: 400 })
 
   const data_ref = `${dataRefMes}-01`
 
-  // Lê a planilha → matriz (array de arrays) da primeira aba
-  let matrix: unknown[][]
+  let wb: XLSX.WorkBook
   try {
     const buf = Buffer.from(await file.arrayBuffer())
-    const wb = XLSX.read(buf, { type: 'buffer' })
-    const sheet = wb.Sheets[wb.SheetNames[0]]
-    matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, blankrows: false }) as unknown[][]
+    wb = XLSX.read(buf, { type: 'buffer', cellFormula: true, cellText: true })
   } catch (e) {
     return NextResponse.json({ error: `Falha ao ler a planilha: ${e instanceof Error ? e.message : 'erro'}` }, { status: 400 })
   }
 
-  const { itens, headerRow, aviso } = parseSinapiMatrix(matrix, { fonte, uf, data_ref, tipo })
-  if (headerRow === -1 || itens.length === 0) {
-    return NextResponse.json(
-      { error: aviso ?? 'Nenhum item reconhecido na planilha. Verifique as colunas (Código, Descrição, Custo).' },
-      { status: 422 },
-    )
+  const { itens, resumo, aviso } = parseSinapiReferencia(wb, { fonte, uf, data_ref })
+  if (itens.length === 0) {
+    return NextResponse.json({ error: aviso ?? 'Nenhum item reconhecido na planilha.' }, { status: 422 })
   }
 
-  // Upsert em lote (admin client bypassa RLS; conflito por chave única)
   const db = createAdminClient()
   const CHUNK = 500
   let gravados = 0
   for (let i = 0; i < itens.length; i += CHUNK) {
-    const lote = itens.slice(i, i + CHUNK) as PrecoReferenciaRow[]
+    const lote = itens.slice(i, i + CHUNK)
     const { error } = await db
       .from('precos_referencia')
       .upsert(lote, { onConflict: 'fonte,uf,data_ref,tipo,codigo' })
@@ -66,5 +57,13 @@ export async function POST(req: NextRequest) {
     gravados += lote.length
   }
 
-  return NextResponse.json({ ok: true, gravados, tipo, uf, data_ref, fonte })
+  return NextResponse.json({
+    ok: true,
+    gravados,
+    insumos: resumo.insumo ?? 0,
+    composicoes: resumo.composicao ?? 0,
+    uf,
+    data_ref,
+    fonte,
+  })
 }
