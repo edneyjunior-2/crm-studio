@@ -2,12 +2,13 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import Link from 'next/link'
-import { Search, Trash2, Printer, Plus, Loader2, ArrowLeft } from 'lucide-react'
+import { Search, Trash2, Printer, Plus, Loader2, ArrowLeft, X, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   buscarCatalogo, adicionarItem, atualizarItem, removerItem, atualizarOrcamento, excluirOrcamento,
-  type CatalogoResultado,
+  getOrcamentoPdfData, type CatalogoResultado, type OrcamentoPdfData,
 } from '../actions'
+import { OrcamentoDocumento } from './pdf/orcamento-documento'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -47,7 +48,34 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
   const [termoBuscado, setTermoBuscado] = useState('')
   const [, start] = useTransition()
 
+  // Pré-visualização do PDF em modal (sem o chrome do CRM)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [pdfData, setPdfData] = useState<OrcamentoPdfData | null>(null)
+  const [carregandoPreview, setCarregandoPreview] = useState(false)
+
   const mesRef = orc.data_ref_sinapi ? orc.data_ref_sinapi.slice(0, 7) : ''
+
+  async function abrirPreview() {
+    setPreviewOpen(true)
+    setCarregandoPreview(true)
+    setPdfData(null)
+    const res = await getOrcamentoPdfData(orc.id)
+    if (res.error) {
+      toast.error(res.error)
+      setPreviewOpen(false)
+    } else {
+      setPdfData(res.data ?? null)
+    }
+    setCarregandoPreview(false)
+  }
+
+  // Fecha o modal com Esc
+  useEffect(() => {
+    if (!previewOpen) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setPreviewOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [previewOpen])
 
   function salvarCampo(campos: Partial<Orcamento>) {
     setOrc((o) => ({ ...o, ...campos }))
@@ -147,10 +175,10 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
           <p className="px-1 text-sm text-muted-foreground">Orçamento · {orc.fonte} {orc.uf}{mesRef ? ` · ${mesRef}` : ''}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/obras/orcamentos/${orc.id}/pdf`} target="_blank"
+          <button type="button" onClick={abrirPreview}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted">
             <Printer className="size-4" /> PDF
-          </Link>
+          </button>
           <button type="button"
             onClick={() => salvarCampo({ status: orc.status === 'finalizado' ? 'rascunho' : 'finalizado' })}
             className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:bg-foreground/90">
@@ -292,6 +320,50 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
           onClick={() => { if (confirm('Excluir este orçamento?')) start(async () => { await excluirOrcamento(orc.id) }) }}
           className="text-sm text-destructive hover:underline">Excluir orçamento</button>
       </div>
+
+      {/* Modal de pré-visualização do PDF (sem sidebar/topbar do CRM) */}
+      {previewOpen && (
+        <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 p-2 sm:items-center sm:p-4"
+          onClick={() => setPreviewOpen(false)}>
+          <div onClick={(e) => e.stopPropagation()}
+            className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+            {/* Cabeçalho do modal */}
+            <div className="no-print flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+              <h2 className="font-semibold">Pré-visualização do orçamento</h2>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => window.print()} disabled={!pdfData}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:bg-foreground/90 disabled:opacity-50">
+                  <Printer className="size-4" /> Baixar PDF
+                </button>
+                <button type="button" onClick={() => setPreviewOpen(false)} className="rounded p-1 hover:bg-muted">
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Documento (área rolável) */}
+            <div className="flex-1 overflow-y-auto bg-zinc-100 p-2 sm:p-4">
+              {carregandoPreview || !pdfData ? (
+                <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
+                  <Loader2 className="size-5 animate-spin" /> Carregando…
+                </div>
+              ) : (
+                <div className="rounded-lg shadow-sm">
+                  <OrcamentoDocumento orcamento={pdfData.orcamento} itens={pdfData.itens} empresa={pdfData.empresa} />
+                </div>
+              )}
+            </div>
+
+            {/* Rodapé: fallback abrir em nova aba */}
+            <div className="no-print border-t border-border px-4 py-2 text-right">
+              <Link href={`/obras/orcamentos/${orc.id}/pdf`} target="_blank"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <ExternalLink className="size-3.5" /> Abrir em nova aba
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

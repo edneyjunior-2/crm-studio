@@ -164,3 +164,40 @@ export async function excluirOrcamento(id: string): Promise<{ error?: string }> 
   revalidatePath('/obras/orcamentos')
   redirect('/obras/orcamentos')
 }
+
+export interface OrcamentoPdfData {
+  orcamento: {
+    titulo: string; modelo: string; uf: string; fonte: string; data_ref_sinapi: string | null
+    bdi_percentual: number; desoneracao: boolean; observacoes: string | null
+    cliente: { razao_social: string; cnpj: string | null } | null
+    obra: { nome: string; endereco: string | null } | null
+  }
+  itens: {
+    etapa: string | null; codigo_sinapi: string | null; descricao: string; unidade: string | null
+    quantidade: number; custo_unitario: number; subtotal: number
+  }[]
+  empresa: { nome: string; razao_social: string | null; nome_fantasia: string | null; cnpj: string | null } | null
+}
+
+/** Carrega os dados necessários para a pré-visualização/PDF do orçamento (mesmo shape de /pdf). */
+export async function getOrcamentoPdfData(id: string): Promise<{ data?: OrcamentoPdfData; error?: string }> {
+  const { supabase, empresaId } = await getAuthUser()
+
+  const [{ data: orcamento, error }, { data: itens }, { data: empresa }] = await Promise.all([
+    supabase.from('orcamentos').select('*, cliente:clientes(razao_social, cnpj), obra:obras(nome, endereco)').eq('id', id).single(),
+    supabase.from('orcamento_itens').select('*').eq('orcamento_id', id).order('etapa').order('created_at'),
+    empresaId
+      ? supabase.from('empresas').select('nome, razao_social, nome_fantasia, cnpj').eq('id', empresaId).single()
+      : Promise.resolve({ data: null }),
+  ])
+
+  if (error || !orcamento) return { error: error?.message ?? 'Orçamento não encontrado.' }
+
+  return {
+    data: {
+      orcamento: orcamento as OrcamentoPdfData['orcamento'],
+      itens: (itens ?? []) as OrcamentoPdfData['itens'],
+      empresa: (empresa ?? null) as OrcamentoPdfData['empresa'],
+    },
+  }
+}
