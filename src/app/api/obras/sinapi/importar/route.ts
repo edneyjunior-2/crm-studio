@@ -38,6 +38,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Falha ao ler a planilha: ${e instanceof Error ? e.message : 'erro'}` }, { status: 400 })
   }
 
+  // Verifica se é mesmo o arquivo SINAPI_Referência (tem as abas certas)
+  const temAbas = ['ISD', 'ICD', 'CSD', 'CCD'].some((s) => wb.SheetNames.includes(s))
+  if (!temAbas) {
+    return NextResponse.json({
+      error: `Arquivo incorreto. Use o "SINAPI_Referência_AAAA_MM.xlsx" (com abas de Insumos e Composições). Abas encontradas neste arquivo: ${wb.SheetNames.join(', ')}.`,
+    }, { status: 422 })
+  }
+
   const { itens, resumo, aviso } = parseSinapiReferencia(wb, { fonte, uf, data_ref })
   if (itens.length === 0) {
     return NextResponse.json({ error: aviso ?? 'Nenhum item reconhecido na planilha.' }, { status: 422 })
