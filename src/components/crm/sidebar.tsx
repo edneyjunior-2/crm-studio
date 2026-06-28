@@ -29,6 +29,7 @@ import {
   MessagesSquare,
   UserCheck,
   HardHat,
+  Calculator,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
@@ -155,6 +156,14 @@ const navItems: NavItem[] = [
     modulo: 'obras',
     exactMatch: true,
     tourSlug: 'obras',
+  },
+  {
+    href: '/obras/orcamentos',
+    label: 'Orçamentos',
+    icon: Calculator,
+    modulo: 'obras',
+    isSubItem: true,
+    parentHref: '/obras',
   },
   {
     href: '/contratos',
