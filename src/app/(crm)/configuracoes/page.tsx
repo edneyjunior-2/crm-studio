@@ -42,7 +42,7 @@ export default async function ConfiguracoesPage() {
     empresaId
       ? supabase
           .from('empresas')
-          .select('nome, status, encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso, wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz, sugestao_sdr')
+          .select('nome, status, encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso, sugestao_sdr')
           .eq('id', empresaId)
           .single()
       : Promise.resolve({ data: null, error: null }),
