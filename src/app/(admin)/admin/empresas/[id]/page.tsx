@@ -43,7 +43,7 @@ export default async function EmpresaDetailPage({
   const [{ data: empresa }, { data: apiKeys }, { data: profiles }, { data: sdrRaw }] = await Promise.all([
     db
       .from('empresas')
-      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos, valor_mensalidade, primeiro_acesso_em')
+      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos, valor_mensalidade, primeiro_acesso_em, sugestao_sdr')
       .eq('id', id)
       .single(),
     db
@@ -56,11 +56,11 @@ export default async function EmpresaDetailPage({
       .select('id, full_name, role, created_at')
       .eq('empresa_id', id)
       .order('created_at'),
-    // Query separada para as colunas SDR — falha não afeta o carregamento da página
+    // Persona do SDR vive em clientes_sdr (mesma tabela que o bot lê), não em empresas
     db
-      .from('empresas')
-      .select('wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz, sugestao_sdr')
-      .eq('id', id)
+      .from('clientes_sdr')
+      .select('wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz')
+      .eq('empresa_id', id)
       .maybeSingle(),
   ])
 
@@ -70,7 +70,7 @@ export default async function EmpresaDetailPage({
         nome_escritorio:    (sdrRaw as Record<string, unknown>).nome_escritorio    as string | null,
         nome_assistente:    (sdrRaw as Record<string, unknown>).nome_assistente    as string | null,
         tom_de_voz:         (sdrRaw as Record<string, unknown>).tom_de_voz         as string | null,
-        sugestao_sdr:       (sdrRaw as Record<string, unknown>).sugestao_sdr       as string | null,
+        sugestao_sdr:       (empresa as Record<string, unknown>)?.sugestao_sdr     as string | null,
       }
     : null
 

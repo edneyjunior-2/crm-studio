@@ -36,7 +36,7 @@ export default async function ConfiguracoesPage() {
   // daria vazio/órfão p/ platform admin. (ver atendimento/page.tsx)
   const { empresaId } = await getAuthUser()
 
-  const [profilesResult, authUsersResult, empresaResult] = await Promise.all([
+  const [profilesResult, authUsersResult, empresaResult, sdrResult] = await Promise.all([
     supabase.from('profiles').select('*').order('created_at', { ascending: true }),
     admin.auth.admin.listUsers(),
     empresaId
@@ -46,7 +46,22 @@ export default async function ConfiguracoesPage() {
           .eq('id', empresaId)
           .single()
       : Promise.resolve({ data: null, error: null }),
+    // Persona do SDR vive em clientes_sdr (mesma tabela que o bot lê), não em empresas
+    empresaId
+      ? admin
+          .from('clientes_sdr')
+          .select('wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz')
+          .eq('empresa_id', empresaId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
+
+  const sdr = (sdrResult.data ?? null) as {
+    wa_phone_number_id: string | null
+    nome_escritorio:    string | null
+    nome_assistente:    string | null
+    tom_de_voz:         string | null
+  } | null
 
   // Status de pagamento (faturas em aberto + status da empresa) — calculado no
   // server; o componente usa só para UX. A regra é re-validada no server action.
@@ -191,10 +206,10 @@ export default async function ConfiguracoesPage() {
         <ConfigSdrSection
           ativo={modulosDisponiveis.includes('sdr' as Modulo)}
           config={{
-            wa_phone_number_id: empresa?.wa_phone_number_id ?? null,
-            nome_escritorio:    empresa?.nome_escritorio ?? null,
-            nome_assistente:    empresa?.nome_assistente ?? null,
-            tom_de_voz:         empresa?.tom_de_voz ?? null,
+            wa_phone_number_id: sdr?.wa_phone_number_id ?? null,
+            nome_escritorio:    sdr?.nome_escritorio ?? null,
+            nome_assistente:    sdr?.nome_assistente ?? null,
+            tom_de_voz:         sdr?.tom_de_voz ?? null,
             sugestao_sdr:       empresa?.sugestao_sdr ?? null,
           }}
         />

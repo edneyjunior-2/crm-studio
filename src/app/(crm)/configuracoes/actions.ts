@@ -473,20 +473,38 @@ export async function salvarConfigSdrEmpresa(formData: FormData) {
   const { empresaId } = await getAuthAdmin()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
-  const payload = {
-    wa_phone_number_id: (formData.get('wa_phone_number_id') as string).trim() || null,
-    nome_escritorio:    (formData.get('nome_escritorio')    as string).trim() || null,
-    nome_assistente:    (formData.get('nome_assistente')    as string).trim() || 'Leila',
-    tom_de_voz:         (formData.get('tom_de_voz')         as string).trim() || null,
-  }
+  const waPhone    = (formData.get('wa_phone_number_id') as string)?.trim()
+  const escritorio = (formData.get('nome_escritorio')    as string)?.trim() || null
+  const assistente = (formData.get('nome_assistente')    as string)?.trim() || 'Leila'
+  const tom        = (formData.get('tom_de_voz')         as string)?.trim() || null
+
+  if (!waPhone) return { error: 'Informe o número/ID do WhatsApp (phone_number_id da Meta).' }
 
   const admin = createAdminClient()
-  const { error } = await admin
-    .from('empresas')
-    .update(payload)
-    .eq('id', empresaId)
 
-  if (error) return { error: error.message }
+  // upsert manual: 1 config de SDR por empresa, na MESMA tabela que o bot lê (clientes_sdr)
+  const { data: existente } = await admin
+    .from('clientes_sdr')
+    .select('id')
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+
+  const campos = {
+    wa_phone_number_id: waPhone,
+    nome_escritorio:    escritorio,
+    nome_assistente:    assistente,
+    tom_de_voz:         tom,
+    updated_at:         new Date().toISOString(),
+  }
+
+  const { error } = existente?.id
+    ? await admin.from('clientes_sdr').update(campos).eq('id', existente.id)
+    : await admin.from('clientes_sdr').insert({ empresa_id: empresaId, ...campos })
+
+  if (error) {
+    if (error.code === '23505') return { error: 'Este número de WhatsApp já está vinculado a outra empresa.' }
+    return { error: error.message }
+  }
 
   revalidatePath('/configuracoes')
   return {}
