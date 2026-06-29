@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { BancoForm } from '@/components/crm/financeiro/banco-form'
+import { ExcluirBancoButton } from '@/components/crm/financeiro/excluir-banco-button'
 import { MovimentacaoForm } from '@/components/crm/financeiro/movimentacao-form'
 import { MovimentacoesLista } from '@/components/crm/financeiro/movimentacoes-lista'
 import { PixCopiavel } from '@/components/crm/financeiro/pix-copiavel'
@@ -93,15 +94,22 @@ export default async function BancoDetailPage({ params }: PageProps) {
             )}
           </div>
         </div>
-        <BancoForm
-          banco={banco}
-          trigger={
-            <Button variant="outline" size="sm">
-              <Pencil className="size-4" />
-              Editar
-            </Button>
-          }
-        />
+        <div className="flex items-center gap-2">
+          <BancoForm
+            banco={banco}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Pencil className="size-4" />
+                Editar
+              </Button>
+            }
+          />
+          <ExcluirBancoButton
+            bancoId={banco.id}
+            bancoNome={banco.nome}
+            qtdMovimentacoes={movimentacoes.length}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

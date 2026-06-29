@@ -12,6 +12,8 @@ import {
   GitBranch,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -34,9 +36,11 @@ import {
   createColuna,
   updateColuna,
   deleteColuna,
+  reorderColunas,
   createCard,
   moveCard,
   deleteCard,
+  deleteFluxo,
 } from '@/app/(crm)/onboarding/actions'
 import type { Fluxo, FluxoColuna, FluxoCard } from '@/types'
 
@@ -105,6 +109,7 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin, clientes 
   const [deleteTarget, setDeleteTarget] = useState<
     | { type: 'coluna'; id: string; titulo: string }
     | { type: 'card'; id: string; titulo: string }
+    | { type: 'fluxo'; id: string; titulo: string }
     | null
   >(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -268,6 +273,28 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin, clientes 
     setDeleteConfirmOpen(true)
   }
 
+  // Reordena colunas via setas ◀▶ com update otimista (reorderColunas recebe a
+  // lista de ids na nova ordem).
+  function handleMoveColuna(index: number, dir: -1 | 1) {
+    const target = index + dir
+    if (target < 0 || target >= colunas.length) return
+    const novas = [...colunas]
+    ;[novas[index], novas[target]] = [novas[target], novas[index]]
+    setColunas(novas)
+    startTransition(async () => {
+      const result = await reorderColunas(initialFluxo.id, novas.map((c) => c.id))
+      if (result.error) {
+        toast.error(result.error)
+        router.refresh()
+      }
+    })
+  }
+
+  function handleDeleteFluxo() {
+    setDeleteTarget({ type: 'fluxo', id: initialFluxo.id, titulo: initialFluxo.titulo })
+    setDeleteConfirmOpen(true)
+  }
+
   // ─── Cards ─────────────────────────────────────────────────────────────────
 
   async function handleSaveCard(colunaId: string) {
@@ -312,15 +339,17 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin, clientes 
 
   async function handleConfirmDelete() {
     if (!deleteTarget) return
+    const target = deleteTarget
     setDeleteConfirmOpen(false)
     setDeletingBoard(true)
 
     let result: { error?: string }
-
-    if (deleteTarget.type === 'coluna') {
-      result = await deleteColuna(deleteTarget.id)
+    if (target.type === 'coluna') {
+      result = await deleteColuna(target.id)
+    } else if (target.type === 'card') {
+      result = await deleteCard(target.id)
     } else {
-      result = await deleteCard(deleteTarget.id)
+      result = await deleteFluxo(target.id)
     }
 
     setDeletingBoard(false)
@@ -328,8 +357,14 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin, clientes 
 
     if (result.error) {
       toast.error(result.error)
+      return
+    }
+
+    if (target.type === 'fluxo') {
+      toast.success('Fluxo excluído.')
+      router.push('/onboarding')
     } else {
-      toast.success(deleteTarget.type === 'coluna' ? 'Coluna removida.' : 'Card removido.')
+      toast.success(target.type === 'coluna' ? 'Coluna removida.' : 'Card removido.')
       router.refresh()
     }
   }
@@ -377,22 +412,33 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin, clientes 
         </div>
 
         {canManage && (
-          <FluxoForm
-            fluxo={initialFluxo}
-            trigger={
-              <Button variant="outline" size="sm">
-                <Pencil className="size-3.5" />
-                Editar
-              </Button>
-            }
-            onSuccess={() => router.refresh()}
-          />
+          <div className="flex items-center gap-2">
+            <FluxoForm
+              fluxo={initialFluxo}
+              trigger={
+                <Button variant="outline" size="sm">
+                  <Pencil className="size-3.5" />
+                  Editar
+                </Button>
+              }
+              onSuccess={() => router.refresh()}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDeleteFluxo}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+              Excluir
+            </Button>
+          </div>
         )}
       </div>
 
       {/* Kanban horizontal */}
       <div className="flex gap-3 overflow-x-auto pb-4 min-h-[60vh]">
-        {colunas.map((coluna) => {
+        {colunas.map((coluna, colunaIndex) => {
           const cards = coluna.cards ?? []
           const isDragOver = dragOverColunaId === coluna.id
 
@@ -485,6 +531,30 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin, clientes 
                 <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground shrink-0">
                   {cards.length}
                 </span>
+
+                {/* Reordenar coluna (setas) */}
+                {canManage && colunas.length > 1 && (
+                  <div className="flex shrink-0 items-center">
+                    <button
+                      type="button"
+                      onClick={() => handleMoveColuna(colunaIndex, -1)}
+                      disabled={colunaIndex === 0}
+                      className="rounded p-0.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                      title="Mover para a esquerda"
+                    >
+                      <ChevronLeft className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveColuna(colunaIndex, 1)}
+                      disabled={colunaIndex === colunas.length - 1}
+                      className="rounded p-0.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                      title="Mover para a direita"
+                    >
+                      <ChevronRight className="size-3.5" />
+                    </button>
+                  </div>
+                )}
 
                 {/* Delete coluna */}
                 {canManage && (
@@ -770,12 +840,18 @@ export function FluxoKanbanView({ fluxo: initialFluxo, isOwnerOrAdmin, clientes 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {deleteTarget?.type === 'coluna' ? 'Remover coluna?' : 'Remover card?'}
+              {deleteTarget?.type === 'fluxo'
+                ? 'Excluir fluxo?'
+                : deleteTarget?.type === 'coluna'
+                  ? 'Remover coluna?'
+                  : 'Remover card?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.type === 'coluna'
-                ? `A coluna "${deleteTarget?.titulo}" e todos os seus cards serão removidos permanentemente. Esta ação não pode ser desfeita.`
-                : `O card "${deleteTarget?.titulo}" será removido permanentemente. Esta ação não pode ser desfeita.`}
+              {deleteTarget?.type === 'fluxo'
+                ? `O fluxo "${deleteTarget?.titulo}", com todas as suas colunas e cards, será excluído permanentemente. Esta ação não pode ser desfeita.`
+                : deleteTarget?.type === 'coluna'
+                  ? `A coluna "${deleteTarget?.titulo}" e todos os seus cards serão removidos permanentemente. Esta ação não pode ser desfeita.`
+                  : `O card "${deleteTarget?.titulo}" será removido permanentemente. Esta ação não pode ser desfeita.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
