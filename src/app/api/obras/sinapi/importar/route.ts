@@ -1,7 +1,7 @@
 export const maxDuration = 60 // SINAPI tem ~15 mil linhas (insumos + composições)
 
 import { NextRequest, NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import * as XLSX from '@e965/xlsx'
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseSinapiReferencia } from '@/lib/sinapi'

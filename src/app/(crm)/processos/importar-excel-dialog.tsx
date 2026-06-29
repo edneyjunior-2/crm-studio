@@ -210,7 +210,7 @@ export function ImportarExcelDialog() {
 
   async function parseFile(file: File) {
     try {
-      const { read, utils } = await import('xlsx')
+      const { read, utils } = await import('@e965/xlsx')
       const buf  = await file.arrayBuffer()
       const wb   = read(buf, { type: 'array' })
 

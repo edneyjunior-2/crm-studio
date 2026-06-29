@@ -13,7 +13,7 @@
  *    e o valor exibido da célula é 0 — por isso extraímos o número da fórmula.
  */
 
-import * as XLSX from 'xlsx'
+import * as XLSX from '@e965/xlsx'
 
 export type TipoPreco = 'insumo' | 'composicao'
 
