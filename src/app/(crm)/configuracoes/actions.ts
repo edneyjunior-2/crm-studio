@@ -238,8 +238,7 @@ export async function createUser(
   if (linkError) return { error: linkError.message }
 
   const userId = linkData.user?.id
-  const actionLink = linkData.properties?.action_link
-  if (!userId || !actionLink) return { error: 'Erro ao gerar convite.' }
+  if (!userId) return { error: 'Erro ao criar o usuário.' }
 
   const { error: profileError } = await admin
     .from('profiles')
@@ -251,6 +250,19 @@ export async function createUser(
   }
 
   if (process.env.RESEND_API_KEY) {
+    // Link de ACESSO = 'recovery' → /reset-password (a tela que define a senha).
+    // O action_link do 'invite' NÃO leva a essa tela, então o convidado ficava
+    // sem como criar a senha (bug). recovery é válido p/ o usuário recém-criado
+    // e é o mesmo caminho usado por reenviarConvite.
+    const { data: recoveryData, error: recoveryError } = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.crmstudio.com.br'}/reset-password` },
+    })
+    if (recoveryError) return { error: recoveryError.message }
+    const actionLink = recoveryData.properties?.action_link
+    if (!actionLink) return { error: 'Erro ao gerar o link de acesso.' }
+
     const { Resend } = await import('resend')
     const resend = new Resend(process.env.RESEND_API_KEY)
     const FROM = process.env.EMAIL_FROM ?? 'CRM Studio <nao-responda@crmstudio.com.br>'

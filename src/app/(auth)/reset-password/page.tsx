@@ -24,7 +24,9 @@ export default function ResetPasswordPage() {
     const refreshToken = params.get('refresh_token')
     const type = params.get('type')
 
-    if (type !== 'recovery' || !accessToken || !refreshToken) {
+    // Aceita recovery (esqueci/reenviar) E invite/signup (primeiro acesso) — todos
+    // dão uma sessão temporária para a pessoa DEFINIR a senha aqui.
+    if (!['recovery', 'invite', 'signup'].includes(type ?? '') || !accessToken || !refreshToken) {
       setStatus('invalid')
       return
     }
