@@ -74,6 +74,7 @@ export default async function ConfiguracoesPage() {
   const authUsers = authUsersResult.data?.users ?? []
 
   const emailByUserId = new Map(authUsers.map((u) => [u.id, u.email ?? '']))
+  const pendenteByUserId = new Map(authUsers.map((u) => [u.id, !u.last_sign_in_at]))
 
   const usuarios = profiles.map((p) => ({
     id: p.id,
@@ -83,6 +84,7 @@ export default async function ConfiguracoesPage() {
     cargo: p.cargo ?? null,
     modulos_permitidos: (p as { modulos_permitidos?: string[] | null }).modulos_permitidos ?? null,
     created_at: p.created_at,
+    pendente: pendenteByUserId.get(p.id) ?? false,
   }))
 
   let empresa = empresaResult.data as {

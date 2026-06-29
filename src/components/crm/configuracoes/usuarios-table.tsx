@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Trash2, Users } from 'lucide-react'
+import { Trash2, Users, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -31,7 +31,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { updateUserRole, deleteUser, updateUserCargo, salvarModulosUsuario } from '@/app/(crm)/configuracoes/actions'
+import {
+  updateUserRole,
+  deleteUser,
+  updateUserCargo,
+  salvarModulosUsuario,
+  reenviarConvite,
+  updateUserNome,
+} from '@/app/(crm)/configuracoes/actions'
 import type { Role } from '@/types'
 
 interface UsuarioRow {
@@ -42,6 +49,7 @@ interface UsuarioRow {
   cargo?: string | null
   modulos_permitidos?: string[] | null
   created_at: string
+  pendente?: boolean
 }
 
 const CARGOS_SUGERIDOS = [
@@ -82,10 +90,64 @@ const roleBadge: Record<Role, { label: string; className: string }> = {
 }
 
 function UserAvatar({ name }: { name: string }) {
-  const initial = name.trim().charAt(0).toUpperCase()
+  const initial = (name ?? '?').trim().charAt(0).toUpperCase()
   return (
     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
       {initial}
+    </div>
+  )
+}
+
+function StatusBadge({ pendente }: { pendente: boolean }) {
+  if (pendente) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-400">
+        Pendente
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:border-green-700/50 dark:bg-green-900/20 dark:text-green-400">
+      Ativo
+    </span>
+  )
+}
+
+function NomeInput({ userId, nome: nomeProp }: { userId: string; nome: string }) {
+  const [valor, setValor] = useState(nomeProp ?? '')
+  const [salvando, setSalvando] = useState(false)
+  const [salvo, setSalvo] = useState(false)
+
+  async function handleBlur() {
+    const trimmed = valor.trim()
+    if (trimmed === (nomeProp ?? '').trim() || !trimmed) {
+      // Reverter se em branco
+      if (!trimmed) setValor(nomeProp ?? '')
+      return
+    }
+    setSalvando(true)
+    const result = await updateUserNome(userId, trimmed)
+    setSalvando(false)
+    if (result.error) {
+      toast.error(result.error)
+      setValor(nomeProp ?? '')
+    } else {
+      setSalvo(true)
+      setTimeout(() => setSalvo(false), 2000)
+    }
+  }
+
+  return (
+    <div className="relative">
+      <input
+        value={valor}
+        onChange={(e) => { setValor(e.target.value); setSalvo(false) }}
+        onBlur={handleBlur}
+        placeholder="Nome completo"
+        className="h-8 w-44 rounded-lg border border-border bg-background px-2.5 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-foreground/40"
+      />
+      {salvando && <span className="absolute right-2 top-1.5 text-[10px] text-muted-foreground">salvando…</span>}
+      {salvo    && <span className="absolute right-2 top-1.5 text-[10px] text-chart-5">✓</span>}
     </div>
   )
 }
@@ -161,6 +223,35 @@ function CargoInput({ userId, cargo }: { userId: string; cargo?: string | null }
       {salvando && <span className="absolute right-2 top-1.5 text-[10px] text-muted-foreground">salvando…</span>}
       {salvo    && <span className="absolute right-2 top-1.5 text-[10px] text-chart-5">✓</span>}
     </div>
+  )
+}
+
+function ReenviarConviteButton({ userId, email }: { userId: string; email: string }) {
+  const [isPending, startTransition] = useTransition()
+
+  function handleReenviar() {
+    startTransition(async () => {
+      const result = await reenviarConvite(userId)
+      if (result.error) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(`Convite reenviado para ${email}.`)
+    })
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="text-muted-foreground hover:text-foreground"
+      disabled={isPending}
+      onClick={handleReenviar}
+      title="Reenviar convite"
+    >
+      <Send className="size-3.5" />
+      <span className="sr-only">Reenviar convite</span>
+    </Button>
   )
 }
 
@@ -320,33 +411,38 @@ export function UsuariosTable({ usuarios, currentUserId, modulosEmpresa }: Usuar
         <TableHeader>
           <TableRow>
             <TableHead>Usuário</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>E-mail</TableHead>
             <TableHead>Perfil</TableHead>
             <TableHead>Alterar perfil</TableHead>
             <TableHead>Cargo</TableHead>
             <TableHead>Acesso aos menus</TableHead>
-            <TableHead className="w-16 text-right">Ações</TableHead>
+            <TableHead className="w-20 text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {usuarios.map((u) => {
             const isSelf = u.id === currentUserId
             const badge = roleBadge[u.role]
+            const pendente = u.pendente ?? false
 
             return (
               <TableRow key={u.id}>
                 <TableCell>
                   <div className="flex items-center gap-2.5">
                     <UserAvatar name={u.full_name} />
-                    <span className="font-medium">
-                      {u.full_name}
+                    <div className="flex flex-col gap-0.5">
+                      <NomeInput userId={u.id} nome={u.full_name} />
                       {isSelf && (
-                        <span className="ml-1.5 text-xs text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           (você)
                         </span>
                       )}
-                    </span>
+                    </div>
                   </div>
+                </TableCell>
+                <TableCell>
+                  <StatusBadge pendente={pendente} />
                 </TableCell>
                 <TableCell className="text-muted-foreground">{u.email}</TableCell>
                 <TableCell>
@@ -376,7 +472,8 @@ export function UsuariosTable({ usuarios, currentUserId, modulosEmpresa }: Usuar
                   />
                 </TableCell>
                 <TableCell>
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-end gap-1">
+                    <ReenviarConviteButton userId={u.id} email={u.email} />
                     <DeleteButton
                       userId={u.id}
                       userName={u.full_name}

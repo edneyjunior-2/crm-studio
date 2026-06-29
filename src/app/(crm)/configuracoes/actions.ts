@@ -269,6 +269,69 @@ export async function createUser(
   return {}
 }
 
+/**
+ * Reenvia o convite de acesso para um usuário JÁ existente da mesma empresa.
+ * Como o usuário já existe no Auth, usa um link de 'recovery' (definir/redefinir
+ * senha → acessa o CRM) em vez de 'invite' (que só vale p/ e-mail novo).
+ */
+export async function reenviarConvite(userId: string): Promise<{ error?: string }> {
+  const { supabase, user: adminUser, empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const admin = createAdminClient()
+
+  // Segurança multi-tenant: o alvo precisa ser da mesma empresa do admin.
+  const { data: alvo } = await admin
+    .from('profiles')
+    .select('full_name, empresa_id')
+    .eq('id', userId)
+    .single()
+  if (!alvo || alvo.empresa_id !== empresaId) {
+    return { error: 'Usuário não encontrado nesta empresa.' }
+  }
+
+  const { data: authData, error: getErr } = await admin.auth.admin.getUserById(userId)
+  const email = authData?.user?.email
+  if (getErr || !email) return { error: 'E-mail do usuário não encontrado.' }
+
+  if (!process.env.RESEND_API_KEY) {
+    return { error: 'Envio de e-mail não está configurado no servidor.' }
+  }
+
+  // Link de acesso (definir senha) — válido para usuário já existente.
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+    type: 'recovery',
+    email,
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.crmstudio.com.br'}/reset-password`,
+    },
+  })
+  if (linkError) return { error: linkError.message }
+  const actionLink = linkData.properties?.action_link
+  if (!actionLink) return { error: 'Erro ao gerar o link de convite.' }
+
+  const [{ data: adminProfile }, { data: empresa }] = await Promise.all([
+    supabase.from('profiles').select('full_name').eq('id', adminUser.id).single(),
+    admin.from('empresas').select('nome').eq('id', empresaId).single(),
+  ])
+
+  const { Resend } = await import('resend')
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const FROM = process.env.EMAIL_FROM ?? 'CRM Studio <nao-responda@crmstudio.com.br>'
+  const adminName = adminProfile?.full_name ?? 'Administrador'
+  const empresaNome = empresa?.nome ?? 'CRM Studio'
+
+  const { error: sendErr } = await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `${adminName} reenviou seu convite para o CRM Studio`,
+    html: buildInviteHtml({ adminName, empresaNome, inviteLink: actionLink, fullName: alvo.full_name ?? '' }),
+  })
+  if (sendErr) return { error: 'Falha ao enviar o e-mail. Tente novamente.' }
+
+  return {}
+}
+
 const NAVY  = '#14233A'
 const AMBER = '#E8915B'
 const BONE  = '#ECEAE3'
@@ -352,6 +415,33 @@ export async function updateUserRole(
     .update({ role })
     .eq('id', userId)
 
+  if (error) return { error: error.message }
+
+  revalidatePath('/configuracoes')
+  return {}
+}
+
+export async function updateUserNome(
+  userId: string,
+  nome: string,
+): Promise<{ error?: string }> {
+  const { supabase, empresaId } = await getAuthAdmin()
+
+  const nomeTrimmed = nome.trim().slice(0, 120)
+  if (!nomeTrimmed) return { error: 'O nome não pode ficar em branco.' }
+
+  // Garante que o usuário alvo pertence à mesma empresa
+  const { data: target } = await supabase
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', userId)
+    .single()
+  if (!target || target.empresa_id !== empresaId) return { error: 'Usuário não encontrado.' }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ full_name: nomeTrimmed })
+    .eq('id', userId)
   if (error) return { error: error.message }
 
   revalidatePath('/configuracoes')
