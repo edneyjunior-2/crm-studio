@@ -85,6 +85,7 @@ export default async function ObraDetailPage({ params }: PageProps) {
     { data: membros },
     { data: equipeRaw },
     { data: colaboradoresRaw },
+    { data: orcamentosRaw },
   ] = await Promise.all([
     supabase.from('obras_etapas').select('*').eq('obra_id', id).order('ordem').order('created_at'),
     supabase.from('obras_medicoes').select('*').eq('obra_id', id).order('numero_medicao'),
@@ -100,6 +101,11 @@ export default async function ObraDetailPage({ params }: PageProps) {
       .select('id, nome, cargo')
       .eq('status', 'ativo')
       .order('nome', { ascending: true }),
+    supabase
+      .from('orcamentos')
+      .select('id, titulo, total, status')
+      .eq('obra_id', id)
+      .order('created_at', { ascending: false }),
   ])
 
   const equipe = (equipeRaw ?? []).map((e) => {
@@ -121,6 +127,22 @@ export default async function ObraDetailPage({ params }: PageProps) {
   }))
 
   const podeExcluir = perfil?.role === 'admin'
+
+  const orcamentos = (orcamentosRaw ?? []).map((o) => ({
+    id:     o.id as string,
+    titulo: o.titulo as string,
+    total:  o.total as number | null,
+    status: o.status as string,
+  }))
+
+  const STATUS_ORC_LABEL: Record<string, string> = {
+    rascunho:  'Rascunho',
+    finalizado: 'Finalizado',
+  }
+  const STATUS_ORC_CLASS: Record<string, string> = {
+    rascunho:   'bg-muted text-muted-foreground',
+    finalizado: 'bg-green-500/10 text-green-700 dark:text-green-400',
+  }
 
   const clienteRaw  = obra.clientes as unknown
   const respRaw     = obra.responsavel as unknown
@@ -210,6 +232,35 @@ export default async function ObraDetailPage({ params }: PageProps) {
             <p className="text-xs font-medium text-muted-foreground">Observações</p>
             <p className="mt-1 text-sm text-foreground">{obra.descricao as string}</p>
           </div>
+        )}
+      </div>
+
+      {/* Orçamentos vinculados */}
+      <div className="rounded-xl border border-border bg-card p-6">
+        <h2 className="mb-4 text-sm font-semibold text-foreground">Orçamentos</h2>
+        {orcamentos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum orçamento para esta obra.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {orcamentos.map((o) => (
+              <li key={o.id}>
+                <Link
+                  href={`/obras/orcamentos/${o.id}`}
+                  className="flex items-center justify-between gap-4 py-3 text-sm transition-colors hover:text-primary"
+                >
+                  <span className="min-w-0 flex-1 truncate font-medium">{o.titulo}</span>
+                  <span className="whitespace-nowrap tabular-nums text-muted-foreground">
+                    {o.total != null
+                      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(o.total)
+                      : '—'}
+                  </span>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_ORC_CLASS[o.status] ?? 'bg-muted text-muted-foreground'}`}>
+                    {STATUS_ORC_LABEL[o.status] ?? o.status}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 

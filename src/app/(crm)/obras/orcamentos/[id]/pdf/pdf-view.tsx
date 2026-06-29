@@ -14,7 +14,9 @@ export function OrcamentoPdfView({ orcamento, itens, empresa, usuarioNome }: {
           <Printer className="size-4" /> Imprimir / Salvar PDF
         </button>
       </div>
-      <OrcamentoDocumento orcamento={orcamento} itens={itens} empresa={empresa} usuarioNome={usuarioNome} />
+      <div className="overflow-x-auto">
+        <OrcamentoDocumento orcamento={orcamento} itens={itens} empresa={empresa} usuarioNome={usuarioNome} />
+      </div>
     </div>
   )
 }

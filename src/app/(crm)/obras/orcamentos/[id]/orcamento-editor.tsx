@@ -196,7 +196,7 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
       </div>
 
       {/* Configurações */}
-      <div className="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-4">
+      <div className="grid gap-4 rounded-xl border border-border bg-card p-4 sm:grid-cols-5">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium">Modelo</span>
           <select value={orc.modelo} onChange={(e) => salvarCampo({ modelo: e.target.value })}
@@ -216,6 +216,16 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
             onChange={(e) => setOrc((o) => ({ ...o, bdi_percentual: Number(e.target.value) }))}
             onBlur={(e) => salvarCampo({ bdi_percentual: Number(e.target.value) })}
             className="rounded-lg border border-border bg-background px-3 py-2" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Cliente</span>
+          <select value={orc.cliente_id ?? ''} onChange={(e) => salvarCampo({ cliente_id: e.target.value || null })}
+            className="rounded-lg border border-border bg-background px-3 py-2">
+            <option value="">— Sem cliente —</option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>{c.razao_social}</option>
+            ))}
+          </select>
         </label>
         <label className="flex items-center gap-2 self-end text-sm">
           <input type="checkbox" checked={orc.desoneracao} onChange={(e) => salvarCampo({ desoneracao: e.target.checked })} />
