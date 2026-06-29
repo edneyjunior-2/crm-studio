@@ -126,5 +126,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|html)$).*)',
+    // O matcher geral exclui .html; esta entrada extra força o middleware a rodar
+    // em /contratos/* (gerador estático da Aurum, contém PII) p/ exigir login.
+    // ponytail: fecha o acesso anônimo (o furo real). Tenant-scoping fino (só
+    // Aurum) fica pro gerador white-label por tenant — upgrade path documentado.
+    '/contratos/:path*',
   ],
 }
