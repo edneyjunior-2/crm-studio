@@ -4,6 +4,7 @@ import type { PlanoEmpresa, StatusEmpresa } from '@/lib/auth'
 import { CheckCircle2, XCircle, Clock, AlertTriangle, CreditCard, Check, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { AssinaturaForm } from './assinatura-form'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ---------------------------------------------------------------------------
 // Dados de configuração (estáticos — nunca vêm do banco)
@@ -109,7 +110,24 @@ function formatarLimite(valor: number): string {
 // ---------------------------------------------------------------------------
 
 export default async function AssinaturaPage() {
-  const { plano: planoAtual, status } = await getAuthUser()
+  const { plano: planoAtual, status, empresaId } = await getAuthUser()
+
+  // Fatura em aberto (link de pagamento do Asaas): garante um caminho de
+  // regularização DENTRO do app. Antes, 'atrasado'/'pendente' não tinham botão
+  // de pagar — o cliente dependia só do e-mail externo do Asaas (beco sem saída).
+  let faturaUrl: string | null = null
+  if (empresaId) {
+    const { data: fatura } = await createAdminClient()
+      .from('faturas')
+      .select('invoice_url')
+      .eq('empresa_id', empresaId)
+      .in('status', ['pendente', 'vencida'])
+      .not('invoice_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    faturaUrl = (fatura?.invoice_url as string | null) ?? null
+  }
 
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.suspenso
   const StatusIcon = statusCfg.icon
@@ -134,6 +152,24 @@ export default async function AssinaturaPage() {
             <p className={`mt-0.5 text-sm ${statusCfg.textClass} opacity-80`}>{statusCfg.mensagem}</p>
           </div>
         </div>
+
+        {/* Pagamento em aberto — link de pagamento do Asaas (caminho de regularização) */}
+        {faturaUrl && (
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-5 py-4 text-center">
+            <p className="text-sm font-medium text-foreground">
+              Você tem um pagamento em aberto. Use o link abaixo para regularizar e manter o acesso.
+            </p>
+            <a
+              href={faturaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-sidebar-primary px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <CreditCard className="size-4" aria-hidden />
+              Pagar agora
+            </a>
+          </div>
+        )}
 
         {/* Título da seção */}
         <div className="text-center">
