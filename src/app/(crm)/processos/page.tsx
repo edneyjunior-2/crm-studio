@@ -8,6 +8,7 @@ import { ProcessosPageContent } from './processos-page-content'
 import { SincronizarDataJudButton } from './sincronizar-datajud-button'
 import { ProcessosTabs } from './processos-tabs'
 import { ProcessosArquivados } from './processos-arquivados'
+import { PrazosAVencer } from './prazos-a-vencer'
 import type { ProcessoStats } from './processos-dashboard'
 
 // ---------------------------------------------------------------------------
@@ -168,6 +169,43 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
     naoLidosPorProcessoRaw = []
   }
 
+  // --- Prazos a vencer (próximos 30 dias + vencidos) ---
+  type PrazoRow = {
+    id: string
+    processo_id: string
+    descricao: string
+    data_prazo: string
+    processos_juridicos: { numero_processo: string } | null
+    profiles: { full_name: string } | null
+  }
+
+  let prazos: PrazoRow[] = []
+  try {
+    const hoje = new Date()
+    const corte = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 30)
+    const corteStr = `${corte.getFullYear()}-${String(corte.getMonth() + 1).padStart(2, '0')}-${String(corte.getDate()).padStart(2, '0')}`
+
+    const { data: prazosData } = await supabase
+      .from('processos_prazos')
+      .select(`
+        id,
+        processo_id,
+        descricao,
+        data_prazo,
+        processos_juridicos(numero_processo),
+        profiles!responsavel_id(full_name)
+      `)
+      .eq('cumprido', false)
+      .lte('data_prazo', corteStr)
+      .order('data_prazo', { ascending: true })
+      .limit(20)
+
+    prazos = (prazosData ?? []) as unknown as PrazoRow[]
+  } catch {
+    prazos = []
+  }
+  // -------------------------------------------------------
+
   const [
     { count: totalNaoLidosCount },
     { data: advogados },
@@ -286,6 +324,9 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
         totalAtivos={isArquivadosTab ? (processosNorm.length + totalAtivos) : processosNorm.length}
         totalArquivados={totalArquivados ?? 0}
       />
+
+      {/* Prazos a vencer — widget de urgência */}
+      <PrazosAVencer prazos={prazos} />
 
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
