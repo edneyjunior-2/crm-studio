@@ -39,7 +39,10 @@ export default async function ConfiguracoesPage() {
 
   const [profilesResult, authUsersResult, empresaResult, sdrResult] = await Promise.all([
     supabase.from('profiles').select('*').order('created_at', { ascending: true }),
-    admin.auth.admin.listUsers(),
+    // E-mail + último acesso vêm da view profiles_auth (banco, via service_role),
+    // NÃO de auth.admin.listUsers() (GoTrue) — que falhava em prod e zerava todos
+    // os e-mails. Ver migration 20260629160000_profiles_auth_view.
+    admin.from('profiles_auth').select('id, email, last_sign_in_at'),
     empresaId
       ? supabase
           .from('empresas')
@@ -71,10 +74,10 @@ export default async function ConfiguracoesPage() {
     : null
 
   const profiles: Profile[] = (profilesResult.data ?? []) as Profile[]
-  const authUsers = authUsersResult.data?.users ?? []
+  const authInfo = (authUsersResult.data ?? []) as { id: string; email: string | null; last_sign_in_at: string | null }[]
 
-  const emailByUserId = new Map(authUsers.map((u) => [u.id, u.email ?? '']))
-  const pendenteByUserId = new Map(authUsers.map((u) => [u.id, !u.last_sign_in_at]))
+  const emailByUserId = new Map(authInfo.map((u) => [u.id, u.email ?? '']))
+  const pendenteByUserId = new Map(authInfo.map((u) => [u.id, !u.last_sign_in_at]))
 
   const usuarios = profiles.map((p) => ({
     id: p.id,
