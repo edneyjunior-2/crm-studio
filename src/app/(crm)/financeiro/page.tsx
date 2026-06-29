@@ -288,21 +288,23 @@ async function FinanceiroContent() {
       </div>
 
       <Tabs defaultValue="pagar">
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="pagar">Contas a Pagar</TabsTrigger>
-            <TabsTrigger value="receber">Contas a Receber</TabsTrigger>
-            <TabsTrigger value="comissoes">
-              Comissões
-              {totalComissoesPrevistos > 0 && (
-                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-medium text-amber-700">
-                  {comissoesList.filter((c) => c.status === 'previsto').length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>
-            <TabsTrigger value="parceiros">Parceiros</TabsTrigger>
-          </TabsList>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="overflow-x-auto">
+            <TabsList>
+              <TabsTrigger value="pagar">Contas a Pagar</TabsTrigger>
+              <TabsTrigger value="receber">Contas a Receber</TabsTrigger>
+              <TabsTrigger value="comissoes">
+                Comissões
+                {totalComissoesPrevistos > 0 && (
+                  <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-medium text-amber-700">
+                    {comissoesList.filter((c) => c.status === 'previsto').length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>
+              <TabsTrigger value="parceiros">Parceiros</TabsTrigger>
+            </TabsList>
+          </div>
 
           <div>
             <TabsContent value="pagar">

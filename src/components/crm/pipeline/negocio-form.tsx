@@ -182,7 +182,7 @@ export function NegocioForm({
                   )}
                 </SelectTrigger>
                 <SelectContent>
-                  {ESTAGIOS.map((e) => (
+                  {(negocio ? ESTAGIOS : ESTAGIOS.filter((e) => !e.value.startsWith('fechado_'))).map((e) => (
                     <SelectItem key={e.value} value={e.value}>
                       {e.label}
                     </SelectItem>
