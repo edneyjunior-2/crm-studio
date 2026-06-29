@@ -63,6 +63,33 @@ export async function uploadDocumento(
   return { documento: { ...doc, autor_nome: null } }
 }
 
+/**
+ * Gera uma URL assinada (60s) para abrir/baixar um documento do processo.
+ * O bucket `processos-docs` é privado. O storage_path vem do BANCO (RLS isola
+ * por tenant) — nunca de parâmetro do cliente.
+ */
+export async function gerarUrlDownloadDocumento(
+  docId: string,
+): Promise<{ url?: string; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado.' }
+
+  const { data: doc, error } = await supabase
+    .from('processos_documentos')
+    .select('storage_path')
+    .eq('id', docId)
+    .maybeSingle()
+  if (error) return { error: error.message }
+  if (!doc) return { error: 'Documento não encontrado.' }
+
+  const { data: signed, error: signErr } = await supabase.storage
+    .from('processos-docs')
+    .createSignedUrl(doc.storage_path, 60)
+  if (signErr) return { error: signErr.message }
+  return { url: signed?.signedUrl }
+}
+
 export async function excluirDocumento(
   docId: string,
   storagePath: string,

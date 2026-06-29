@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
-import { FileText, Upload, Trash2, File, Loader2 } from 'lucide-react'
-import { uploadDocumento, excluirDocumento, type DocItem } from './doc-actions'
+import { FileText, Upload, Trash2, File, Loader2, Download } from 'lucide-react'
+import { uploadDocumento, excluirDocumento, gerarUrlDownloadDocumento, type DocItem } from './doc-actions'
 
 function formatBytes(bytes: number | null) {
   if (!bytes) return '—'
@@ -27,7 +27,17 @@ export function DocumentosSection({ processoId, documentos: inicial }: Props) {
   const [erro, setErro]             = useState<string | null>(null)
   const [uploading, startUpload]    = useTransition()
   const [deleting, startDelete]     = useTransition()
+  const [baixandoId, setBaixandoId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  async function handleDownload(docId: string) {
+    setErro(null)
+    setBaixandoId(docId)
+    const res = await gerarUrlDownloadDocumento(docId)
+    setBaixandoId(null)
+    if (res.error) { setErro(res.error); return }
+    if (res.url) window.open(res.url, '_blank', 'noopener,noreferrer')
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -97,6 +107,16 @@ export function DocumentosSection({ processoId, documentos: inicial }: Props) {
                   {doc.autor_nome ? ` · ${doc.autor_nome}` : ''}
                 </p>
               </div>
+              <button
+                onClick={() => handleDownload(doc.id)}
+                disabled={baixandoId === doc.id}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:opacity-40"
+                title="Baixar / abrir documento"
+              >
+                {baixandoId === doc.id
+                  ? <Loader2 className="size-3.5 animate-spin" />
+                  : <Download className="size-3.5" />}
+              </button>
               <button
                 onClick={() => handleDelete(doc.id, doc.storage_path)}
                 disabled={deleting}
