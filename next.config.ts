@@ -7,12 +7,37 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react', '@base-ui/react'],
   },
   async headers() {
+    // CSP em modo REPORT-ONLY: não bloqueia nada ainda — só reporta violações no
+    // console do navegador. Política-alvo realista (o client só fala com self +
+    // Supabase: API/storage/auth + realtime via wss). 'unsafe-inline'/'unsafe-eval'
+    // em script-src porque o Next/React injetam bootstrap inline; a proteção vem de
+    // não permitir origens de script externas, object-src 'none', base-uri 'self' e
+    // o allowlist de connect-src (barra exfiltração p/ domínio do atacante).
+    // VALIDAR no console e, sem violações legítimas, trocar o header para
+    // 'Content-Security-Policy' (enforce).
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'self'",
+      "form-action 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://*.supabase.co",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      "frame-src 'self'",
+      "worker-src 'self' blob:",
+      "manifest-src 'self'",
+    ].join('; ')
+
     // Headers de segurança aplicados a todas as rotas (exceto X-Frame-Options, tratado abaixo).
     const baseSecurity = [
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+      { key: 'Content-Security-Policy-Report-Only', value: csp },
     ]
     return [
       { source: '/(.*)', headers: baseSecurity },
