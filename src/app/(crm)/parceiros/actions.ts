@@ -131,10 +131,12 @@ export async function salvarParceiroDoContrato(input: {
   // Deduplicação por documento
   let existenteId: string | null = null
   if (cnpj) {
-    const { data } = await supabase.from('parceiros').select('id').eq('cnpj', cnpj).limit(1).maybeSingle()
+    const { data, error } = await supabase.from('parceiros').select('id').eq('cnpj', cnpj).limit(1).maybeSingle()
+    if (error) return { error: error.message }
     existenteId = data?.id ?? null
   } else if (cpf) {
-    const { data } = await supabase.from('parceiros').select('id').eq('cpf', cpf).limit(1).maybeSingle()
+    const { data, error } = await supabase.from('parceiros').select('id').eq('cpf', cpf).limit(1).maybeSingle()
+    if (error) return { error: error.message }
     existenteId = data?.id ?? null
   }
 

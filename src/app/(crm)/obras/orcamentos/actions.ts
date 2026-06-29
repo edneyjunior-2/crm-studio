@@ -57,7 +57,14 @@ async function recalcularTotal(orcamentoId: string) {
   const custoDireto = (itens ?? []).reduce((s, i) => s + Number(i.subtotal ?? 0), 0)
   const bdi = Number(orc?.bdi_percentual ?? 0)
   const total = Math.round(custoDireto * (1 + bdi / 100) * 100) / 100
-  await supabase.from('orcamentos').update({ total, updated_at: new Date().toISOString() }).eq('id', orcamentoId)
+  const { error } = await supabase
+    .from('orcamentos')
+    .update({ total, updated_at: new Date().toISOString() })
+    .eq('id', orcamentoId)
+  if (error) {
+    console.error('Erro ao recalcular total do orçamento:', error)
+    throw new Error(`Falha ao gravar o total do orçamento: ${error.message}`)
+  }
 }
 
 export async function criarOrcamento(formData: FormData): Promise<{ error?: string }> {

@@ -37,10 +37,28 @@ const ibmPlexMono = IBM_Plex_Mono({
   display: 'swap',
 })
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.crmstudio.com.br'
+
+const title = 'CRM Studio · Vendas, financeiro e equipe em um só lugar'
+const description =
+  'CRM brasileiro para PMEs: pipeline de vendas, módulo financeiro e calendário integrado ao Google. Organize seu time comercial sem planilha.'
+
 export const metadata: Metadata = {
-  title: 'CRM Studio · Vendas, financeiro e equipe em um só lugar',
-  description:
-    'CRM brasileiro para PMEs: pipeline de vendas, módulo financeiro e calendário integrado ao Google. Organize seu time comercial sem planilha.',
+  metadataBase: new URL(siteUrl),
+  title,
+  description,
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    siteName: 'CRM Studio',
+    title,
+    description,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title,
+    description,
+  },
   icons: {
     icon: [
       { url: '/brand/CRM-Studio-favicon.svg', type: 'image/svg+xml' },

@@ -4,7 +4,7 @@ import { Reveal } from '@/components/marketing/motion'
 
 export const metadata = {
   title: 'Preços · CRM Studio',
-  description: 'Preço fixo por empresa, módulos que se adaptam ao seu negócio. Trial de 14 dias, sem cartão.',
+  description: 'Preço fixo por empresa, módulos que se adaptam ao seu negócio. 14 dias grátis, sem cartão.',
 }
 
 const PLANOS = [

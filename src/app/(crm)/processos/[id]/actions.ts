@@ -175,12 +175,13 @@ export async function arquivarProcesso(
 
   if (error) return { error: error.message }
 
-  await supabase.from('movimentacoes_internas_processo').insert({
+  const { error: errTimeline } = await supabase.from('movimentacoes_internas_processo').insert({
     processo_id: processoId,
     autor_id:    user.id,
     assunto:     `Processo arquivado — ${motivo.trim()}`,
     descricao:   descricao?.trim() || null,
   })
+  if (errTimeline) console.error('falha ao registrar timeline:', errTimeline)
 
   revalidatePath(`/processos/${processoId}`)
   revalidatePath('/processos')
@@ -206,12 +207,13 @@ export async function concluirProcesso(
 
   if (error) return { error: error.message }
 
-  await supabase.from('movimentacoes_internas_processo').insert({
+  const { error: errTimeline } = await supabase.from('movimentacoes_internas_processo').insert({
     processo_id: processoId,
     autor_id:    user.id,
     assunto:     `Processo concluído — ${motivo.trim()}`,
     descricao:   descricao?.trim() || null,
   })
+  if (errTimeline) console.error('falha ao registrar timeline:', errTimeline)
 
   revalidatePath(`/processos/${processoId}`)
   revalidatePath('/processos')
@@ -237,12 +239,13 @@ export async function reativarProcesso(
 
   if (error) return { error: error.message }
 
-  await supabase.from('movimentacoes_internas_processo').insert({
+  const { error: errTimeline } = await supabase.from('movimentacoes_internas_processo').insert({
     processo_id: processoId,
     autor_id:    user.id,
     assunto:     `Processo reativado — ${motivo.trim()}`,
     descricao:   descricao?.trim() || null,
   })
+  if (errTimeline) console.error('falha ao registrar timeline:', errTimeline)
 
   revalidatePath(`/processos/${processoId}`)
   revalidatePath('/processos')

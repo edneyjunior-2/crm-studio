@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buscarProcessoDataJud } from '@/lib/datajud'
 import { sendNovasMovimentacoesEmail } from '@/lib/email'
+import { verificarCronSecret } from '@/lib/cron-auth'
 
 export const maxDuration = 300 // 5 min (Vercel Pro)
 
@@ -19,10 +20,8 @@ export async function POST(req: NextRequest) {
 }
 
 async function handler(req: NextRequest) {
-  // Proteção por secret
-  const auth = req.headers.get('authorization') ?? ''
-  const secret = process.env.CRON_SECRET
-  if (!secret || auth !== `Bearer ${secret}`) {
+  // Proteção por secret (comparação timing-safe — ver src/lib/cron-auth.ts)
+  if (!verificarCronSecret(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -43,7 +43,13 @@ export async function POST(req: NextRequest) {
   if (existing) {
     // Já existe — só vincula ao cliente se necessário
     if (body.cliente_id) {
-      await supabase.from('clientes').update({ parceiro_id: existing.id }).eq('id', body.cliente_id)
+      const { error: vinculoError } = await supabase
+        .from('clientes')
+        .update({ parceiro_id: existing.id })
+        .eq('id', body.cliente_id)
+      if (vinculoError) {
+        return NextResponse.json({ error: vinculoError.message }, { status: 500 })
+      }
     }
     return NextResponse.json({ ...existing, ja_existia: true })
   }
@@ -63,7 +69,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.cliente_id) {
-    await supabase.from('clientes').update({ parceiro_id: parceiro.id }).eq('id', body.cliente_id)
+    const { error: vinculoError } = await supabase
+      .from('clientes')
+      .update({ parceiro_id: parceiro.id })
+      .eq('id', body.cliente_id)
+    if (vinculoError) {
+      return NextResponse.json({ error: vinculoError.message }, { status: 500 })
+    }
   }
 
   return NextResponse.json(parceiro, { status: 201 })

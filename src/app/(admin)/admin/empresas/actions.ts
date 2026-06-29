@@ -203,7 +203,10 @@ export async function criarEmpresa(
 // Atualizar status / plano de uma empresa
 // ---------------------------------------------------------------------------
 
-export async function atualizarEmpresa(empresaId: string, formData: FormData) {
+export async function atualizarEmpresa(
+  empresaId: string,
+  formData: FormData,
+): Promise<void> {
   await getAuthPlatformAdmin()
 
   const status = formData.get('status') as string | null
@@ -216,7 +219,8 @@ export async function atualizarEmpresa(empresaId: string, formData: FormData) {
   if (!Object.keys(updates).length) return
 
   const db = createAdminClient()
-  await db.from('empresas').update(updates).eq('id', empresaId)
+  const { error } = await db.from('empresas').update(updates).eq('id', empresaId)
+  if (error) { console.error('atualizarEmpresa:', error.message); return }
 
   revalidatePath(`/admin/empresas/${empresaId}`)
 }
@@ -320,7 +324,10 @@ export async function salvarConfigSdr(
 //   vendas     → nenhum extra
 // ---------------------------------------------------------------------------
 
-export async function atualizarAreaAtuacao(empresaId: string, formData: FormData) {
+export async function atualizarAreaAtuacao(
+  empresaId: string,
+  formData: FormData,
+): Promise<void> {
   await getAuthPlatformAdmin()
 
   const area = formData.get('tipo_atuacao') as string | null
@@ -328,11 +335,15 @@ export async function atualizarAreaAtuacao(empresaId: string, formData: FormData
 
   const db = createAdminClient()
 
-  const { data: emp } = await db
+  const { data: emp, error: readErr } = await db
     .from('empresas')
     .select('modulos_ativos')
     .eq('id', empresaId)
     .single()
+
+  // Se a leitura falhar, NÃO prosseguir: usar `?? []` aqui zeraria os módulos
+  // existentes (perderíamos os módulos não-verticais já ativos da empresa).
+  if (readErr) { console.error('atualizarAreaAtuacao (read):', readErr.message); return }
 
   // Remove módulos verticais anteriores e adiciona o novo
   let novos: string[] = (emp?.modulos_ativos ?? []).filter(
@@ -342,7 +353,8 @@ export async function atualizarAreaAtuacao(empresaId: string, formData: FormData
   if (area === 'advocacia')  novos = [...novos, 'processos']
   if (area === 'engenharia') novos = [...novos, 'obras']
 
-  await db.from('empresas').update({ modulos_ativos: novos }).eq('id', empresaId)
+  const { error } = await db.from('empresas').update({ modulos_ativos: novos }).eq('id', empresaId)
+  if (error) { console.error('atualizarAreaAtuacao (update):', error.message); return }
 
   revalidatePath(`/admin/empresas/${empresaId}`)
 }
@@ -359,10 +371,11 @@ export async function salvarValorMensalidade(
 
   const rawValor = (formData.get('valor_mensalidade') as string ?? '').replace(/\./g, '').replace(',', '.')
   const valor = parseFloat(rawValor)
-  if (isNaN(valor) || valor < 0) return
+  if (isNaN(valor) || valor < 0) { console.warn('salvarValorMensalidade: valor inválido', rawValor); return }
 
   const db = createAdminClient()
-  await db.from('empresas').update({ valor_mensalidade: valor }).eq('id', empresaId)
+  const { error } = await db.from('empresas').update({ valor_mensalidade: valor }).eq('id', empresaId)
+  if (error) { console.error('salvarValorMensalidade:', error.message); return }
 
   revalidatePath(`/admin/empresas/${empresaId}`)
   revalidatePath('/admin')
@@ -525,11 +538,15 @@ export async function gerarLinkAcesso(
 // Revogar API key
 // ---------------------------------------------------------------------------
 
-export async function revogarApiKey(keyId: string, empresaId: string) {
+export async function revogarApiKey(
+  keyId: string,
+  empresaId: string,
+): Promise<void> {
   await getAuthPlatformAdmin()
 
   const db = createAdminClient()
-  await db.from('api_keys').delete().eq('id', keyId).eq('empresa_id', empresaId)
+  const { error } = await db.from('api_keys').delete().eq('id', keyId).eq('empresa_id', empresaId)
+  if (error) { console.error('revogarApiKey:', error.message); return }
 
   revalidatePath(`/admin/empresas/${empresaId}`)
 }

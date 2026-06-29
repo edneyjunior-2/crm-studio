@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendAlertaInterno } from '@/lib/email'
+import { verificarCronSecret } from '@/lib/cron-auth'
 
 export const maxDuration = 300 // 5 min (Vercel Pro)
 
@@ -28,14 +28,6 @@ const AVISO_DIAS = 7
 // Para onde vão os alertas internos (dono da plataforma). Configurável por env.
 const ALERTA_EMAIL = process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com'
 
-function secretValido(authHeader: string): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  const esperado = createHash('sha256').update(`Bearer ${secret}`).digest()
-  const recebido = createHash('sha256').update(authHeader).digest()
-  return timingSafeEqual(esperado, recebido)
-}
-
 export async function GET(req: NextRequest) {
   return handler(req)
 }
@@ -44,8 +36,8 @@ export async function POST(req: NextRequest) {
 }
 
 async function handler(req: NextRequest) {
-  // Trava 4: secret (timing-safe)
-  if (!secretValido(req.headers.get('authorization') ?? '')) {
+  // Trava 4: secret (timing-safe — ver src/lib/cron-auth.ts)
+  if (!verificarCronSecret(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

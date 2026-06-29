@@ -3,7 +3,7 @@ import { CadastroForm } from '@/components/marketing/cadastro-form'
 
 export const metadata: Metadata = {
   title: 'Criar conta — CRM Studio',
-  description: 'Crie sua conta no CRM Studio e comece a gerenciar suas vendas gratuitamente.',
+  description: 'Crie sua conta no CRM Studio e comece a gerenciar suas vendas. 14 dias grátis, sem cartão.',
 }
 
 export default function CadastroPage() {

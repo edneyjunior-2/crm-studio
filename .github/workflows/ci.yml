@@ -23,6 +23,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Migrations com prefixo de 14 dígitos (evita colisão de prefixo)
+        run: ls supabase/migrations | grep -vE "^[0-9]{14}_.*\.sql$" && exit 1 || true
+
+      - name: Lint
+        run: npm run lint
+
       - name: Type check
         run: npx tsc --noEmit
 
