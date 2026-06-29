@@ -488,6 +488,89 @@ export async function gerarLinkAcesso(
 }
 
 // ---------------------------------------------------------------------------
+// Modelo de contrato — upload e liberação (Fase 1 white-label)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sobe um arquivo .html como modelo de contrato para o bucket privado
+ * `contrato-templates/<empresaId>/index.html` e seta config.contrato_template_path.
+ * Limite: 2 MB, somente text/html.
+ */
+export async function salvarModeloContrato(
+  empresaId: string,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const file = formData.get('modelo') as File | null
+  if (!file) return { error: 'Nenhum arquivo enviado.' }
+  if (file.size > 2 * 1024 * 1024) return { error: 'Arquivo muito grande. Limite: 2 MB.' }
+  if (file.type !== 'text/html' && !file.name.endsWith('.html')) {
+    return { error: 'Somente arquivos .html são aceitos.' }
+  }
+
+  const db = createAdminClient()
+  const path = `${empresaId}/index.html`
+
+  const { error: upErr } = await db.storage
+    .from('contrato-templates')
+    .upload(path, file, { upsert: true, contentType: 'text/html' })
+
+  if (upErr) return { error: upErr.message }
+
+  // Merge do config existente — não sobrescreve outras chaves
+  const { data: emp } = await db
+    .from('empresas')
+    .select('config')
+    .eq('id', empresaId)
+    .single()
+
+  const configAtual = (emp?.config as Record<string, unknown> | null) ?? {}
+  const novoConfig = { ...configAtual, contrato_template_path: path }
+
+  const { error: dbErr } = await db
+    .from('empresas')
+    .update({ config: novoConfig })
+    .eq('id', empresaId)
+
+  if (dbErr) return { error: dbErr.message }
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  return {}
+}
+
+/**
+ * Seta config.contrato_aprovado (merge) — libera ou revoga o modelo para o tenant.
+ */
+export async function liberarModeloContrato(
+  empresaId: string,
+  aprovado: boolean,
+): Promise<{ error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const db = createAdminClient()
+
+  const { data: emp } = await db
+    .from('empresas')
+    .select('config')
+    .eq('id', empresaId)
+    .single()
+
+  const configAtual = (emp?.config as Record<string, unknown> | null) ?? {}
+  const novoConfig = { ...configAtual, contrato_aprovado: aprovado }
+
+  const { error } = await db
+    .from('empresas')
+    .update({ config: novoConfig })
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  return {}
+}
+
+// ---------------------------------------------------------------------------
 // Revogar API key
 // ---------------------------------------------------------------------------
 

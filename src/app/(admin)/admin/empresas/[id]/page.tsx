@@ -8,6 +8,7 @@ import { UsuariosSection } from './usuarios-section'
 import { AreaAtuacaoSection } from './area-atuacao-section'
 import { EditarNomeEmpresa } from './editar-nome'
 import { ConfigSdrSection } from './config-sdr-section'
+import { ModeloContratoSection } from './modelo-contrato-section'
 
 const PLANOS   = ['interno', 'trial', 'free', 'starter', 'pro', 'business']
 const STATUSES = ['trial', 'ativo', 'pendente', 'atrasado', 'suspenso', 'cancelado']
@@ -43,7 +44,7 @@ export default async function EmpresaDetailPage({
   const [{ data: empresa }, { data: apiKeys }, { data: profiles }, { data: sdrRaw }] = await Promise.all([
     db
       .from('empresas')
-      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos, valor_mensalidade, primeiro_acesso_em, sugestao_sdr')
+      .select('id, nome, plano, status, trial_ends_at, created_at, modulos_ativos, valor_mensalidade, primeiro_acesso_em, sugestao_sdr, config')
       .eq('id', id)
       .single(),
     db
@@ -233,6 +234,19 @@ export default async function EmpresaDetailPage({
 
       {/* Configuração do robô SDR (persona + tom de voz) */}
       <ConfigSdrSection empresaId={id} config={configSdr ?? null} />
+
+      {/* Modelo de contrato white-label */}
+      <ModeloContratoSection
+        empresaId={id}
+        templatePath={
+          ((empresa as Record<string, unknown>).config as Record<string, unknown> | null)
+            ?.contrato_template_path as string | null ?? null
+        }
+        aprovado={
+          !!(((empresa as Record<string, unknown>).config as Record<string, unknown> | null)
+            ?.contrato_aprovado)
+        }
+      />
 
       {/* API Keys / Integração SDR */}
       <ApiKeysSection empresaId={id} apiKeys={apiKeys ?? []} />
