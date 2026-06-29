@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buscarProcessoDataJud } from '@/lib/datajud'
 import { getAuthUser } from '@/lib/auth'
+import { rateLimit } from '@/lib/rate-limit'
 
 const THROTTLE_MS = 300
 const LOTE        = 5    // DataJud tem timeout de 8s/req → 5 × (8 + 0.3) = 41s worst case, seguro em 60s
@@ -26,6 +27,18 @@ export async function POST(req: NextRequest) {
 
   const body    = await req.json() as { offset?: number; total?: number }
   const offset  = body.offset ?? 0
+
+  // Cooldown: só permite INICIAR uma sincronização manual por empresa a cada 10
+  // min (offset 0 = início; os lotes seguintes da mesma sync não rechecam). Evita
+  // re-consultar o DataJud à toa logo após uma sync completa — os processos também
+  // atualizam sozinhos via cron no horário comercial. Reusa rate_limits/check_rate_limit.
+  if (offset === 0 && !(await rateLimit(`sync-manual:${empresaId}`, 1, 600))) {
+    return NextResponse.json(
+      { error: 'Você sincronizou há pouco. Aguarde alguns minutos para sincronizar de novo — os processos também atualizam automaticamente no horário comercial.' },
+      { status: 429 },
+    )
+  }
+
   const admin   = createAdminClient()
 
   // Processos mais desatualizados primeiro (NULLS FIRST = nunca sincronizados)
