@@ -9,6 +9,7 @@ import type { StatusEmpresa } from '@/lib/auth'
 import { cancelSubscription } from '@/lib/asaas'
 import { encarregadoSchema } from '@/lib/schemas'
 import { MODULOS } from '@/lib/modulos'
+import { appUrl } from '@/lib/site-url'
 import { z } from 'zod'
 
 // ---------------------------------------------------------------------------
@@ -257,7 +258,7 @@ export async function createUser(
     const { data: recoveryData, error: recoveryError } = await admin.auth.admin.generateLink({
       type: 'recovery',
       email,
-      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.crmstudio.com.br'}/reset-password` },
+      options: { redirectTo: `${appUrl()}/reset-password` },
     })
     if (recoveryError) return { error: recoveryError.message }
     const actionLink = recoveryData.properties?.action_link
@@ -315,7 +316,7 @@ export async function reenviarConvite(userId: string): Promise<{ error?: string 
     type: 'recovery',
     email,
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://app.crmstudio.com.br'}/reset-password`,
+      redirectTo: `${appUrl()}/reset-password`,
     },
   })
   if (linkError) return { error: linkError.message }
