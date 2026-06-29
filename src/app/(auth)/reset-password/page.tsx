@@ -126,7 +126,8 @@ export default function ResetPasswordPage() {
               <div>
                 <p className="font-semibold text-foreground">Link inválido ou expirado</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Este link de recuperação não é mais válido. Solicite um novo.
+                  Este link não é mais válido (eles expiram). Solicite um novo para
+                  definir sua senha e acessar.
                 </p>
               </div>
               <Link

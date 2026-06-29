@@ -3,6 +3,8 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, TrendingUp, TrendingDown, Wallet, LayoutDashboard, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
+import { temModulo } from '@/lib/modulos'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -426,8 +428,21 @@ export default async function FinanceiroPage() {
 
   if (!profile) redirect('/login')
 
-  // Comercial acessa a visão de comissões pessoais
-  if (profile.role === 'comercial') redirect('/financeiro/comissoes')
+  // Comercial acessa a visão de comissões pessoais — mas só se 'comissoes' estiver
+  // efetivo p/ ele; senão bateria no gate de /financeiro/comissoes e ricochetearia
+  // (sidebar mostra Financeiro → clica → comissoes → /dashboard). Vai direto.
+  if (profile.role === 'comercial') {
+    const { plano, empresaId, modulosPermitidos } = await getAuthUser()
+    let extras: string[] = []
+    if (empresaId) {
+      const { data } = await supabase.from('empresas').select('modulos_ativos').eq('id', empresaId).single()
+      extras = data?.modulos_ativos ?? []
+    }
+    const temComissoes =
+      temModulo(plano, 'comissoes', extras) &&
+      (modulosPermitidos == null || modulosPermitidos.includes('comissoes'))
+    redirect(temComissoes ? '/financeiro/comissoes' : '/dashboard')
+  }
 
   // Qualquer outro role sem permissão vai pro dashboard
   if (!['admin', 'socio'].includes(profile.role)) redirect('/dashboard')
