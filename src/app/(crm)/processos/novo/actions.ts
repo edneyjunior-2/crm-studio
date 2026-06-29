@@ -46,52 +46,6 @@ export async function buscarProcesso(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Criar cliente "inline" direto do cadastro de processo (sem ir à aba Clientes).
-// Retorna { id, razao_social } para o form selecionar o novo cliente na hora.
-// ---------------------------------------------------------------------------
-export interface CriarClienteInlineResult {
-  cliente?: { id: string; razao_social: string }
-  error?:   string
-}
-
-export async function criarClienteInline(
-  razaoSocial: string,
-  cnpj?: string,
-  contatoNome?: string,
-): Promise<CriarClienteInlineResult> {
-  const { supabase, user, empresaId } = await getAuthUser()
-
-  const nome = razaoSocial?.trim()
-  if (!nome) return { error: 'Razão social é obrigatória.' }
-
-  // Tenant efetivo (empresa_ativa_id p/ platform admin) — não depender do trigger para multi-tenant
-  if (!empresaId) return { error: 'Empresa não encontrada.' }
-
-  const { data, error } = await supabase
-    .from('clientes')
-    .insert({
-      razao_social:      nome,
-      cnpj:              cnpj?.replace(/\D/g, '') || null,
-      contato_nome:      contatoNome?.trim() || null,
-      area_tipo:         'publica',
-      responsavel_id:    user.id,
-      responsavel_desde: new Date().toISOString(),
-      created_by:        user.id,
-      empresa_id:        empresaId,
-    })
-    .select('id, razao_social')
-    .single()
-
-  if (error) {
-    if (error.code === '23505') return { error: 'Já existe um cliente com esse CNPJ.' }
-    return { error: error.message }
-  }
-
-  revalidatePath('/clientes')
-  return { cliente: { id: data.id, razao_social: data.razao_social } }
-}
-
 export interface CriarProcessoState {
   error?: string
 }
