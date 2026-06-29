@@ -1,10 +1,18 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { sendWelcomeEmail } from '@/lib/email'
+import { rateLimit, clientIp } from '@/lib/rate-limit'
 
 export async function cadastrar(formData: FormData): Promise<{ error?: string }> {
+  // Anti-abuso: 5 cadastros/hora por IP
+  const ip = clientIp(await headers())
+  if (!(await rateLimit(`cadastro:${ip}`, 5, 3600))) {
+    return { error: 'Muitas tentativas de cadastro. Aguarde alguns minutos e tente novamente.' }
+  }
+
   const tipoPessoa = formData.get('tipo_pessoa') as 'pj' | 'pf'
   const nomeResponsavel = (formData.get('nome_responsavel') as string)?.trim()
   const email = (formData.get('email') as string)?.trim()

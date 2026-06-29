@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verificarApiKey } from '@/lib/api-auth'
+import { rateLimit } from '@/lib/rate-limit'
 
 /**
  * Ingestão de lead qualificado vindo de uma integração externa (ex.: SDR Leila).
@@ -41,6 +42,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'API key inválida ou ausente.' }, { status: 401 })
   }
   const empresaId = auth.empresaId
+
+  // 1b) Rate-limit por empresa: 60 leads/min (generoso p/ bot; barra runaway/loop)
+  if (!(await rateLimit(`leads-ingest:${empresaId}`, 60, 60))) {
+    return NextResponse.json({ error: 'Limite de ingestão excedido. Tente novamente em instantes.' }, { status: 429 })
+  }
 
   // 2) Validação do corpo
   let body: unknown

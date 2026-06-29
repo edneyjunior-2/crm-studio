@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { rateLimit, clientIp } from '@/lib/rate-limit'
 
 const FROM = process.env.EMAIL_FROM ?? 'CRM Studio <nao-responda@crmstudio.com.br>'
 const PARA = process.env.CONTATO_EMAIL ?? 'edneyjuniords@gmail.com'
@@ -7,6 +8,12 @@ const PARA = process.env.CONTATO_EMAIL ?? 'edneyjuniords@gmail.com'
 export async function POST(req: NextRequest) {
   if (!process.env.RESEND_API_KEY) {
     return NextResponse.json({ error: 'Email não configurado no servidor' }, { status: 503 })
+  }
+
+  // Anti-spam: 5 envios/hora por IP
+  const ip = clientIp(req.headers)
+  if (!(await rateLimit(`contato:${ip}`, 5, 3600))) {
+    return NextResponse.json({ error: 'Muitas mensagens em pouco tempo. Tente novamente mais tarde.' }, { status: 429 })
   }
 
   let body: Record<string, string>
