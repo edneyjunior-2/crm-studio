@@ -126,8 +126,9 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
     const categoria = r.tipo === 'composicao' ? 'composicao' : 'material'
     // Etapa digitada à mão tem prioridade; senão classifica pelo grupo SINAPI; senão "Geral".
     const etapa = etapaAtual.trim() || etapaDoGrupo(r.grupo) || 'Geral'
+    const tmpId = `tmp-${Date.now()}`
     const novo: Item = {
-      id: `tmp-${Date.now()}`, etapa, categoria,
+      id: tmpId, etapa, categoria,
       codigo_sinapi: r.codigo, descricao: r.descricao, unidade: r.unidade,
       quantidade: 1, custo_unitario: r.custo ?? 0, subtotal: r.custo ?? 0,
     }
@@ -137,7 +138,14 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
         etapa, categoria, codigo_sinapi: r.codigo, descricao: r.descricao,
         unidade: r.unidade, quantidade: 1, custo_unitario: r.custo ?? 0,
       })
-      if (res.error) toast.error(res.error)
+      if (res.error) {
+        toast.error(res.error)
+        setItens((prev) => prev.filter((i) => i.id !== tmpId))
+        return
+      }
+      // Troca o id temporário pelo real → editar/remover o item recém-adicionado funcionam.
+      const realId = res.id
+      if (realId) setItens((prev) => prev.map((i) => (i.id === tmpId ? { ...i, id: realId } : i)))
     })
   }
 

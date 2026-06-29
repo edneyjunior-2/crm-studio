@@ -120,13 +120,15 @@ export async function atualizarOrcamento(
 export async function adicionarItem(
   orcamentoId: string,
   item: { etapa?: string; categoria?: CategoriaItem; codigo_sinapi?: string; descricao: string; unidade?: string | null; quantidade: number; custo_unitario: number },
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; id?: string }> {
   const { supabase } = await getAuthUser()
   if (!item.descricao?.trim()) return { error: 'Descrição obrigatória.' }
   const quantidade = Number(item.quantidade) || 0
   const custo = Number(item.custo_unitario) || 0
   const subtotal = Math.round(quantidade * custo * 100) / 100
-  const { error } = await supabase.from('orcamento_itens').insert({
+  // .select('id') devolve o id real — o editor troca o id temporário (tmp-) pelo
+  // real; senão editar/remover o item recém-adicionado no-opam em silêncio.
+  const { data, error } = await supabase.from('orcamento_itens').insert({
     orcamento_id: orcamentoId,
     etapa: item.etapa?.trim() || 'Geral',
     categoria: item.categoria ?? 'composicao',
@@ -136,11 +138,11 @@ export async function adicionarItem(
     quantidade,
     custo_unitario: custo,
     subtotal,
-  })
+  }).select('id').single()
   if (error) return { error: error.message }
   await recalcularTotal(orcamentoId)
   revalidatePath(`/obras/orcamentos/${orcamentoId}`)
-  return {}
+  return { id: data.id as string }
 }
 
 export async function atualizarItem(
