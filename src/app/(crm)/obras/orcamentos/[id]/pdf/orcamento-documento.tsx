@@ -19,8 +19,8 @@ export interface OrcamentoDocEmpresa { nome: string; razao_social: string | null
  * Mantém a classe `doc-print` e o <style> de print: ao chamar window.print() o navegador
  * imprime apenas este container (o resto da página fica com visibility:hidden).
  */
-export function OrcamentoDocumento({ orcamento, itens, empresa }: {
-  orcamento: OrcamentoDoc; itens: OrcamentoDocItem[]; empresa: OrcamentoDocEmpresa | null
+export function OrcamentoDocumento({ orcamento, itens, empresa, usuarioNome }: {
+  orcamento: OrcamentoDoc; itens: OrcamentoDocItem[]; empresa: OrcamentoDocEmpresa | null; usuarioNome?: string | null
 }) {
   const grupos = new Map<string, OrcamentoDocItem[]>()
   for (const i of itens) { const e = i.etapa || 'Geral'; grupos.set(e, [...(grupos.get(e) ?? []), i]) }
@@ -108,7 +108,11 @@ export function OrcamentoDocumento({ orcamento, itens, empresa }: {
 
       {/* Assinatura */}
       <div className="mt-16 grid grid-cols-2 gap-12 text-center text-xs">
-        <div className="border-t border-zinc-400 pt-1">{empresaNome}</div>
+        <div className="border-t border-zinc-400 pt-1 flex flex-col gap-0.5">
+          {usuarioNome && <span className="font-medium">{usuarioNome}</span>}
+          <span>{empresaNome}</span>
+          {empresa?.cnpj && <span className="text-zinc-500">CNPJ: {empresa.cnpj}</span>}
+        </div>
         <div className="border-t border-zinc-400 pt-1">Cliente</div>
       </div>
 

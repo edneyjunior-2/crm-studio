@@ -415,6 +415,29 @@ export async function salvarModulosUsuario(
   return {}
 }
 
+export async function salvarDadosEmpresa(dados: {
+  razao_social: string | null
+  nome_fantasia: string | null
+  cnpj: string | null
+}): Promise<{ error?: string }> {
+  const { supabase, empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const { error } = await supabase
+    .from('empresas')
+    .update({
+      razao_social:  dados.razao_social?.trim()  || null,
+      nome_fantasia: dados.nome_fantasia?.trim() || null,
+      cnpj:          dados.cnpj?.trim()          || null,
+    })
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/configuracoes')
+  return {}
+}
+
 export async function salvarEncarregado(
   data: unknown
 ): Promise<{ error?: string }> {

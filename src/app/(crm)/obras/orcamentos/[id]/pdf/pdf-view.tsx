@@ -3,8 +3,8 @@
 import { Printer } from 'lucide-react'
 import { OrcamentoDocumento, type OrcamentoDoc, type OrcamentoDocItem, type OrcamentoDocEmpresa } from './orcamento-documento'
 
-export function OrcamentoPdfView({ orcamento, itens, empresa }: {
-  orcamento: OrcamentoDoc; itens: OrcamentoDocItem[]; empresa: OrcamentoDocEmpresa | null
+export function OrcamentoPdfView({ orcamento, itens, empresa, usuarioNome }: {
+  orcamento: OrcamentoDoc; itens: OrcamentoDocItem[]; empresa: OrcamentoDocEmpresa | null; usuarioNome?: string | null
 }) {
   return (
     <div className="mx-auto max-w-4xl">
@@ -14,7 +14,7 @@ export function OrcamentoPdfView({ orcamento, itens, empresa }: {
           <Printer className="size-4" /> Imprimir / Salvar PDF
         </button>
       </div>
-      <OrcamentoDocumento orcamento={orcamento} itens={itens} empresa={empresa} />
+      <OrcamentoDocumento orcamento={orcamento} itens={itens} empresa={empresa} usuarioNome={usuarioNome} />
     </div>
   )
 }

@@ -10,6 +10,7 @@ import { PrivacidadeDados } from '@/components/crm/privacidade-dados'
 import { ExcluirConta } from '@/components/crm/configuracoes/excluir-conta'
 import { avaliarPagamento } from './actions'
 import { ConfigSdrSection } from '@/components/crm/configuracoes/config-sdr-section'
+import { DadosEmpresaSection } from '@/components/crm/configuracoes/dados-empresa-section'
 import { modulosEfetivos, MODULO_LABEL } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
 import { getAuthUser } from '@/lib/auth'
@@ -42,7 +43,7 @@ export default async function ConfiguracoesPage() {
     empresaId
       ? supabase
           .from('empresas')
-          .select('nome, status, encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso, sugestao_sdr')
+          .select('nome, status, encarregado_nome, encarregado_email, encarregado_telefone, aceite_termos_versao, aceite_termos_em, plano, modulos_ativos, modulos_ocultos, codigo_acesso, sugestao_sdr, razao_social, nome_fantasia, cnpj')
           .eq('id', empresaId)
           .single()
       : Promise.resolve({ data: null, error: null }),
@@ -101,6 +102,9 @@ export default async function ConfiguracoesPage() {
     nome_assistente:    string | null
     tom_de_voz:         string | null
     sugestao_sdr:       string | null
+    razao_social:       string | null
+    nome_fantasia:      string | null
+    cnpj:               string | null
   } | null
 
   // Auto-gera código de acesso se a empresa ainda não tiver um
@@ -191,6 +195,14 @@ export default async function ConfiguracoesPage() {
           <CodigoAcesso codigo={empresa.codigo_acesso} />
         </section>
       )}
+
+      <section>
+        <DadosEmpresaSection
+          nomeFantasia={empresa?.nome_fantasia ?? null}
+          razaoSocial={empresa?.razao_social ?? null}
+          cnpj={empresa?.cnpj ?? null}
+        />
+      </section>
 
       <section className="flex flex-col gap-4">
         <PrivacidadeDados
