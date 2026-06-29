@@ -27,7 +27,8 @@ export default async function EmpresasPage({
   if (filtroStatus) query = query.eq('status', filtroStatus)
   if (busca) query = query.ilike('nome', `%${busca}%`)
 
-  let { data: empresas, error: qErr } = await query
+  const { data: empresasData, error: qErr } = await query
+  let empresas = empresasData
 
   // Colunas novas ainda não existem no banco de produção → fallback sem elas
   if (qErr && qErr.code === '42703') {

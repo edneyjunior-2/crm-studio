@@ -23,8 +23,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Migrations com prefixo de 14 dígitos (evita colisão de prefixo)
-        run: ls supabase/migrations | grep -vE "^[0-9]{14}_.*\.sql$" && exit 1 || true
+      - name: Migrations sem prefixo de 8 dígitos (a colisão real de versão)
+        # Legadas do Aurum usam 3 dígitos (001_) e as novas usam 14 (AAAAMMDDHHMMSS_);
+        # ambas OK. O bug é o prefixo de 8 dígitos (AAAAMMDD_), que colide na versão
+        # derivada pelo Supabase e pula migration. Falha SÓ nesse caso.
+        run: ls supabase/migrations | grep -E "^[0-9]{8}_" && exit 1 || true
 
       - name: Lint
         run: npm run lint
