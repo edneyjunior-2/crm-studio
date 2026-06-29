@@ -8,21 +8,21 @@ export default async function SinapiAdminPage() {
   await getAuthPlatformAdmin()
   const db = createAdminClient()
 
-  // Resumo do que já foi importado (por fonte/uf/mês/tipo)
+  // Resumo agregado no BANCO (view precos_referencia_resumo). NÃO contar no cliente:
+  // o SELECT de linhas cruas é truncado pelo cap de 1000 linhas do PostgREST, o que
+  // dava contagem errada ("0 insumos / 1.000 composições").
   const { data: linhas } = await db
-    .from('precos_referencia')
-    .select('fonte, uf, data_ref, tipo')
-    .limit(50000)
+    .from('precos_referencia_resumo')
+    .select('fonte, uf, data_ref, insumos, composicoes')
+    .order('data_ref', { ascending: false })
 
-  const resumoMap = new Map<string, { fonte: string; uf: string; data_ref: string; insumo: number; composicao: number }>()
-  for (const l of linhas ?? []) {
-    const k = `${l.fonte}|${l.uf}|${l.data_ref}`
-    const r = resumoMap.get(k) ?? { fonte: l.fonte, uf: l.uf, data_ref: l.data_ref, insumo: 0, composicao: 0 }
-    if (l.tipo === 'insumo') r.insumo++
-    else if (l.tipo === 'composicao') r.composicao++
-    resumoMap.set(k, r)
-  }
-  const resumo = [...resumoMap.values()].sort((a, b) => b.data_ref.localeCompare(a.data_ref))
+  const resumo = (linhas ?? []).map((l) => ({
+    fonte: l.fonte as string,
+    uf: l.uf as string,
+    data_ref: l.data_ref as string,
+    insumo: Number(l.insumos),
+    composicao: Number(l.composicoes),
+  }))
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-6">
