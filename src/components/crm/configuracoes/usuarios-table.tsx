@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { updateUserRole, deleteUser, updateUserCargo } from '@/app/(crm)/configuracoes/actions'
+import { updateUserRole, deleteUser, updateUserCargo, salvarModulosUsuario } from '@/app/(crm)/configuracoes/actions'
 import type { Role } from '@/types'
 
 interface UsuarioRow {
@@ -40,6 +40,7 @@ interface UsuarioRow {
   email: string
   role: Role
   cargo?: string | null
+  modulos_permitidos?: string[] | null
   created_at: string
 }
 
@@ -61,6 +62,8 @@ const CARGOS_SUGERIDOS = [
 interface UsuariosTableProps {
   usuarios: UsuarioRow[]
   currentUserId: string
+  /** Módulos que a empresa tem (slug + label) — opções de acesso por usuário. */
+  modulosEmpresa: { slug: string; label: string }[]
 }
 
 const roleBadge: Record<Role, { label: string; className: string }> = {
@@ -222,7 +225,81 @@ function DeleteButton({
   )
 }
 
-export function UsuariosTable({ usuarios, currentUserId }: UsuariosTableProps) {
+function AcessoModulos({
+  userId,
+  role,
+  modulosEmpresa,
+  modulosPermitidos,
+}: {
+  userId: string
+  role: Role
+  modulosEmpresa: { slug: string; label: string }[]
+  modulosPermitidos: string[] | null
+}) {
+  const [perms, setPerms] = useState<string[] | null>(modulosPermitidos ?? null)
+  const [isPending, startTransition] = useTransition()
+
+  // Admin é sempre full — não editável.
+  if (role === 'admin') {
+    return (
+      <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300">
+        Acesso total
+      </Badge>
+    )
+  }
+
+  function persist(novo: string[] | null) {
+    const anterior = perms
+    setPerms(novo)
+    startTransition(async () => {
+      const r = await salvarModulosUsuario(userId, novo)
+      if (r.error) { toast.error(r.error); setPerms(anterior) }
+    })
+  }
+
+  const semRestricao = perms == null
+  const base = perms ?? modulosEmpresa.map((m) => m.slug)
+  const resumo = semRestricao ? 'Todos os menus' : `${perms!.length}/${modulosEmpresa.length} menus`
+
+  return (
+    <details className="group w-52">
+      <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm marker:hidden">
+        <span className={semRestricao ? 'text-muted-foreground' : 'font-medium'}>{resumo}</span>
+        <span className="text-xs text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+      </summary>
+      <div className="mt-1 flex flex-col gap-1.5 rounded-lg border border-border bg-card p-2.5 shadow-sm">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={semRestricao}
+            disabled={isPending}
+            onChange={(e) => persist(e.target.checked ? null : modulosEmpresa.map((m) => m.slug))}
+          />
+          Sem restrição (vê tudo)
+        </label>
+        {!semRestricao && (
+          <div className="flex max-h-60 flex-col gap-1 overflow-y-auto border-t border-border pt-1.5">
+            {modulosEmpresa.map((m) => (
+              <label key={m.slug} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={base.includes(m.slug)}
+                  disabled={isPending}
+                  onChange={(e) =>
+                    persist(e.target.checked ? [...new Set([...base, m.slug])] : base.filter((s) => s !== m.slug))
+                  }
+                />
+                {m.label}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  )
+}
+
+export function UsuariosTable({ usuarios, currentUserId, modulosEmpresa }: UsuariosTableProps) {
   if (usuarios.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16 text-center">
@@ -247,6 +324,7 @@ export function UsuariosTable({ usuarios, currentUserId }: UsuariosTableProps) {
             <TableHead>Perfil</TableHead>
             <TableHead>Alterar perfil</TableHead>
             <TableHead>Cargo</TableHead>
+            <TableHead>Acesso aos menus</TableHead>
             <TableHead className="w-16 text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -288,6 +366,14 @@ export function UsuariosTable({ usuarios, currentUserId }: UsuariosTableProps) {
                 </TableCell>
                 <TableCell>
                   <CargoInput userId={u.id} cargo={u.cargo} />
+                </TableCell>
+                <TableCell>
+                  <AcessoModulos
+                    userId={u.id}
+                    role={u.role}
+                    modulosEmpresa={modulosEmpresa}
+                    modulosPermitidos={u.modulos_permitidos ?? null}
+                  />
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end">

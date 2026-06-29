@@ -10,7 +10,7 @@ import { PrivacidadeDados } from '@/components/crm/privacidade-dados'
 import { ExcluirConta } from '@/components/crm/configuracoes/excluir-conta'
 import { avaliarPagamento } from './actions'
 import { ConfigSdrSection } from '@/components/crm/configuracoes/config-sdr-section'
-import { modulosEfetivos } from '@/lib/modulos'
+import { modulosEfetivos, MODULO_LABEL } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
 import { getAuthUser } from '@/lib/auth'
 import type { PlanoEmpresa } from '@/lib/auth'
@@ -80,6 +80,7 @@ export default async function ConfiguracoesPage() {
     email: emailByUserId.get(p.id) ?? '—',
     role: p.role as Role,
     cargo: p.cargo ?? null,
+    modulos_permitidos: (p as { modulos_permitidos?: string[] | null }).modulos_permitidos ?? null,
     created_at: p.created_at,
   }))
 
@@ -123,6 +124,7 @@ export default async function ConfiguracoesPage() {
   const modulosDisponiveis = Array.from(
     modulosEfetivos(empresa?.plano ?? 'free', empresa?.modulos_ativos ?? [])
   ) as Modulo[]
+  const modulosEmpresa = modulosDisponiveis.map((slug) => ({ slug, label: MODULO_LABEL[slug] }))
   const modulosOcultos: string[] = empresa?.modulos_ocultos ?? []
 
   return (
@@ -157,7 +159,7 @@ export default async function ConfiguracoesPage() {
             </p>
           </div>
         ) : (
-          <UsuariosTable usuarios={usuarios} currentUserId={user.id} />
+          <UsuariosTable usuarios={usuarios} currentUserId={user.id} modulosEmpresa={modulosEmpresa} />
         )}
       </section>
 

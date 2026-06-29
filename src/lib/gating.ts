@@ -56,7 +56,7 @@ export function acessoLiberado(status: StatusEmpresa): boolean {
  *     O wiring (layout.tsx por módulo) é responsabilidade do Stream 2.
  */
 export async function requireModulo(modulo: Modulo): Promise<void> {
-  const { plano, status, empresaId, supabase } = await getAuthUser()
+  const { plano, status, empresaId, supabase, role, modulosPermitidos } = await getAuthUser()
 
   if (!acessoLiberado(status)) {
     redirect('/assinatura')
@@ -74,5 +74,10 @@ export async function requireModulo(modulo: Modulo): Promise<void> {
 
   if (!temModulo(plano, modulo, extras)) {
     redirect(`/upgrade?modulo=${modulo}`)
+  }
+
+  // RBAC por usuário: admin/null = sem restrição; senão o módulo precisa estar liberado.
+  if (role !== 'admin' && modulosPermitidos != null && !modulosPermitidos.includes(modulo)) {
+    redirect('/dashboard')
   }
 }

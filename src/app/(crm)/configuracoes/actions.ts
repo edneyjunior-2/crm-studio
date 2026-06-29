@@ -8,6 +8,7 @@ import { getAuthAdmin, getAuthUser } from '@/lib/auth'
 import type { StatusEmpresa } from '@/lib/auth'
 import { cancelSubscription } from '@/lib/asaas'
 import { encarregadoSchema } from '@/lib/schemas'
+import { MODULOS } from '@/lib/modulos'
 import { z } from 'zod'
 
 // ---------------------------------------------------------------------------
@@ -379,6 +380,38 @@ export async function updateUserCargo(
   if (error) return { error: error.message }
   revalidatePath('/configuracoes')
   revalidatePath('/processos/responsabilidades')
+  return {}
+}
+
+/** RBAC: define quais módulos um usuário pode acessar. null = sem restrição (vê tudo). */
+export async function salvarModulosUsuario(
+  userId: string,
+  modulos: string[] | null,
+): Promise<{ error?: string }> {
+  const { supabase, user: adminUser, empresaId } = await getAuthAdmin()
+  if (userId === adminUser.id) return { error: 'Você sempre tem acesso total.' }
+
+  if (modulos != null) {
+    const validos = new Set<string>(MODULOS)
+    if (!modulos.every((m) => validos.has(m))) return { error: 'Módulo inválido.' }
+  }
+
+  // Alvo deve ser da mesma empresa; admin é sempre full (não editável).
+  const { data: target } = await supabase
+    .from('profiles')
+    .select('empresa_id, role')
+    .eq('id', userId)
+    .single()
+  if (!target || target.empresa_id !== empresaId) return { error: 'Usuário não encontrado.' }
+  if (target.role === 'admin') return { error: 'Administrador sempre tem acesso total.' }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ modulos_permitidos: modulos })
+    .eq('id', userId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/configuracoes')
   return {}
 }
 

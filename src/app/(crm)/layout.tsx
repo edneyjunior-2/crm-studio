@@ -15,7 +15,7 @@ export default async function CRMLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, empresaId, isPlatformAdmin, plano, status, trialEndsAt, supabase } = await getAuthUser()
+  const { user, empresaId, isPlatformAdmin, plano, status, trialEndsAt, supabase, role, modulosPermitidos } = await getAuthUser()
 
   // Conta sem empresa → fluxo de vinculação
   // Platform admin sem empresa ativa → seletor de tenant (evita loop: /selecionar-empresa está fora deste grupo)
@@ -69,7 +69,12 @@ export default async function CRMLayout({
   const modulosOcultos: string[] = empresaData?.modulos_ocultos ?? []
 
   // Conjunto efetivo de módulos para esta empresa, subtraindo os que o admin optou por ocultar
-  const modulosAtivos = Array.from(modulosEfetivos(plano, modulosAtivosExtras))
+  const modulosEmpresa = modulosEfetivos(plano, modulosAtivosExtras)
+  // RBAC por usuário (inline): admin/null = sem restrição
+  const modulosUsuario = (role === 'admin' || modulosPermitidos == null)
+    ? modulosEmpresa
+    : new Set([...modulosEmpresa].filter((m) => modulosPermitidos.includes(m)))
+  const modulosAtivos = Array.from(modulosUsuario)
     .filter((m) => !modulosOcultos.includes(m))
 
   return (

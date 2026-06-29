@@ -19,6 +19,8 @@ export interface AuthResult {
   trialEndsAt: string | null
   /** Verdadeiro quando o usuário está na tabela platform_admins. */
   isPlatformAdmin: boolean
+  /** Módulos que o usuário pode acessar. NULL = sem restrição (vê tudo). admin ignora. */
+  modulosPermitidos: string[] | null
 }
 
 /** Memoizado por request (React cache) — layout + página compartilham o mesmo resultado sem novo round-trip. */
@@ -31,7 +33,7 @@ export const getAuthUser = cache(async (): Promise<AuthResult> => {
   const [{ data: profile }, { data: isPlatformAdminRaw }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('role, empresa_id, empresa_ativa_id')
+      .select('role, empresa_id, empresa_ativa_id, modulos_permitidos')
       .eq('id', user.id)
       .single(),
     supabase.rpc('is_platform_admin'),
@@ -64,6 +66,7 @@ export const getAuthUser = cache(async (): Promise<AuthResult> => {
     status: (empresa?.status ?? 'trial') as StatusEmpresa,
     trialEndsAt: empresa?.trial_ends_at ?? null,
     isPlatformAdmin,
+    modulosPermitidos: (profile?.modulos_permitidos ?? null) as string[] | null,
   }
 })
 
