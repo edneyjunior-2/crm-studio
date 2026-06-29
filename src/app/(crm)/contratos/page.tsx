@@ -1,6 +1,7 @@
 import { getAuthUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ContratosView } from '@/components/crm/contratos/contratos-view'
+import { listarContratosGerados } from './actions'
 
 export default async function ContratosPage() {
   const { empresaId } = await getAuthUser()
@@ -35,5 +36,7 @@ export default async function ContratosPage() {
     }
   }
 
-  return <ContratosView templateUrl={templateUrl} emRevisao={emRevisao} />
+  const historico = await listarContratosGerados()
+
+  return <ContratosView templateUrl={templateUrl} emRevisao={emRevisao} historico={historico} />
 }

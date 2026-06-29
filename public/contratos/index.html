@@ -1776,6 +1776,23 @@
       toast('✓ Contrato carregado — edite e exporte novamente se necessário.');
     }
 
+    // ── Integração CRM Studio: RE-EDITAR ──────────────────────────────────────
+    // O CRM (parent) envia { type:'contrato_carregar', dados:{ mode, fields } } de um
+    // contrato salvo no histórico do banco → preenche o form p/ editar e gerar de novo.
+    window.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (!d || d.type !== 'contrato_carregar' || !d.dados) return;
+      var fields = d.dados.fields || {};
+      try { setModo(d.dados.mode || 'pj'); } catch (e) {}
+      document.querySelectorAll('[data-field]').forEach(function (input) {
+        var name = input.dataset.field;
+        if (name in fields) input.value = fields[name];
+      });
+      try { atualizarHintExtenso(); } catch (e) {}
+      try { schedulePreview(); } catch (e) {}
+      try { toast('✓ Contrato carregado — edite e exporte novamente.'); } catch (e) {}
+    });
+
     function histFormatDate(iso) {
       try {
         return new Date(iso).toLocaleString('pt-BR', {
