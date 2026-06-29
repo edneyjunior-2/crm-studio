@@ -101,8 +101,6 @@ export interface NegocioComRelacoes extends Negocio {
   profiles: { full_name: string } | null
 }
 
-export type TipoAtividade = 'ligacao' | 'email' | 'reuniao' | 'proposta' | 'nota'
-
 export interface Followup {
   id: string
   negocio_id: string
@@ -114,18 +112,6 @@ export interface Followup {
   created_by: string | null
   created_at: string
   negocios?: { titulo: string; clientes: { razao_social: string } | null } | null
-}
-
-export interface Atividade {
-  id: string
-  negocio_id: string | null
-  cliente_id: string | null
-  responsavel_id: string
-  tipo: TipoAtividade
-  descricao: string
-  data_atividade: string
-  google_event_id?: string | null
-  google_event_url?: string | null
 }
 
 export type Moeda = 'BRL' | 'USD' | 'EUR' | 'GBP' | 'ARS'

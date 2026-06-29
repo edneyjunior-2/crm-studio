@@ -127,15 +127,6 @@ export interface ColaboradorDocumento {
   created_at: string
 }
 
-export interface ColaboradorDocumentoAcesso {
-  id: string
-  empresa_id: string
-  documento_id: string
-  acao: 'upload' | 'download' | 'delete'
-  user_id: string | null
-  created_at: string
-}
-
 /** Tipos de documento considerados sensíveis por padrão (dado pessoal de saúde — Art. 11 LGPD) */
 export const TIPOS_SENSIVEIS: TipoDocumento[] = ['aso']
 

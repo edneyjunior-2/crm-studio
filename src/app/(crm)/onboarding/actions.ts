@@ -5,28 +5,6 @@ import { getAuthUser } from '@/lib/auth'
 
 // ─── Fluxos ────────────────────────────────────────────────────────────────
 
-export async function getFluxos() {
-  const { supabase, user, role } = await getAuthUser()
-
-  let query = supabase
-    .from('fluxos')
-    .select(`*, owner:profiles!owner_id(full_name)`)
-    .order('created_at', { ascending: false })
-
-  if (role === 'admin') {
-    // admin vê tudo
-  } else if (role === 'socio') {
-    // sócio vê apenas os próprios
-    query = query.eq('owner_id', user.id)
-  } else {
-    // comercial vê apenas boards compartilhados
-    query = query.eq('visibilidade', 'todos_comerciais')
-  }
-
-  const { data, error } = await query
-  return { data, error, role, userId: user.id }
-}
-
 export async function createFluxo(formData: FormData): Promise<{ error?: string }> {
   const { supabase, user, role } = await getAuthUser()
 

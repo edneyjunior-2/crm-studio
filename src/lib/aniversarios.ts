@@ -5,10 +5,6 @@ export const ANIVERSARIOS = [
 
 export type Aniversario = typeof ANIVERSARIOS[number]
 
-export function getAniversarioNoDia(mes: number, dia: number): Aniversario | undefined {
-  return ANIVERSARIOS.find((a) => a.mes === mes && a.dia === dia)
-}
-
 export function getAniversariosDoMes(ano: number, mes: number): Array<Aniversario & { data: string }> {
   return ANIVERSARIOS
     .filter((a) => a.mes === mes + 1)

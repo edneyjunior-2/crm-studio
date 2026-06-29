@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import type { Followup } from '@/types'
 
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -90,30 +89,3 @@ export async function concluirFollowup(id: string): Promise<{ error?: string }> 
   return {}
 }
 
-export async function getFollowupsPendentes(): Promise<{ data: Followup[]; error?: string }> {
-  const { supabase, user } = await getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  const hoje = new Date()
-  const hojeStr = toDateStr(hoje)
-
-  let query = supabase
-    .from('followups')
-    .select('*, negocios(titulo, clientes(razao_social))')
-    .lte('data_agendada', hojeStr)
-    .eq('status', 'pendente')
-    .order('data_agendada', { ascending: true })
-
-  if (profile?.role === 'comercial') {
-    query = query.eq('responsavel_id', user.id)
-  }
-
-  const { data, error } = await query
-  if (error) return { data: [], error: error.message }
-  return { data: (data ?? []) as Followup[] }
-}

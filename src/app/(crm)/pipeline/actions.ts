@@ -118,38 +118,6 @@ export async function updateEstagioComData(
   return {}
 }
 
-export async function updateEstagio(
-  id: string,
-  estagio: string
-): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const estagiosValidos: EstagioNegocio[] = [
-    'prospeccao',
-    'qualificacao',
-    'proposta',
-    'negociacao',
-    'fechado_ganho',
-    'fechado_perdido',
-  ]
-
-  if (!estagiosValidos.includes(estagio as EstagioNegocio)) {
-    return { error: 'Estágio inválido.' }
-  }
-
-  const { error } = await supabase
-    .from('negocios')
-    .update({ estagio, updated_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) return { error: error.message }
-
-  revalidatePath('/pipeline')
-  return {}
-}
-
 export async function deleteNegocio(id: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

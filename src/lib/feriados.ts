@@ -65,13 +65,6 @@ export function getFeriados(ano: number): Feriado[] {
   ].sort((a, b) => a.data.localeCompare(b.data))
 }
 
-export function getFeriadosNoMes(ano: number, mes: number): Feriado[] {
-  return getFeriados(ano).filter((f) => {
-    const [y, m] = f.data.split('-').map(Number)
-    return y === ano && m === mes + 1
-  })
-}
-
 export function getFeriadoNoDia(feriados: Feriado[], data: string): Feriado | undefined {
   return feriados.find((f) => f.data === data)
 }

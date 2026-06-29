@@ -23,6 +23,3 @@ export function formatMoeda(valor: number, moeda: Moeda = 'BRL'): string {
   }).format(valor)
 }
 
-export function getMoedaInfo(moeda: Moeda) {
-  return MOEDAS.find((m) => m.value === moeda) ?? MOEDAS[0]
-}

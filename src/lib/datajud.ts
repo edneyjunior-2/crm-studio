@@ -324,13 +324,3 @@ function extrairComplemento(movimento: Record<string, unknown>): string {
   return partes.join('; ')
 }
 
-// ---------------------------------------------------------------------------
-// Detecta se um movimento é audiência
-// ---------------------------------------------------------------------------
-
-const PALAVRAS_AUDIENCIA = ['audiência', 'audiencia']
-
-export function isAudiencia(movimento: DataJudMovimento): boolean {
-  const nome = movimento.nome.toLowerCase()
-  return PALAVRAS_AUDIENCIA.some((p) => nome.includes(p))
-}
