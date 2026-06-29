@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/button'
 import { ClienteForm } from '@/components/crm/clientes/cliente-form'
 import { ClienteDeleteButton } from '@/components/crm/clientes/cliente-delete-button'
 import type { Cliente, Negocio } from '@/types'
+import { listarAtividades } from '@/app/(crm)/pipeline/atividade-actions'
+import { AtividadesTimeline } from '@/components/crm/pipeline/atividades-timeline'
 
 const estagioLabel: Record<string, string> = {
   prospeccao: 'Prospecção',
@@ -67,6 +69,9 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   if (clienteResult.error || !clienteResult.data) {
     notFound()
   }
+
+  // Atividades do cliente (reunião/e-mail/nota do SDR) — antes write-only, sem tela.
+  const atividades = await listarAtividades({ clienteId: id })
 
   // Erro da query de processos não pode derrubar a página: loga e segue com lista vazia.
   if (processosResult.error) {
@@ -313,6 +318,16 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                 ))}
               </ul>
             )}
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">Atividades</h3>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {atividades.length}
+              </span>
+            </div>
+            <AtividadesTimeline atividades={atividades} />
           </div>
         </div>
       </div>

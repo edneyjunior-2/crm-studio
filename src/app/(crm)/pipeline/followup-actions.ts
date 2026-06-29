@@ -27,9 +27,13 @@ export async function registrarEmailComFollowups(
   const hoje = new Date()
   const hojeStr = toDateStr(hoje)
 
+  // cliente_id derivado do negócio → a atividade aparece também no detalhe do cliente.
+  const { data: negEmail } = await supabase.from('negocios').select('cliente_id').eq('id', negocioId).single()
+
   // Salva a atividade de e-mail
   const { error: atividadeErr } = await supabase.from('atividades').insert({
     negocio_id: negocioId,
+    cliente_id: negEmail?.cliente_id ?? null,
     responsavel_id: user.id,
     tipo: 'email',
     descricao: observacao || 'E-mail enviado ao cliente.',

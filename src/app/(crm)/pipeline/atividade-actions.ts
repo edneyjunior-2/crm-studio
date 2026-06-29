@@ -74,9 +74,13 @@ export async function registrarReuniaoComCalendar(
     }
   }
 
+  // cliente_id derivado do negócio → a atividade aparece também no detalhe do cliente.
+  const { data: negReuniao } = await supabase.from('negocios').select('cliente_id').eq('id', negocioId).single()
+
   // Salvar a atividade no banco
   const { error: atividadeErr } = await supabase.from('atividades').insert({
     negocio_id: negocioId,
+    cliente_id: negReuniao?.cliente_id ?? null,
     responsavel_id: user.id,
     tipo: 'reuniao',
     descricao,
@@ -93,4 +97,52 @@ export async function registrarReuniaoComCalendar(
   revalidatePath('/dashboard')
 
   return { googleEventUrl: googleEventUrl ?? undefined }
+}
+
+export interface AtividadeItem {
+  id: string
+  tipo: 'ligacao' | 'email' | 'reuniao' | 'proposta' | 'nota'
+  descricao: string | null
+  data_atividade: string
+  responsavel_nome: string | null
+  google_event_url?: string | null
+}
+
+export async function listarAtividades(params: {
+  negocioId?: string
+  clienteId?: string
+}): Promise<AtividadeItem[]> {
+  const { getAuthUser } = await import('@/lib/auth')
+  const { supabase } = await getAuthUser()
+
+  let query = supabase
+    .from('atividades')
+    .select('id, tipo, descricao, data_atividade, google_event_url, profiles!responsavel_id(full_name)')
+    .order('data_atividade', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (params.negocioId) {
+    query = query.eq('negocio_id', params.negocioId)
+  } else if (params.clienteId) {
+    query = query.eq('cliente_id', params.clienteId)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('[listarAtividades] erro:', error)
+    return []
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((row: any) => ({
+    id: row.id as string,
+    tipo: row.tipo as AtividadeItem['tipo'],
+    descricao: row.descricao as string | null,
+    data_atividade: row.data_atividade as string,
+    responsavel_nome: (Array.isArray(row.profiles)
+      ? (row.profiles[0]?.full_name ?? null)
+      : (row.profiles?.full_name ?? null)) as string | null,
+    google_event_url: row.google_event_url as string | null,
+  }))
 }
