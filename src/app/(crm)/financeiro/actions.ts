@@ -338,13 +338,12 @@ export async function uploadComprovante(
 
   if (uploadError) return { error: uploadError.message }
 
-  const { data: { publicUrl } } = admin.storage.from('comprovantes').getPublicUrl(fileName)
-
+  // Guarda o PATH (não a URL pública): o bucket é privado; exibição via signed URL.
   // UPDATE via cliente com RLS (não admin): garante que só contas da empresa do
   // usuário sejam atualizadas, impedindo sobrescrita cross-tenant pelo contaId.
   const { data: updated, error: updateError } = await supabase
     .from('contas_pagar')
-    .update({ comprovante_url: publicUrl })
+    .update({ comprovante_url: fileName })
     .eq('id', contaId)
     .select('id')
     .single()
@@ -352,8 +351,48 @@ export async function uploadComprovante(
   if (updateError) return { error: updateError.message }
   if (!updated) return { error: 'Conta não encontrada' }
 
+  // URL assinada (1h) para exibição imediata no form
+  const { data: signed } = await admin.storage
+    .from('comprovantes')
+    .createSignedUrl(fileName, 3600)
+
   revalidatePath('/financeiro')
-  return { url: publicUrl }
+  return { url: signed?.signedUrl }
+}
+
+/**
+ * Gera uma URL assinada (1h) para o comprovante de uma conta. O bucket
+ * `comprovantes` é privado — não há acesso público por URL.
+ * Tolerante a dados legados: se `comprovante_url` for uma URL pública antiga,
+ * extrai o path; se já for um path, usa direto.
+ */
+export async function getComprovanteUrl(
+  contaId: string
+): Promise<{ url?: string; error?: string }> {
+  const { supabase } = await getAuthFinanceiro()
+
+  // RLS garante que só conta da empresa do usuário retorna.
+  const { data: conta, error } = await supabase
+    .from('contas_pagar')
+    .select('comprovante_url')
+    .eq('id', contaId)
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!conta?.comprovante_url) return {}
+
+  const raw = conta.comprovante_url as string
+  const marker = '/comprovantes/'
+  const idx = raw.indexOf(marker)
+  const path = idx >= 0 ? raw.slice(idx + marker.length) : raw
+
+  const admin = createAdminClient()
+  const { data: signed, error: signError } = await admin.storage
+    .from('comprovantes')
+    .createSignedUrl(path, 3600)
+
+  if (signError) return { error: signError.message }
+  return { url: signed?.signedUrl }
 }
 
 export async function marcarPago(

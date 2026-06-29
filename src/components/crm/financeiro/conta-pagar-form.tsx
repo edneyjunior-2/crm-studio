@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { CreditCard, QrCode, Phone, Plus, Copy, ExternalLink } from 'lucide-react'
-import { createContaPagar, updateContaPagar, uploadComprovante } from '@/app/(crm)/financeiro/actions'
+import { createContaPagar, updateContaPagar, uploadComprovante, getComprovanteUrl } from '@/app/(crm)/financeiro/actions'
 import { createFornecedor } from '@/app/(crm)/financeiro/fornecedores/actions'
 import type { ContaPagar, Fornecedor, Moeda } from '@/types'
 import { MOEDAS } from '@/lib/moedas'
@@ -109,8 +109,11 @@ export function ContaPagarForm({ conta, trigger, fornecedores = [], sugestoes = 
   const [pixCopaCola, setPixCopaCola] = useState<string>(conta?.pix_copia_cola ?? '')
   const [codigoBoleto, setCodigoBoleto] = useState<string>(conta?.codigo_boleto ?? '')
 
-  // Comprovante de pagamento
-  const [comprovanteUrl, setComprovanteUrl] = useState<string>(conta?.comprovante_url ?? '')
+  // Comprovante de pagamento (bucket privado: comprovanteUrl é uma signed URL
+  // buscada sob demanda; comprovante_url no banco guarda só o path)
+  const temComprovanteSalvo = Boolean(conta?.comprovante_url)
+  const [comprovanteUrl, setComprovanteUrl] = useState<string>('')
+  const [isPdf, setIsPdf] = useState<boolean>((conta?.comprovante_url ?? '').toLowerCase().includes('.pdf'))
   const [comprovanteFile, setComprovanteFile] = useState<File | null>(null)
   const [comprovantePreview, setComprovantePreview] = useState<string>('')
   const [isPendingUpload, startTransitionUpload] = useTransition()
@@ -124,6 +127,16 @@ export function ContaPagarForm({ conta, trigger, fornecedores = [], sugestoes = 
   const [novoPixChave, setNovoPixChave] = useState('')
 
   const fornecedorSelecionado = localFornecedores.find((f) => f.id === fornecedorId) ?? null
+
+  // Busca a URL assinada do comprovante só quando o dialog abre (bucket privado).
+  useEffect(() => {
+    if (!open || !conta?.id || !temComprovanteSalvo || comprovanteUrl) return
+    let cancelado = false
+    getComprovanteUrl(conta.id).then((r) => {
+      if (!cancelado && r.url) setComprovanteUrl(r.url)
+    })
+    return () => { cancelado = true }
+  }, [open, conta?.id, temComprovanteSalvo, comprovanteUrl])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -294,6 +307,7 @@ export function ContaPagarForm({ conta, trigger, fornecedores = [], sugestoes = 
         return
       }
       setComprovanteUrl(result.url ?? '')
+      setIsPdf(comprovanteFile.name.toLowerCase().endsWith('.pdf'))
       setComprovanteFile(null)
       setComprovantePreview('')
       toast.success('Comprovante enviado com sucesso')
@@ -584,7 +598,7 @@ export function ContaPagarForm({ conta, trigger, fornecedores = [], sugestoes = 
                   )}
                 </div>
 
-                {comprovanteUrl && !comprovanteUrl.endsWith('.pdf') && (
+                {comprovanteUrl && !isPdf && (
                   <img
                     src={comprovanteUrl}
                     alt="Comprovante"
@@ -594,7 +608,7 @@ export function ContaPagarForm({ conta, trigger, fornecedores = [], sugestoes = 
 
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="comprovante" className="text-xs text-muted-foreground">
-                    {comprovanteUrl ? 'Substituir comprovante' : 'Adicionar comprovante'}
+                    {temComprovanteSalvo || comprovanteUrl ? 'Substituir comprovante' : 'Adicionar comprovante'}
                   </Label>
                   <input
                     id="comprovante"
