@@ -242,11 +242,11 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
             {resultados.length > 0 ? (
               resultados.map((r) => (
                 <button key={`${r.tipo}-${r.codigo}`} type="button" onClick={() => adicionar(r)}
-                  className="flex w-full items-center gap-3 border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-muted/50">
-                  <span className="self-start rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{r.codigo}</span>
+                  className="flex w-full items-start gap-3 border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-muted/50">
+                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{r.codigo}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate">{r.descricao}</span>
-                    {r.grupo && <span className="block truncate text-[11px] text-muted-foreground">Etapa: {etapaDoGrupo(r.grupo)}</span>}
+                    <span className="block whitespace-normal break-words">{r.descricao}</span>
+                    {r.grupo && <span className="block whitespace-normal break-words text-[11px] text-muted-foreground">Etapa: {etapaDoGrupo(r.grupo)}</span>}
                   </span>
                   <span className="text-xs text-muted-foreground">{r.unidade}</span>
                   <span className="w-24 text-right font-medium tabular-nums">{r.custo != null ? BRL.format(r.custo) : '—'}</span>
@@ -275,12 +275,12 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
                 <span className="text-sm font-medium tabular-nums">{BRL.format(sub)}</span>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full table-fixed text-sm">
+                <table className="w-full table-auto text-sm">
                   <tbody className="divide-y divide-border">
                     {lista.map((i) => (
                       <tr key={i.id}>
-                        <td className="px-4 py-2">
-                          <p className="truncate">{i.descricao}</p>
+                        <td className="px-4 py-2 align-top">
+                          <p className="whitespace-normal break-words">{i.descricao}</p>
                           <p className="text-[11px] text-muted-foreground">{i.codigo_sinapi} · {i.unidade}</p>
                         </td>
                         <td className="w-24 px-2 py-2 text-right">
