@@ -1,4 +1,5 @@
 import { getAuthUser } from '@/lib/auth'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import Link from 'next/link'
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Colaborador, Ponto } from '@/types/rh'
@@ -55,21 +56,31 @@ export default async function RelatorioPontoPage({ searchParams }: PageProps) {
 
   const { supabase } = await getAuthUser()
 
-  const [{ data: colaboradoresRaw }, { data: pontosRaw }] = await Promise.all([
-    supabase
-      .from('colaboradores')
-      .select('*')
-      .eq('status', 'ativo')
-      .order('nome', { ascending: true }),
-    supabase
-      .from('pontos')
-      .select('*')
-      .gte('data', inicioMes)
-      .lte('data', fimMes),
-  ])
-
-  const colaboradores = (colaboradoresRaw ?? []) as Colaborador[]
-  const pontos = (pontosRaw ?? []) as Ponto[]
+  let colaboradores: Colaborador[] = []
+  let pontos: Ponto[] = []
+  try {
+    ;[colaboradores, pontos] = await Promise.all([
+      fetchAllRows<Colaborador>((from, to) =>
+        supabase
+          .from('colaboradores')
+          .select('*')
+          .eq('status', 'ativo')
+          .order('nome', { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows<Ponto>((from, to) =>
+        supabase
+          .from('pontos')
+          .select('*')
+          .gte('data', inicioMes)
+          .lte('data', fimMes)
+          .range(from, to)
+      ),
+    ])
+  } catch {
+    colaboradores = []
+    pontos = []
+  }
 
   type Linha = {
     colaborador: Colaborador

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthPlatformAdmin } from '@/lib/auth'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { BugDetailPanel } from './bug-detail-panel'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -33,19 +34,39 @@ function relTime(iso: string): string {
   return `${d}d atrás`
 }
 
+type BugReport = {
+  id: string
+  status: string
+  descricao: string
+  analise_claude: Record<string, unknown> | null
+  screenshot_url: string | null
+  user_name: string | null
+  user_role: string | null
+  url: string | null
+  contexto: Record<string, unknown> | null
+  created_at: string
+}
+
 export default async function BugsPage() {
   await getAuthPlatformAdmin()
   const admin = createAdminClient()
 
-  const { data: bugs } = await admin
-    .from('bug_reports')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(200)
+  let bugs: BugReport[] = []
+  try {
+    bugs = await fetchAllRows<BugReport>((from, to) =>
+      admin
+        .from('bug_reports')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, to)
+    )
+  } catch {
+    bugs = []
+  }
 
-  const total = bugs?.length ?? 0
-  const abertos = bugs?.filter((b) => b.status === 'aberto').length ?? 0
-  const criticos = bugs?.filter((b) => b.analise_claude?.severidade === 'critica').length ?? 0
+  const total = bugs.length
+  const abertos = bugs.filter((b) => b.status === 'aberto').length
+  const criticos = bugs.filter((b) => (b.analise_claude as Record<string, unknown> | null)?.severidade === 'critica').length
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,5 +1,6 @@
 import { Plus, Upload } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ClientesTable } from '@/components/crm/clientes/clientes-table'
@@ -11,12 +12,16 @@ import { Suspense } from 'react'
 async function ClientesContent() {
   const supabase = await createClient()
 
-  const { data: clientes, error } = await supabase
-    .from('clientes')
-    .select('*')
-    .order('razao_social', { ascending: true })
-
-  if (error) {
+  let clientes: Cliente[] = []
+  try {
+    clientes = await fetchAllRows<Cliente>((from, to) =>
+      supabase
+        .from('clientes')
+        .select('*')
+        .order('razao_social', { ascending: true })
+        .range(from, to)
+    )
+  } catch {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 py-10 text-center">
         <p className="text-sm text-destructive">
@@ -27,7 +32,7 @@ async function ClientesContent() {
   }
 
   return (
-    <ClientesTable clientes={(clientes ?? []) as Cliente[]} />
+    <ClientesTable clientes={clientes} />
   )
 }
 

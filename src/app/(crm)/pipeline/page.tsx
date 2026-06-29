@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Button } from '@/components/ui/button'
 import { KanbanBoard } from '@/components/crm/pipeline/kanban-board'
 import { NegocioForm } from '@/components/crm/pipeline/negocio-form'
@@ -15,29 +16,40 @@ export default async function PipelinePage() {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-  const [negociosResult, clientesResult, solucoesResult, profileResult, profileGoogleResult] = await Promise.all([
-    supabase
-      .from('negocios')
-      .select(`
-        *,
-        clientes ( razao_social ),
-        solucoes ( nome ),
-        profiles ( full_name )
-      `)
-      // Pipeline mostra: negócios não-fechados + fechados (ganho OU perdido) do mês corrente
-      .or(
-        `estagio.not.in.(fechado_ganho,fechado_perdido),` +
-        `and(estagio.in.(fechado_ganho,fechado_perdido),estagio_atualizado_em.gte.${startOfMonth}),` +
-        `and(estagio.in.(fechado_ganho,fechado_perdido),estagio_atualizado_em.is.null,updated_at.gte.${startOfMonth})`
-      )
-      .order('created_at', { ascending: false }),
-    supabase.from('clientes').select('id, razao_social').order('razao_social'),
+  const [solucoesResult, profileResult, profileGoogleResult] = await Promise.all([
     supabase.from('solucoes').select('id, nome').eq('ativo', true).order('nome'),
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     supabase.from('profiles').select('google_refresh_token').eq('id', user.id).single(),
   ])
 
-  if (negociosResult.error) {
+  let allNegocios: NegocioComRelacoes[] = []
+  let clientes: Pick<Cliente, 'id' | 'razao_social'>[] = []
+
+  try {
+    ;[allNegocios, clientes] = await Promise.all([
+      fetchAllRows<NegocioComRelacoes>((from, to) =>
+        supabase
+          .from('negocios')
+          .select(`
+            *,
+            clientes ( razao_social ),
+            solucoes ( nome ),
+            profiles ( full_name )
+          `)
+          // Pipeline mostra: negócios não-fechados + fechados (ganho OU perdido) do mês corrente
+          .or(
+            `estagio.not.in.(fechado_ganho,fechado_perdido),` +
+            `and(estagio.in.(fechado_ganho,fechado_perdido),estagio_atualizado_em.gte.${startOfMonth}),` +
+            `and(estagio.in.(fechado_ganho,fechado_perdido),estagio_atualizado_em.is.null,updated_at.gte.${startOfMonth})`
+          )
+          .order('created_at', { ascending: false })
+          .range(from, to)
+      ),
+      fetchAllRows<Pick<Cliente, 'id' | 'razao_social'>>((from, to) =>
+        supabase.from('clientes').select('id, razao_social').order('razao_social').range(from, to)
+      ),
+    ])
+  } catch {
     return (
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
@@ -56,7 +68,6 @@ export default async function PipelinePage() {
   }
 
   const role = profileResult.data?.role
-  const allNegocios = (negociosResult.data ?? []) as NegocioComRelacoes[]
 
   // comercial vê apenas os próprios negócios — RLS garante no banco,
   // mas filtramos em JS também para caso RLS não esteja habilitada
@@ -65,7 +76,6 @@ export default async function PipelinePage() {
       ? allNegocios.filter((n) => n.responsavel_id === user.id)
       : allNegocios
 
-  const clientes = (clientesResult.data ?? []) as Pick<Cliente, 'id' | 'razao_social'>[]
   const solucoes = (solucoesResult.data ?? []) as Pick<Solucao, 'id' | 'nome'>[]
   const googleConnected = !!profileGoogleResult.data?.google_refresh_token
 

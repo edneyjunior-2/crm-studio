@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, TrendingUp, TrendingDown, Wallet, LayoutDashboard, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -52,26 +53,60 @@ interface ContaReceberComRelacoes extends ContaReceber {
 async function FinanceiroContent() {
   const supabase = await createClient()
 
+  // contas_receber e contas_pagar são somadas para KPIs monetários — precisamos
+  // do conjunto COMPLETO, sem o cap de ~1000 linhas do PostgREST.
+  let receberList: ContaReceberComRelacoes[] = []
+  let pagarList: ContaPagar[] = []
+  let errReceber = false
+  let errPagar = false
+
+  try {
+    receberList = await fetchAllRows<ContaReceberComRelacoes>((from, to) =>
+      supabase
+        .from('contas_receber')
+        .select('*, clientes(razao_social)')
+        .order('data_vencimento', { ascending: true })
+        .range(from, to)
+    )
+  } catch {
+    errReceber = true
+  }
+
+  try {
+    pagarList = await fetchAllRows<ContaPagar>((from, to) =>
+      supabase
+        .from('contas_pagar')
+        .select('*')
+        .order('data_vencimento', { ascending: true })
+        .range(from, to)
+    )
+  } catch {
+    errPagar = true
+  }
+
+  // movimentacoes: saldo de cada banco = saldo_inicial + TODAS entradas - TODAS saídas.
+  // Qualquer cap truncaria o saldo — buscamos tudo com paginação.
+  let movimentacoes: Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>[] = []
+  try {
+    movimentacoes = await fetchAllRows<Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>>((from, to) =>
+      supabase
+        .from('movimentacoes')
+        .select('banco_id, tipo, valor')
+        .range(from, to)
+    )
+  } catch {
+    // saldo dos bancos ficará como saldo_inicial — comportamento degradado aceitável
+  }
+
   const [
-    { data: contasReceber, error: errReceber },
-    { data: contasPagar, error: errPagar },
     { data: clientes },
     { data: negocios },
     { data: comissoes, error: errComissoes },
     { data: comerciais },
     { data: bancosData },
-    { data: movsData },
     { data: fornecedoresData },
     { data: parceirosData },
   ] = await Promise.all([
-    supabase
-      .from('contas_receber')
-      .select('*, clientes(razao_social)')
-      .order('data_vencimento', { ascending: true }),
-    supabase
-      .from('contas_pagar')
-      .select('*')
-      .order('data_vencimento', { ascending: true }),
     supabase
       .from('clientes')
       .select('id, razao_social')
@@ -97,17 +132,6 @@ async function FinanceiroContent() {
       .select('*')
       .eq('ativo', true)
       .order('nome', { ascending: true }),
-    // PERFORMANCE: o saldo de cada banco é calculado como saldo_inicial + soma de
-    // TODAS as movimentações históricas (entradas - saídas). Um filtro temporal
-    // quebraria o cálculo se houver movimentações antigas ainda relevantes para o
-    // saldo atual. O limite de 500 registros é uma proteção imediata contra tabelas
-    // muito grandes. A solução definitiva é adicionar uma coluna `saldo_atual` na
-    // tabela `bancos`, atualizada por trigger a cada INSERT/UPDATE/DELETE em
-    // `movimentacoes`, eliminando completamente a necessidade desta query agregada.
-    supabase
-      .from('movimentacoes')
-      .select('banco_id, tipo, valor')
-      .limit(500),
     supabase
       .from('fornecedores')
       .select('*')
@@ -128,14 +152,12 @@ async function FinanceiroContent() {
       </div>
     )
   }
-
-  const receberList = (contasReceber ?? []) as ContaReceberComRelacoes[]
-  const pagarList = (contasPagar ?? []) as ContaPagar[]
   const clientesList = (clientes ?? []) as Pick<Cliente, 'id' | 'razao_social'>[]
   const negociosList = (negocios ?? []) as Pick<Negocio, 'id' | 'titulo'>[]
   if (errComissoes) {
     console.error('Erro ao carregar comissões:', errComissoes)
   }
+
 
   // O nome do comercial não pode vir por embed (comercial_id → auth.users, não
   // profiles). Buscamos os profiles dos comerciais referenciados numa 2ª query e
@@ -170,7 +192,6 @@ async function FinanceiroContent() {
   const parceirosComissaoList = (parceirosData ?? []) as ParceiroComissao[]
 
   const bancos = (bancosData ?? []) as Banco[]
-  const movimentacoes = (movsData ?? []) as Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>[]
   const bancosComSaldo = bancos.map((b) => {
     const movs = movimentacoes.filter((m) => m.banco_id === b.id)
     const entradas = movs.filter((m) => m.tipo === 'entrada').reduce((s, m) => s + Number(m.valor), 0)

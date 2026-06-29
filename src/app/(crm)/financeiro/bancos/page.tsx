@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Landmark, Building2, QrCode, Copy, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { BancoForm } from '@/components/crm/financeiro/banco-form'
@@ -17,7 +18,7 @@ const TIPO_LABEL: Record<string, string> = {
   caixa: 'Caixa',
 }
 
-function calcSaldo(banco: Banco, movimentacoes: Movimentacao[]): number {
+function calcSaldo(banco: Banco, movimentacoes: Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>[]): number {
   const movs = movimentacoes.filter((m) => m.banco_id === banco.id)
   const entradas = movs.filter((m) => m.tipo === 'entrada').reduce((s, m) => s + Number(m.valor), 0)
   const saidas = movs.filter((m) => m.tipo === 'saida').reduce((s, m) => s + Number(m.valor), 0)
@@ -39,13 +40,27 @@ export default async function BancosPage() {
     redirect('/dashboard')
   }
 
-  const [{ data: bancosData }, { data: movsData }] = await Promise.all([
-    supabase.from('bancos').select('*').eq('ativo', true).order('created_at', { ascending: true }),
-    supabase.from('movimentacoes').select('banco_id, tipo, valor'),
-  ])
+  const { data: bancosData } = await supabase
+    .from('bancos')
+    .select('*')
+    .eq('ativo', true)
+    .order('created_at', { ascending: true })
+
+  // movimentacoes: saldo de cada banco = saldo_inicial + TODAS entradas - TODAS saídas.
+  // Sem paginação o PostgREST truncaria em ~1000 linhas, corrompendo o saldo.
+  let movimentacoes: Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>[] = []
+  try {
+    movimentacoes = await fetchAllRows<Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>>((from, to) =>
+      supabase
+        .from('movimentacoes')
+        .select('banco_id, tipo, valor')
+        .range(from, to) as unknown as PromiseLike<{ data: Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>[] | null; error: import('@supabase/supabase-js').PostgrestError | null }>
+    )
+  } catch {
+    // saldo ficará como saldo_inicial — comportamento degradado aceitável
+  }
 
   const bancos = (bancosData ?? []) as Banco[]
-  const movimentacoes = (movsData ?? []) as Movimentacao[]
 
   const saldoTotal = bancos.reduce((sum, b) => sum + calcSaldo(b, movimentacoes), 0)
 

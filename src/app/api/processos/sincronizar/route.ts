@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      const movs = res.processo.movimentos.map((m) => {
+      const movsRaw = res.processo.movimentos.map((m) => {
         const d = new Date(m.dataHora)
         const dataMovimentacao =
           `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -104,6 +104,16 @@ export async function POST(req: NextRequest) {
           raw_data:          m,
         }
       })
+
+      // Deduplica por chave composta (processo_id|codigo_movimento|data_movimentacao)
+      // para evitar "ON CONFLICT DO UPDATE command cannot affect row a second time"
+      // quando o DataJud devolve 2 movimentos do mesmo código/dia no mesmo processo.
+      const movsDedup = new Map<string, typeof movsRaw[number]>()
+      for (const mov of movsRaw) {
+        const key = `${mov.processo_id}|${mov.codigo_movimento}|${mov.data_movimentacao}`
+        movsDedup.set(key, mov)
+      }
+      const movs = Array.from(movsDedup.values())
 
       const { data: inserted, error: errMovs } = await admin
         .from('movimentacoes_processo')

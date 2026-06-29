@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { DollarSign, Building2, CheckCircle2, Users, Clock, ArrowRight, HardHat } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 const STATUS_LABELS: Record<string, string> = {
   trial: 'Trial', ativo: 'Ativo', pendente: 'Pendente',
@@ -32,22 +33,35 @@ function diasRestantes(iso: string, agora: number): number {
 
 export default async function AdminDashboardPage() {
   const db = createAdminClient()
-  const [
-    { data: empresasRaw, error: empresasErr },
-    { count: totalUsuarios },
-    { count: obrasAtivas },
-  ] = await Promise.all([
-    db.from('empresas').select('id, nome, plano, status, trial_ends_at, created_at, valor_mensalidade'),
+
+  // Buscar empresas completas (fetchAllRows contorna o cap de 1000 do PostgREST)
+  let empresasRaw: { id: string; nome: string; plano: string | null; status: string; trial_ends_at: string | null; created_at: string; valor_mensalidade?: number | null }[] | null = null
+  try {
+    empresasRaw = await fetchAllRows((from, to) =>
+      db.from('empresas').select('id, nome, plano, status, trial_ends_at, created_at, valor_mensalidade').range(from, to)
+    )
+  } catch (err: unknown) {
+    // Fallback: coluna valor_mensalidade ainda não existe no banco de produção
+    const pgErr = err as { code?: string }
+    if (pgErr?.code === '42703') {
+      try {
+        empresasRaw = await fetchAllRows((from, to) =>
+          db.from('empresas').select('id, nome, plano, status, trial_ends_at, created_at').range(from, to)
+        )
+      } catch {
+        empresasRaw = []
+      }
+    } else {
+      empresasRaw = []
+    }
+  }
+
+  const [{ count: totalUsuarios }, { count: obrasAtivas }] = await Promise.all([
     db.from('profiles').select('id', { count: 'exact', head: true }),
     db.from('obras').select('id', { count: 'exact', head: true }).in('status', ['em_andamento', 'orcamento']),
   ])
 
-  // Fallback: coluna valor_mensalidade ainda não existe no banco de produção
-  let empresas = empresasRaw
-  if (empresasErr && empresasErr.code === '42703') {
-    const { data: base } = await db.from('empresas').select('id, nome, plano, status, trial_ends_at, created_at')
-    empresas = base as typeof empresas
-  }
+  const empresas = empresasRaw
 
   const emp = empresas ?? []
   const total = emp.length

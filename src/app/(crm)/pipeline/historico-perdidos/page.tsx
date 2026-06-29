@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, History } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -53,30 +54,33 @@ export default async function HistoricoPerdidosPage() {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-  const query = supabase
-    .from('negocios')
-    .select(`
-      *,
-      clientes ( razao_social ),
-      solucoes ( nome ),
-      profiles ( full_name )
-    `)
-    // Ganhos e perdidos de meses anteriores
-    .in('estagio', ['fechado_ganho', 'fechado_perdido'])
-    .or(
-      `and(estagio_atualizado_em.not.is.null,estagio_atualizado_em.lt.${startOfMonth}),` +
-      `and(estagio_atualizado_em.is.null,updated_at.lt.${startOfMonth})`
-    )
-    .order('estagio_atualizado_em', { ascending: false })
+  const isComercial = profile?.role === 'comercial'
 
-  // Comercial vê apenas os próprios negócios
-  if (profile?.role === 'comercial') {
-    query.eq('responsavel_id', user.id)
-  }
+  let negocios: NegocioComRelacoes[] = []
+  try {
+    negocios = await fetchAllRows<NegocioComRelacoes>((from, to) => {
+      let q = supabase
+        .from('negocios')
+        .select(`
+          *,
+          clientes ( razao_social ),
+          solucoes ( nome ),
+          profiles ( full_name )
+        `)
+        // Ganhos e perdidos de meses anteriores
+        .in('estagio', ['fechado_ganho', 'fechado_perdido'])
+        .or(
+          `and(estagio_atualizado_em.not.is.null,estagio_atualizado_em.lt.${startOfMonth}),` +
+          `and(estagio_atualizado_em.is.null,updated_at.lt.${startOfMonth})`
+        )
+        .order('estagio_atualizado_em', { ascending: false })
+        .range(from, to)
 
-  const { data, error } = await query
-
-  if (error) {
+      // Comercial vê apenas os próprios negócios
+      if (isComercial) q = q.eq('responsavel_id', user.id)
+      return q
+    })
+  } catch {
     return (
       <div className="flex flex-col gap-6">
         <Header />
@@ -88,8 +92,6 @@ export default async function HistoricoPerdidosPage() {
       </div>
     )
   }
-
-  const negocios = (data ?? []) as NegocioComRelacoes[]
 
   if (negocios.length === 0) {
     return (

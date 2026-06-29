@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { TrendingUp, TrendingDown, Wallet, Landmark, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FluxoCaixaChart } from '@/components/crm/financeiro/fluxo-caixa-chart'
 
@@ -42,17 +43,25 @@ async function DashboardContent() {
   const hoje = `${anoAtual}-${String(mesAtual).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const limite7d = `${seteD.getFullYear()}-${String(seteD.getMonth() + 1).padStart(2, '0')}-${String(seteD.getDate()).padStart(2, '0')}`
 
+  const inicio6m = (() => {
+    const d = new Date(now)
+    d.setMonth(d.getMonth() - 5)
+    d.setDate(1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  })()
+
+  // movimentacoes (saldo total): precisamos de TODAS — o saldo em caixa é
+  // saldo_inicial + entradas - saídas históricas; qualquer cap corrompe o valor.
+  // movimentacoes6m (fluxo dos últimos 6 meses): filtrado por data mas ainda pode
+  // ultrapassar 1000 linhas em tenants ativos — paginamos também.
   const [
     { data: bancos },
-    { data: movimentacoes },
     { data: receberMes },
     { data: pagarMes },
     { data: vencendoReceber },
     { data: vencendoPagar },
-    { data: movimentacoes6m },
   ] = await Promise.all([
     supabase.from('bancos').select('saldo_inicial').eq('ativo', true),
-    supabase.from('movimentacoes').select('tipo, valor'),
     supabase
       .from('contas_receber')
       .select('valor')
@@ -81,23 +90,41 @@ async function DashboardContent() {
       .lte('data_vencimento', limite7d)
       .order('data_vencimento', { ascending: true })
       .limit(5),
-    supabase
-      .from('movimentacoes')
-      .select('tipo, valor, data')
-      .gte('data', (() => {
-        const d = new Date(now)
-        d.setMonth(d.getMonth() - 5)
-        d.setDate(1)
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-      })())
-      .order('data', { ascending: true }),
   ])
 
+  // Busca TODAS as movimentações históricas para calcular saldo em caixa correto.
+  let movimentacoes: { tipo: string; valor: number }[] = []
+  try {
+    movimentacoes = await fetchAllRows<{ tipo: string; valor: number }>((from, to) =>
+      supabase
+        .from('movimentacoes')
+        .select('tipo, valor')
+        .range(from, to)
+    )
+  } catch {
+    // saldo ficará como saldo_inicial — degradado mas não quebra a tela
+  }
+
+  // Busca movimentações dos últimos 6 meses para o gráfico de fluxo de caixa.
+  let movimentacoes6m: { tipo: string; valor: number; data: string }[] = []
+  try {
+    movimentacoes6m = await fetchAllRows<{ tipo: string; valor: number; data: string }>((from, to) =>
+      supabase
+        .from('movimentacoes')
+        .select('tipo, valor, data')
+        .gte('data', inicio6m)
+        .order('data', { ascending: true })
+        .range(from, to)
+    )
+  } catch {
+    // gráfico ficará vazio — degradado mas não quebra a tela
+  }
+
   const saldoInicial = (bancos ?? []).reduce((s, b) => s + Number(b.saldo_inicial), 0)
-  const totalEntradas = (movimentacoes ?? [])
+  const totalEntradas = movimentacoes
     .filter((m) => m.tipo === 'entrada')
     .reduce((s, m) => s + Number(m.valor), 0)
-  const totalSaidas = (movimentacoes ?? [])
+  const totalSaidas = movimentacoes
     .filter((m) => m.tipo === 'saida')
     .reduce((s, m) => s + Number(m.valor), 0)
   const saldoCaixa = saldoInicial + totalEntradas - totalSaidas
@@ -128,7 +155,7 @@ async function DashboardContent() {
     const chave = `${ano}-${String(mes).padStart(2, '0')}`
     const label = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
 
-    const movs = (movimentacoes6m ?? []).filter((m) => m.data.startsWith(chave))
+    const movs = movimentacoes6m.filter((m) => m.data.startsWith(chave))
     const entradas = movs.filter((m) => m.tipo === 'entrada').reduce((s, m) => s + Number(m.valor), 0)
     const saidas = movs.filter((m) => m.tipo === 'saida').reduce((s, m) => s + Number(m.valor), 0)
     mesesFluxo.push({ mes: label, entradas, saidas })

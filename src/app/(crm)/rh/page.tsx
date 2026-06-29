@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, CalendarMinus, DollarSign, Users, ClipboardCheck } from 'lucide-react'
 import { getAuthAdmin } from '@/lib/auth'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ColaboradoresTable } from '@/components/crm/rh/colaboradores-table'
@@ -65,11 +66,10 @@ async function RhContent() {
   // Leitura: salário cadastrado no colaborador, não de lancamentos_folha — é a visão rápida de custo estimado.
   const custoFolhaMes = ativos.reduce((acc, c) => acc + (c.salario ?? 0), 0)
 
-  // Ausências
-  const { data: ausenciasRaw, error: errAusencias } = await supabase
+  // Ausências — contagem pura para o KPI
+  const { count: ausenciasCount, error: errAusencias } = await supabase
     .from('ausencias')
-    .select('*, colaborador:colaboradores(id, nome)')
-    .order('data_inicio', { ascending: false })
+    .select('id', { count: 'exact', head: true })
 
   if (errAusencias) {
     return (
@@ -81,25 +81,28 @@ async function RhContent() {
     )
   }
 
-  const ausencias = (ausenciasRaw ?? []) as Ausencia[]
+  const totalAusencias = ausenciasCount ?? 0
 
   // Lançamentos de folha
-  const { data: lancamentosRaw, error: errLancamentos } = await supabase
-    .from('lancamentos_folha')
-    .select('*, colaborador:colaboradores(id, nome, cargo)')
-    .order('competencia', { ascending: false })
-
-  if (errLancamentos) {
+  let lancamentos: LancamentoFolha[] = []
+  try {
+    lancamentos = await fetchAllRows<LancamentoFolha>((from, to) =>
+      supabase
+        .from('lancamentos_folha')
+        .select('*, colaborador:colaboradores(id, nome, cargo)')
+        .order('competencia', { ascending: false })
+        .range(from, to)
+    )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 py-10 text-center">
         <p className="text-sm text-destructive">
-          Erro ao carregar folha: {errLancamentos.message}
+          Erro ao carregar folha: {msg}
         </p>
       </div>
     )
   }
-
-  const lancamentos = (lancamentosRaw ?? []) as LancamentoFolha[]
 
   // Colaboradores ativos para selects nos forms
   const colaboradoresAtivos = ativos.map((c) => ({ id: c.id, nome: c.nome }))
@@ -120,7 +123,7 @@ async function RhContent() {
         />
         <KpiCard
           label="Ausências registradas"
-          value={String(ausencias.length)}
+          value={String(totalAusencias)}
           icon={CalendarMinus}
         />
       </div>

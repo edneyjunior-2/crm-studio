@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getAuthUser } from '@/lib/auth'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type CategoriaItem = 'mao_obra' | 'material' | 'composicao'
 
@@ -50,11 +51,17 @@ export async function buscarCatalogo(
 
 async function recalcularTotal(orcamentoId: string) {
   const { supabase } = await getAuthUser()
-  const [{ data: itens }, { data: orc }] = await Promise.all([
-    supabase.from('orcamento_itens').select('subtotal').eq('orcamento_id', orcamentoId),
+  const [itens, { data: orc }] = await Promise.all([
+    fetchAllRows<{ subtotal: number | null }>((from, to) =>
+      supabase
+        .from('orcamento_itens')
+        .select('subtotal')
+        .eq('orcamento_id', orcamentoId)
+        .range(from, to)
+    ),
     supabase.from('orcamentos').select('bdi_percentual').eq('id', orcamentoId).single(),
   ])
-  const custoDireto = (itens ?? []).reduce((s, i) => s + Number(i.subtotal ?? 0), 0)
+  const custoDireto = itens.reduce((s, i) => s + Number(i.subtotal ?? 0), 0)
   const bdi = Number(orc?.bdi_percentual ?? 0)
   const total = Math.round(custoDireto * (1 + bdi / 100) * 100) / 100
   const { error } = await supabase

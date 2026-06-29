@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Scale, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { ImportarExcelDialog } from './importar-excel-dialog'
 import { ProcessosPageContent } from './processos-page-content'
 import { SincronizarDataJudButton } from './sincronizar-datajud-button'
@@ -106,45 +107,77 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
   const { tab } = await searchParams
   const isArquivadosTab = tab === 'arquivados'
 
+  // Queries independentes: lista completa (fetchAllRows), contagens e advogados
+  const statusFiltro = isArquivadosTab ? ['arquivado', 'concluido'] : ['ativo', 'encerrado', 'suspenso']
+
+  type ProcessoRow = {
+    id: string
+    numero_processo: string
+    tribunal_slug: string | null
+    assunto: string | null
+    vara: string | null
+    area: string | null
+    status: string
+    ultimo_datajud_update: string | null
+    created_at: string
+    advogado_id: string | null
+    clientes: unknown
+    [key: string]: unknown
+  }
+
+  type NaoLidoRow = { processo_id: string }
+
+  let processos: ProcessoRow[] = []
+  let fetchError = false
+  try {
+    processos = await fetchAllRows<ProcessoRow>((from, to) =>
+      supabase
+        .from('processos_juridicos')
+        .select(`
+          id,
+          numero_processo,
+          tribunal_slug,
+          assunto,
+          vara,
+          area,
+          status,
+          ultimo_datajud_update,
+          created_at,
+          advogado_id,
+          clientes(id, razao_social),
+          profiles!advogado_id(id, full_name)
+        `)
+        .in('status', statusFiltro)
+        .order('created_at', { ascending: false })
+        .range(from, to)
+    )
+  } catch {
+    fetchError = true
+  }
+
+  let naoLidosPorProcessoRaw: NaoLidoRow[] = []
+  try {
+    naoLidosPorProcessoRaw = await fetchAllRows<NaoLidoRow>((from, to) =>
+      supabase
+        .from('movimentacoes_processo')
+        .select('processo_id')
+        .eq('lido', false)
+        .range(from, to)
+    )
+  } catch {
+    naoLidosPorProcessoRaw = []
+  }
+
   const [
-    { data: processos, error },
     { count: totalNaoLidosCount },
-    { data: naoLidosPorProcessoRaw },
     { data: advogados },
     { count: totalArquivados },
   ] = await Promise.all([
-    // Ativos (só quando na tab padrão) ou arquivados/concluídos (tab arquivados)
-    supabase
-      .from('processos_juridicos')
-      .select(`
-        id,
-        numero_processo,
-        tribunal_slug,
-        assunto,
-        vara,
-        area,
-        status,
-        ultimo_datajud_update,
-        created_at,
-        advogado_id,
-        clientes(id, razao_social),
-        profiles!advogado_id(id, full_name)
-      `)
-      .in('status', isArquivadosTab ? ['arquivado', 'concluido'] : ['ativo', 'encerrado', 'suspenso'])
-      .order('created_at', { ascending: false }),
-
     // COUNT real — sem trazer linhas (head: true)
     supabase
       .from('movimentacoes_processo')
       .select('*', { count: 'exact', head: true })
       .eq('lido', false),
-
-    // IDs por processo para badges — limite alto para cobrir todos os processos
-    supabase
-      .from('movimentacoes_processo')
-      .select('processo_id')
-      .eq('lido', false)
-      .limit(50000),
 
     supabase
       .from('profiles')
@@ -160,9 +193,11 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
 
   // Badge por processo (quantas não lidas cada um tem)
   const naoLidosPorProcesso = new Map<string, number>()
-  for (const row of naoLidosPorProcessoRaw ?? []) {
+  for (const row of naoLidosPorProcessoRaw) {
     naoLidosPorProcesso.set(row.processo_id, (naoLidosPorProcesso.get(row.processo_id) ?? 0) + 1)
   }
+
+  const error = fetchError
 
   const semanaAtras = new Date()
   semanaAtras.setDate(semanaAtras.getDate() - 7)
@@ -172,10 +207,10 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
   const tribunaisSet  = new Set<string>()
   let semDataJud      = 0
 
-  const processosNorm = (processos ?? []).map((p) => {
+  const processosNorm = processos.map((p) => {
     const clienteRaw = p.clientes as unknown
-    const advRaw     = (p as Record<string, unknown>)['profiles!advogado_id'] as unknown
-    const areaRaw    = (p as Record<string, unknown>).area as string | null
+    const advRaw     = p['profiles!advogado_id'] as unknown
+    const areaRaw    = p.area as string | null
     const areaSlug   = areaRaw ? areaToSlug(areaRaw) : null
 
     // stats
@@ -189,7 +224,7 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
     return {
       id:             p.id,
       numeroProcesso: p.numero_processo,
-      tribunalSlug:   p.tribunal_slug,
+      tribunalSlug:   p.tribunal_slug ?? '',
       status:         p.status,
       area:           areaSlug,
       areaLabel:      areaSlug ? (AREA_LABEL[areaSlug] ?? areaSlug) : null,

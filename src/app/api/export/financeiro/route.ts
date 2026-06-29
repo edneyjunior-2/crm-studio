@@ -1,26 +1,53 @@
 import { NextResponse } from 'next/server'
 import { getAuthFinanceiro } from '@/lib/auth'
 import { toCsv, exportFilename } from '@/lib/csv'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export async function GET() {
   const { supabase } = await getAuthFinanceiro()
 
-  const [receberResult, pagarResult] = await Promise.all([
-    supabase
-      .from('contas_receber')
-      .select('descricao, valor, data_vencimento, data_recebimento, status, created_at')
-      .order('data_vencimento', { ascending: false }),
-    supabase
-      .from('contas_pagar')
-      .select('descricao, fornecedor, valor, data_vencimento, data_pagamento, categoria, status, created_at')
-      .order('data_vencimento', { ascending: false }),
-  ])
-
-  if (receberResult.error) {
-    return NextResponse.json({ error: receberResult.error.message }, { status: 500 })
+  type RowReceber = {
+    descricao: string | null
+    valor: number | null
+    data_vencimento: string | null
+    data_recebimento: string | null
+    status: string | null
+    created_at: string
   }
-  if (pagarResult.error) {
-    return NextResponse.json({ error: pagarResult.error.message }, { status: 500 })
+  type RowPagar = {
+    descricao: string | null
+    fornecedor: string | null
+    valor: number | null
+    data_vencimento: string | null
+    data_pagamento: string | null
+    categoria: string | null
+    status: string | null
+    created_at: string
+  }
+
+  let receberData: RowReceber[]
+  let pagarData: RowPagar[]
+
+  try {
+    ;[receberData, pagarData] = await Promise.all([
+      fetchAllRows<RowReceber>((from, to) =>
+        supabase
+          .from('contas_receber')
+          .select('descricao, valor, data_vencimento, data_recebimento, status, created_at')
+          .order('data_vencimento', { ascending: false })
+          .range(from, to),
+      ),
+      fetchAllRows<RowPagar>((from, to) =>
+        supabase
+          .from('contas_pagar')
+          .select('descricao, fornecedor, valor, data_vencimento, data_pagamento, categoria, status, created_at')
+          .order('data_vencimento', { ascending: false })
+          .range(from, to),
+      ),
+    ])
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 
   const headersReceber: Record<string, string> = {
@@ -43,12 +70,12 @@ export async function GET() {
     created_at: 'Criado em',
   }
 
-  const rowsReceber = (receberResult.data ?? []).map((r) => ({
+  const rowsReceber = receberData.map((r) => ({
     ...r,
     created_at: r.created_at ? r.created_at.slice(0, 10) : '',
   }))
 
-  const rowsPagar = (pagarResult.data ?? []).map((r) => ({
+  const rowsPagar = pagarData.map((r) => ({
     ...r,
     created_at: r.created_at ? r.created_at.slice(0, 10) : '',
   }))

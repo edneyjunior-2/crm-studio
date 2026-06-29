@@ -1,17 +1,37 @@
 import { NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
 import { toCsv, exportFilename } from '@/lib/csv'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export async function GET() {
   const { supabase } = await getAuthUser()
 
-  const { data, error } = await supabase
-    .from('negocios')
-    .select('titulo, estagio, valor_estimado, probabilidade, data_previsao_fechamento, observacoes, created_at, clientes(razao_social), solucoes(nome), profiles!responsavel_id(full_name)')
-    .order('created_at', { ascending: false })
+  type NegocioRow = {
+    titulo: string
+    estagio: string
+    valor_estimado: number | null
+    probabilidade: number | null
+    data_previsao_fechamento: string | null
+    observacoes: string | null
+    created_at: string
+    clientes: { razao_social: string } | { razao_social: string }[] | null
+    solucoes: { nome: string } | { nome: string }[] | null
+    profiles: { full_name: string } | { full_name: string }[] | null
+  }
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  let data: NegocioRow[]
+
+  try {
+    data = await fetchAllRows((from, to) =>
+      supabase
+        .from('negocios')
+        .select('titulo, estagio, valor_estimado, probabilidade, data_previsao_fechamento, observacoes, created_at, clientes(razao_social), solucoes(nome), profiles!responsavel_id(full_name)')
+        .order('created_at', { ascending: false })
+        .range(from, to),
+    )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 
   const headers: Record<string, string> = {
@@ -27,7 +47,7 @@ export async function GET() {
     created_at: 'Criado em',
   }
 
-  const rows = (data ?? []).map((r) => {
+  const rows = data.map((r) => {
     // Supabase returns relations as arrays; pick first element safely
     const clienteRel = r.clientes
     const solucaoRel = r.solucoes

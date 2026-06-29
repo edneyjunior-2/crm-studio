@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Scale, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { ReatribuirSelect } from './reatribuir-select'
 import { StatusBadge, type StatusBadgeVariant } from '@/components/ui/status-badge'
 import { areaToSlug } from '../page'
@@ -75,30 +76,40 @@ export default async function ResponsabilidadesPage() {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
   // Admin/sócio: todos os processos; outros: só os seus
-  const query = supabase
-    .from('processos_juridicos')
-    .select(`
-      id, numero_processo, assunto, area, status,
-      advogado_id,
-      profiles!advogado_id(id, full_name),
-      clientes(razao_social)
-    `)
-    .order('status', { ascending: true })
-    .order('numero_processo', { ascending: true })
-
-  if (!isAdmin) {
-    query.eq('advogado_id', user.id)
+  type ProcessoRespRow = {
+    id: string
+    numero_processo: string
+    assunto: string | null
+    area: string | null
+    status: string
+    advogado_id: string | null
+    [key: string]: unknown
   }
 
-  const { data: processos, error } = await query
-
-  if (error) {
-    return <p className="p-8 text-sm text-destructive">{error.message}</p>
+  let processos: ProcessoRespRow[]
+  try {
+    processos = await fetchAllRows<ProcessoRespRow>((from, to) => {
+      const q = supabase
+        .from('processos_juridicos')
+        .select(`
+          id, numero_processo, assunto, area, status,
+          advogado_id,
+          profiles!advogado_id(id, full_name),
+          clientes(razao_social)
+        `)
+        .order('status', { ascending: true })
+        .order('numero_processo', { ascending: true })
+        .range(from, to)
+      return isAdmin ? q : q.eq('advogado_id', user.id)
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return <p className="p-8 text-sm text-destructive">{msg}</p>
   }
 
-  const lista = (processos ?? []).map((p) => {
-    const advRaw   = (p as Record<string, unknown>)['profiles!advogado_id'] as { id: string; full_name: string } | null
-    const clienteRaw = (p as Record<string, unknown>)['clientes'] as { razao_social: string } | null
+  const lista = processos.map((p) => {
+    const advRaw   = p['profiles!advogado_id'] as { id: string; full_name: string } | null
+    const clienteRaw = p['clientes'] as { razao_social: string } | null
     return {
       id:             p.id,
       numero:         p.numero_processo,

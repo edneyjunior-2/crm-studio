@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { RelatorioFiltros } from '@/components/crm/financeiro/relatorio-filtros'
 import { RelatorioTabela } from '@/components/crm/financeiro/relatorio-tabela'
 import type { ContaReceber, ContaPagar } from '@/types'
@@ -50,18 +51,25 @@ export default async function RelatorioPage({ searchParams }: PageProps) {
   let linhas: RelatorioLinha[] = []
 
   if (hasFilter) {
+    try {
     if (tipo === 'receber' || tipo === 'ambos') {
-      let q = supabase
-        .from('contas_receber')
-        .select('id, descricao, valor, data_vencimento, status, cliente_id, clientes(razao_social)')
-        .order('data_vencimento', { ascending: true })
+      // Relatório pode cobrir um período longo com muitas linhas — paginamos para
+      // garantir o conjunto COMPLETO sem o cap de ~1000 do PostgREST.
+      const rows = await fetchAllRows<ContaReceber & { clientes: { razao_social: string } | null }>(
+        (from, to) => {
+          let q = supabase
+            .from('contas_receber')
+            .select('id, descricao, valor, data_vencimento, status, cliente_id, clientes(razao_social)')
+            .order('data_vencimento', { ascending: true })
+            .range(from, to)
 
-      if (dataInicio) q = q.gte('data_vencimento', dataInicio)
-      if (dataFim) q = q.lte('data_vencimento', dataFim)
-      if (status !== 'todos') q = q.eq('status', status === 'pago' ? 'recebido' : status)
+          if (dataInicio) q = q.gte('data_vencimento', dataInicio)
+          if (dataFim) q = q.lte('data_vencimento', dataFim)
+          if (status !== 'todos') q = q.eq('status', status === 'pago' ? 'recebido' : status)
 
-      const { data } = await q
-      const rows = (data ?? []) as unknown as (ContaReceber & { clientes: { razao_social: string } | null })[]
+          return q as unknown as PromiseLike<{ data: (ContaReceber & { clientes: { razao_social: string } | null })[] | null; error: import('@supabase/supabase-js').PostgrestError | null }>
+        }
+      )
 
       linhas.push(
         ...rows.map((r) => ({
@@ -78,17 +86,20 @@ export default async function RelatorioPage({ searchParams }: PageProps) {
     }
 
     if (tipo === 'pagar' || tipo === 'ambos') {
-      let q = supabase
-        .from('contas_pagar')
-        .select('id, descricao, valor, data_vencimento, status, fornecedor, categoria')
-        .order('data_vencimento', { ascending: true })
+      // Idem — paginamos para garantir o conjunto COMPLETO.
+      const rows = await fetchAllRows<ContaPagar>((from, to) => {
+        let q = supabase
+          .from('contas_pagar')
+          .select('id, descricao, valor, data_vencimento, status, fornecedor, categoria')
+          .order('data_vencimento', { ascending: true })
+          .range(from, to)
 
-      if (dataInicio) q = q.gte('data_vencimento', dataInicio)
-      if (dataFim) q = q.lte('data_vencimento', dataFim)
-      if (status !== 'todos') q = q.eq('status', status === 'recebido' ? 'pago' : status)
+        if (dataInicio) q = q.gte('data_vencimento', dataInicio)
+        if (dataFim) q = q.lte('data_vencimento', dataFim)
+        if (status !== 'todos') q = q.eq('status', status === 'recebido' ? 'pago' : status)
 
-      const { data } = await q
-      const rows = (data ?? []) as ContaPagar[]
+        return q as unknown as PromiseLike<{ data: ContaPagar[] | null; error: import('@supabase/supabase-js').PostgrestError | null }>
+      })
 
       linhas.push(
         ...rows.map((r) => ({
@@ -105,6 +116,11 @@ export default async function RelatorioPage({ searchParams }: PageProps) {
     }
 
     linhas.sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento))
+    } catch {
+      // Erro de banco → relatório vazio (preserva a tolerância do código original;
+      // fetchAllRows lança, então aqui degradamos em vez de derrubar a página).
+      linhas = []
+    }
   }
 
   return (

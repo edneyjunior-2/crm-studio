@@ -3,6 +3,7 @@ export const maxDuration = 60   // Vercel Pro: até 60s para importações grand
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { normalizarNumeroCNJ, detectarTribunal } from '@/lib/datajud'
 import { getAuthUser } from '@/lib/auth'
 
@@ -95,14 +96,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 })
   }
 
-  // Carregar clientes e advogados da empresa para matching
-  const [{ data: clientes }, { data: advogados }] = await Promise.all([
-    supabase.from('clientes').select('id, razao_social').eq('empresa_id', empresaId),
-    supabase.from('profiles').select('id, full_name').eq('empresa_id', empresaId),
-  ])
+  // Carregar clientes e advogados da empresa para matching (fetchAllRows para passar do cap-1000)
+  type ClienteRow = { id: string; razao_social: string }
+  type AdvogadoRow = { id: string; full_name: string }
 
-  const clienteMap = new Map((clientes ?? []).map((c) => [c.razao_social.toLowerCase().trim(), c.id]))
-  const advogadoMap = new Map((advogados ?? []).map((a) => [a.full_name.toLowerCase().trim(), a.id]))
+  let clientes: ClienteRow[]
+  let advogados: AdvogadoRow[]
+  try {
+    ;[clientes, advogados] = await Promise.all([
+      fetchAllRows<ClienteRow>((from, to) =>
+        supabase.from('clientes').select('id, razao_social').eq('empresa_id', empresaId).range(from, to)
+      ),
+      fetchAllRows<AdvogadoRow>((from, to) =>
+        supabase.from('profiles').select('id, full_name').eq('empresa_id', empresaId).range(from, to)
+      ),
+    ])
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: `Falha ao carregar dados de referência: ${msg}` }, { status: 500 })
+  }
+
+  const clienteMap = new Map(clientes.map((c) => [c.razao_social.toLowerCase().trim(), c.id]))
+  const advogadoMap = new Map(advogados.map((a) => [a.full_name.toLowerCase().trim(), a.id]))
 
   const result: ImportResult = { total: rows.length, criados: 0, atualizados: 0, erros: [], semDataJud: [] }
   const admin = createAdminClient()

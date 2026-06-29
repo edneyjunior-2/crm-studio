@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { clienteImportadoSchema } from '@/lib/schemas'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export interface LinhaImportacao {
   razao_social: string
@@ -226,15 +227,19 @@ export async function importarClientes(
   if (!user) return { importados: 0, pulados: [], erro: 'Não autenticado.' }
 
   // Buscar CNPJs já existentes na empresa (RLS limita ao usuário/empresa)
-  const { data: clientesExistentes, error: fetchError } = await supabase
-    .from('clientes')
-    .select('cnpj')
-
-  if (fetchError) return { importados: 0, pulados: [], erro: fetchError.message }
+  let clientesExistentes: { cnpj: string | null }[] = []
+  try {
+    clientesExistentes = await fetchAllRows<{ cnpj: string | null }>((from, to) =>
+      supabase.from('clientes').select('cnpj').range(from, to)
+    )
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { importados: 0, pulados: [], erro: msg }
+  }
 
   const cnpjsExistentes = new Set(
-    (clientesExistentes ?? [])
-      .map((c: { cnpj: string | null }) => c.cnpj)
+    clientesExistentes
+      .map((c) => c.cnpj)
       .filter(Boolean) as string[]
   )
 
