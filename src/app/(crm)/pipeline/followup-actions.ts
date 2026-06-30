@@ -105,11 +105,14 @@ export async function criarLembrete(
   const { supabase, user, empresaId } = await getAuthUser()
 
   // Busca nome do cliente a partir do negócio
-  const { data: negocio } = await supabase
+  const { data: negocio, error: negocioErr } = await supabase
     .from('negocios')
     .select('titulo, clientes(razao_social)')
     .eq('id', negocioId)
-    .single()
+    .maybeSingle()
+
+  if (negocioErr) return { error: negocioErr.message }
+  if (!negocio) return { error: 'Negócio não encontrado.' }
 
   const neg = negocio as {
     titulo: string | null

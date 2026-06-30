@@ -112,11 +112,20 @@ export async function getLinhaTempoNegocio(
     })
   }
 
-  // Ordena do mais antigo para o mais recente
+  // Ordena do mais antigo para o mais recente.
+  // Normaliza a chave para YYYY-MM-DD para comparação estável entre
+  // campos date (YYYY-MM-DD) e timestamptz (ISO longo) — evita reordenação
+  // intra-dia por diferença de tipo.
+  function toDateKey(iso: string): string {
+    return iso.length >= 10 ? iso.slice(0, 10) : iso
+  }
+
   eventos.sort((a, b) => {
-    const da = new Date(a.data).getTime()
-    const db = new Date(b.data).getTime()
-    return da - db
+    const ka = toDateKey(a.data)
+    const kb = toDateKey(b.data)
+    if (ka < kb) return -1
+    if (ka > kb) return 1
+    return 0
   })
 
   return eventos

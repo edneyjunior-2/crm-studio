@@ -113,20 +113,25 @@ export default async function DashboardPage() {
   const dataHeader = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   // Segundo Promise.all: queries que dependem do role
+  // contasReceber: usamos fetchAllRows para evitar o cap de 1000 linhas do PostgREST
+  const contasReceberRows = isFinanceiro
+    ? await fetchAllRows<{ valor: number; data_recebimento: string; status: string }>(
+        (from, to) =>
+          supabase
+            .from('contas_receber')
+            .select('valor, data_recebimento, status')
+            .eq('status', 'recebido')
+            .gte('data_recebimento', mesAtualInicio)
+            .lt('data_recebimento', mesAtualFim)
+            .range(from, to)
+      ).catch(() => [] as { valor: number; data_recebimento: string; status: string }[])
+    : null
+
   const [
-    { data: contasReceber },
     { data: followupsData },
     { data: solucoesDestaqueRaw },
     reunioesResult,
   ] = await Promise.all([
-    isFinanceiro
-      ? supabase
-          .from('contas_receber')
-          .select('valor, data_recebimento, status')
-          .eq('status', 'recebido')
-          .gte('data_recebimento', mesAtualInicio)
-          .lt('data_recebimento', mesAtualFim)
-      : Promise.resolve({ data: null }),
     isFinanceiro
       ? supabase
           .from('followups')
@@ -141,12 +146,12 @@ export default async function DashboardPage() {
           .eq('status', 'pendente')
           .eq('responsavel_id', user.id)
           .order('data_agendada', { ascending: true }),
+    // Soluções em destaque genéricas: as 4 ativas com mais negócios não-perdidos no pipeline.
+    // Sem filtro por nome hardcoded — white-label para qualquer tenant.
     supabase
       .from('solucoes')
       .select('id, nome, descricao, empresa_representada, comissao_percentual')
-      .or('nome.ilike.%Guardião%,nome.ilike.%Guardi_o%,nome.ilike.%Landing%')
-      .eq('ativo', true)
-      .limit(4),
+      .eq('ativo', true),
     isConfigured()
       ? unstable_cache(
           () => listEvents(`${today}T00:00:00-03:00`, `${plusDaysISO(1)}T23:59:59-03:00`).catch(() => []),
@@ -163,15 +168,20 @@ export default async function DashboardPage() {
   const reunioesHoje   = todosEventos.filter((ev) => (ev.start?.dateTime ?? ev.start?.date ?? '').startsWith(today))
   const reunioesAmanha = todosEventos.filter((ev) => (ev.start?.dateTime ?? ev.start?.date ?? '').startsWith(amanha))
 
-  const solucoesDestaque = (solucoesDestaqueRaw ?? []).map((sol) => {
-    const negociosAtivos = negociosList.filter(
-      (n) => n.solucao_id === sol.id && mapa[n.estagio]?.tipo !== 'perdido'
-    ).length
-    const valorPipeline = negociosList
-      .filter((n) => n.solucao_id === sol.id && mapa[n.estagio]?.tipo !== 'perdido')
-      .reduce((s, n) => s + Number(n.valor_estimado ?? 0), 0)
-    return { ...sol, negociosAtivos, valorPipeline }
-  })
+  // Top 4 soluções ativas por negócios não-perdidos no pipeline (genérico, sem nome fixo)
+  const solucoesDestaque = (solucoesDestaqueRaw ?? [])
+    .map((sol) => {
+      const negociosAtivos = negociosList.filter(
+        (n) => n.solucao_id === sol.id && mapa[n.estagio]?.tipo !== 'perdido'
+      ).length
+      const valorPipeline = negociosList
+        .filter((n) => n.solucao_id === sol.id && mapa[n.estagio]?.tipo !== 'perdido')
+        .reduce((s, n) => s + Number(n.valor_estimado ?? 0), 0)
+      return { ...sol, negociosAtivos, valorPipeline }
+    })
+    .sort((a, b) => b.negociosAtivos - a.negociosAtivos || b.valorPipeline - a.valorPipeline)
+    .slice(0, 4)
+    .filter((sol) => sol.negociosAtivos > 0)
 
   // Derivar negóciosPrazo em JS a partir dos dados já carregados — sem round-trip extra
   const negociosPrazoList = negociosList
@@ -200,7 +210,7 @@ export default async function DashboardPage() {
   ).length
 
   const receitaMes = isFinanceiro
-    ? (contasReceber ?? []).reduce((s, c) => s + Number(c.valor), 0)
+    ? (contasReceberRows ?? []).reduce((s, c) => s + Number(c.valor), 0)
     : null
 
   const contagensPorEstagio = negociosList.reduce(
@@ -237,23 +247,33 @@ export default async function DashboardPage() {
   const totalFatiasEstagio = fatiasEstagio.reduce((s, f) => s + f.valor, 0)
   const totalNegociosPipeline = negociosList.filter((n) => mapa[n.estagio]?.tipo !== 'perdido').length
 
-  // 2. Donut Produtos: negocio_produtos por solucao_id  (busca safe com fetchAllRows)
-  let negocioProdutosRaw: Array<{ solucao_id: string | null; valor: number }> = []
+  // 2. Donut Produtos: negocio_produtos por solucao_id, excluindo negócios perdidos
+  // Obtemos o set de IDs não-perdidos a partir dos dados já carregados (sem round-trip extra)
+  const negociosNaoPerdidosIds = new Set(
+    negociosList.filter((n) => mapa[n.estagio]?.tipo !== 'perdido').map((n) => n.id)
+  )
+
+  let negocioProdutosRaw: Array<{ negocio_id: string; solucao_id: string | null; valor: number }> = []
   try {
-    negocioProdutosRaw = await fetchAllRows<{ solucao_id: string | null; valor: number }>(
+    negocioProdutosRaw = await fetchAllRows<{ negocio_id: string; solucao_id: string | null; valor: number }>(
       (from, to) =>
         supabase
           .from('negocio_produtos')
-          .select('solucao_id, valor')
+          .select('negocio_id, solucao_id, valor')
           .range(from, to)
     )
   } catch {
     // tolera falha: gráfico mostra vazio
   }
 
+  // Filtrar somente produtos de negócios não-perdidos
+  const negocioProdutosFiltrados = negocioProdutosRaw.filter(
+    (p) => negociosNaoPerdidosIds.has(p.negocio_id)
+  )
+
   // Busca nomes das soluções para montar a legenda
   const solucaoIdsNeeded = [
-    ...new Set(negocioProdutosRaw.map((p) => p.solucao_id).filter(Boolean)),
+    ...new Set(negocioProdutosFiltrados.map((p) => p.solucao_id).filter(Boolean)),
   ] as string[]
 
   const solucaoNomeMap: Record<string, string> = {}
@@ -265,7 +285,7 @@ export default async function DashboardPage() {
     for (const s of solsData ?? []) solucaoNomeMap[s.id] = s.nome
   }
 
-  const valorPorSolucao = negocioProdutosRaw.reduce(
+  const valorPorSolucao = negocioProdutosFiltrados.reduce(
     (acc, p) => {
       const key = p.solucao_id ?? '__sem_solucao'
       acc[key] = (acc[key] ?? 0) + Number(p.valor ?? 0)

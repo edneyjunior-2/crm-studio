@@ -262,36 +262,68 @@ export async function deleteNegocio(id: string): Promise<{ error?: string }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Best-effort: limpar eventos órfãos no Google Calendar antes de excluir
+  // Best-effort: limpar eventos órfãos no Google Calendar antes de excluir.
+  // Usa os tokens do responsável de cada registro (não do usuário que exclui).
   try {
-    const { data: atividades } = await supabase
-      .from('atividades')
-      .select('google_event_id, responsavel_id')
-      .eq('negocio_id', id)
-      .not('google_event_id', 'is', null)
+    // Busca atividades e followups com google_event_id
+    const [{ data: atividades }, { data: followups }] = await Promise.all([
+      supabase
+        .from('atividades')
+        .select('google_event_id, responsavel_id')
+        .eq('negocio_id', id)
+        .not('google_event_id', 'is', null),
+      supabase
+        .from('followups')
+        .select('google_event_id, responsavel_id')
+        .eq('negocio_id', id)
+        .not('google_event_id', 'is', null),
+    ])
 
-    if (atividades && atividades.length > 0) {
-      // Buscar tokens do usuário autenticado (responsável pela exclusão)
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('google_access_token, google_refresh_token, google_token_expiry')
-        .eq('id', user.id)
-        .single()
+    type EventoParaLimpar = { google_event_id: string; responsavel_id: string }
 
-      if (profile?.google_refresh_token) {
-        for (const atividade of atividades) {
-          if (!atividade.google_event_id) continue
-          try {
-            await deleteCalendarEvent({
-              userId: user.id,
-              accessToken: profile.google_access_token ?? '',
-              refreshToken: profile.google_refresh_token,
-              tokenExpiry: profile.google_token_expiry ?? new Date(0).toISOString(),
-              eventId: atividade.google_event_id,
-            })
-          } catch {
-            // Ignora falha individual (evento já pode ter sido excluído manualmente)
+    const registros: EventoParaLimpar[] = [
+      ...(atividades ?? []).filter(
+        (a): a is EventoParaLimpar => !!a.google_event_id && !!a.responsavel_id
+      ),
+      ...(followups ?? []).filter(
+        (f): f is EventoParaLimpar => !!f.google_event_id && !!f.responsavel_id
+      ),
+    ]
+
+    if (registros.length > 0) {
+      // Agrupa por responsavel_id para buscar tokens uma vez por usuário
+      const porResponsavel = new Map<string, string[]>()
+      for (const r of registros) {
+        const lista = porResponsavel.get(r.responsavel_id) ?? []
+        lista.push(r.google_event_id)
+        porResponsavel.set(r.responsavel_id, lista)
+      }
+
+      for (const [responsavelId, eventIds] of porResponsavel) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('google_access_token, google_refresh_token, google_token_expiry')
+            .eq('id', responsavelId)
+            .single()
+
+          if (!profile?.google_refresh_token) continue
+
+          for (const eventId of eventIds) {
+            try {
+              await deleteCalendarEvent({
+                userId: responsavelId,
+                accessToken: profile.google_access_token ?? '',
+                refreshToken: profile.google_refresh_token,
+                tokenExpiry: profile.google_token_expiry ?? new Date(0).toISOString(),
+                eventId,
+              })
+            } catch {
+              // Ignora falha individual (evento já pode ter sido excluído manualmente)
+            }
           }
+        } catch {
+          // Falha ao buscar tokens de um responsável não bloqueia os demais
         }
       }
     }

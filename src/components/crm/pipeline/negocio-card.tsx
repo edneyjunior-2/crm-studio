@@ -94,13 +94,8 @@ function decodeIndicador(value: string): { tipo: IndicadorTipo; id: string | nul
   return { tipo: null, id: null }
 }
 
-// ── SLA padrão por estágio (em dias) — mapeado por slug ───────────────────────
-const SLA_DIAS: Record<string, number> = {
-  prospeccao: 14,
-  qualificacao: 10,
-  proposta: 7,
-  negociacao: 5,
-}
+// SLA padrão em dias para qualquer etapa do tipo 'aberto' sem configuração específica.
+const SLA_PADRAO_ABERTO = 14
 
 // Opções de motivo de perda
 const MOTIVOS_PERDA = [
@@ -122,12 +117,15 @@ function calcularDiasParado(negocio: NegocioComRelacoes): number {
 
 interface SlaBadgeProps {
   negocio: NegocioComRelacoes
+  estagios: EstagioPipeline[]
 }
 
-function SlaBadge({ negocio }: SlaBadgeProps) {
-  const sla = SLA_DIAS[negocio.estagio as string]
-  if (!sla) return null
+function SlaBadge({ negocio, estagios }: SlaBadgeProps) {
+  // Só exibe para etapas do tipo 'aberto' — funciona com qualquer slug de tenant
+  const estagioAtual = estagios.find((e) => e.slug === negocio.estagio)
+  if (estagioAtual?.tipo !== 'aberto') return null
 
+  const sla = SLA_PADRAO_ABERTO
   const dias = calcularDiasParado(negocio)
   if (dias <= 0) return null
 
@@ -556,7 +554,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
             )}
 
             {/* Badge SLA — alerta de negócio parado */}
-            <SlaBadge negocio={negocio} />
+            <SlaBadge negocio={negocio} estagios={estagios} />
           </div>
         </button>
 

@@ -27,11 +27,20 @@ function formatMesAno(date: Date): string {
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
+/**
+ * Formata uma string de data para exibição em pt-BR.
+ * Se for YYYY-MM-DD (date pura, sem horário), parseia com getFullYear/Month/Date
+ * para evitar a virada de UTC (ex.: "2026-06-01" viraria "31/05/2026" em UTC-3).
+ * Para timestamptz (contém 'T' ou espaço) usa Date diretamente.
+ */
 function formatDataLocal(isoString: string | null | undefined): string {
   if (!isoString) return '—'
-  // timestamptz: safe to use Date directly for display
-  const d = new Date(isoString)
-  return d.toLocaleDateString('pt-BR')
+  // Detecta date pura "YYYY-MM-DD" (10 chars, sem 'T')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoString)) {
+    const [y, m, d] = isoString.split('-').map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString('pt-BR')
+  }
+  return new Date(isoString).toLocaleDateString('pt-BR')
 }
 
 // ─── Agrupamento por mês ──────────────────────────────────────────────────────
@@ -42,10 +51,15 @@ function getDataReferencia(neg: NegocioComRelacoes): string {
 }
 
 /**
- * Chave YYYY-MM a partir de uma ISO string, usando getFullYear/Month para evitar
- * virada de UTC (ex.: 2026-06-01T03:00:00Z seria Maio em UTC-3 sem isso).
+ * Chave YYYY-MM a partir de uma string de data.
+ * - date pura "YYYY-MM-DD": parseia com getFullYear/Month/Date para evitar virada de UTC.
+ * - timestamptz: usa Date e métodos locais (getFullYear/getMonth) para idem.
  */
 function getMesAnoKey(isoString: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoString)) {
+    const [y, m] = isoString.split('-').map(Number)
+    return `${y}-${String(m).padStart(2, '0')}`
+  }
   const d = new Date(isoString)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
@@ -103,7 +117,7 @@ export default async function HistoricoPerdidosPage() {
           *,
           clientes ( razao_social ),
           solucoes ( nome ),
-          profiles ( full_name )
+          profiles!responsavel_id ( full_name )
         `)
         .in('estagio', slugsFechamento.length > 0 ? slugsFechamento : ['__none__'])
         .or(

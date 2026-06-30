@@ -118,7 +118,7 @@ export function NegocioForm({
   const [erroProdutos, setErroProdutos] = useState(false)
 
   const [estagio, setEstagio] = useState<EstagioNegocio>(
-    negocio?.estagio ?? defaultEstagio ?? 'prospeccao'
+    negocio?.estagio ?? defaultEstagio ?? (estagios.find((e) => e.tipo === 'aberto')?.slug ?? estagios[0]?.slug ?? '') as EstagioNegocio
   )
   const [clienteId, setClienteId] = useState<string | null>(negocio?.cliente_id ?? null)
 
@@ -257,7 +257,7 @@ export function NegocioForm({
 
       if (!negocio) {
         form.reset()
-        const primeiroAberto = estagios.find((e) => e.tipo === 'aberto')?.slug ?? 'prospeccao'
+        const primeiroAberto = estagios.find((e) => e.tipo === 'aberto')?.slug ?? estagios[0]?.slug ?? ''
         setEstagio((defaultEstagio ?? primeiroAberto) as EstagioNegocio)
         setClienteId(null)
         setProdutos([novaProdutoLinha()])

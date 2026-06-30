@@ -65,13 +65,13 @@ async function DashboardContent() {
     supabase
       .from('contas_receber')
       .select('valor')
-      .eq('status', 'pendente')
+      .in('status', ['pendente', 'atrasado'])
       .gte('data_vencimento', inicioMes)
       .lte('data_vencimento', fimMes),
     supabase
       .from('contas_pagar')
       .select('valor')
-      .eq('status', 'pendente')
+      .in('status', ['pendente', 'atrasado'])
       .gte('data_vencimento', inicioMes)
       .lte('data_vencimento', fimMes),
     supabase
@@ -167,7 +167,7 @@ async function DashboardContent() {
   let receberAberto: { valor: number }[] = []
   let pagarAberto: { valor: number }[] = []
   let recebidoMes: { valor: number }[] = []
-  let pagoMes: { valor: number; categoria: string | null }[] = []
+  let pagoMes: { valor: number; valor_pago: number | null; categoria: string | null }[] = []
   try {
     receberAberto = await fetchAllRows<{ valor: number }>((from, to) =>
       supabase.from('contas_receber').select('valor').in('status', ['pendente', 'atrasado']).range(from, to))
@@ -176,8 +176,8 @@ async function DashboardContent() {
     recebidoMes = await fetchAllRows<{ valor: number }>((from, to) =>
       supabase.from('contas_receber').select('valor').eq('status', 'recebido')
         .gte('data_recebimento', inicioMes).lte('data_recebimento', fimMes).range(from, to))
-    pagoMes = await fetchAllRows<{ valor: number; categoria: string | null }>((from, to) =>
-      supabase.from('contas_pagar').select('valor, categoria').eq('status', 'pago')
+    pagoMes = await fetchAllRows<{ valor: number; valor_pago: number | null; categoria: string | null }>((from, to) =>
+      supabase.from('contas_pagar').select('valor, valor_pago, categoria').eq('status', 'pago')
         .gte('data_pagamento', inicioMes).lte('data_pagamento', fimMes).range(from, to))
   } catch {
     // degradado — agregados ficam zerados se o banco falhar; o resto do painel segue
@@ -191,7 +191,9 @@ async function DashboardContent() {
   const despesasPorCat = new Map<string, number>()
   for (const c of pagoMes) {
     const cat = c.categoria || 'Outros'
-    despesasPorCat.set(cat, (despesasPorCat.get(cat) ?? 0) + Number(c.valor))
+    // valor_pago inclui multa/juros e é a saída real de caixa; fallback para valor se ausente
+    const saida = Number(c.valor_pago ?? c.valor)
+    despesasPorCat.set(cat, (despesasPorCat.get(cat) ?? 0) + saida)
   }
   const despesasCats = [...despesasPorCat.entries()].sort((a, b) => b[1] - a[1])
   const despesasMes = despesasCats.reduce((s, [, v]) => s + v, 0)
