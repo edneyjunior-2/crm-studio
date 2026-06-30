@@ -1,10 +1,20 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ListChecks, BarChart3, Plus, Trash2, ChevronDown, Users, Loader2, UserMinus } from 'lucide-react'
-import { criarEtapa, atualizarStatusEtapa, excluirEtapa, criarMedicao, atualizarStatusMedicao, excluirMedicao } from '../actions'
+import {
+  ListChecks, BarChart3, Plus, Trash2, ChevronDown, ChevronUp,
+  Users, Loader2, UserMinus, FileBarChart2,
+} from 'lucide-react'
+import {
+  criarEtapa, atualizarStatusEtapa, excluirEtapa,
+  atualizarStatusMedicao, excluirMedicao,
+  listarEtapasOrcamento, criarMedicaoBoletim, getBoletimMedicao,
+} from '../actions'
+import type { EtapaOrcamento, BoletimMedicao } from '../actions'
 import { adicionarColaboradorObra, removerColaboradorObra } from './equipe-actions'
+import { CurvaSChart } from '@/components/crm/obras/curva-s-chart'
+import type { PontoMedicao } from '@/components/crm/obras/curva-s-chart'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,6 +29,7 @@ interface Medicao {
   id: string; numero_medicao: number; descricao: string
   percentual: number | null; valor: number | null
   data_medicao: string | null; status: string; observacoes: string | null
+  orcamento_id?: string | null
 }
 interface Membro { id: string; nome: string }
 
@@ -37,6 +48,13 @@ interface ColaboradorDisponivel {
   cargo: string | null
 }
 
+interface OrcamentoResumido {
+  id: string
+  titulo: string
+  total: number | null
+  bdi_percentual: number | null
+}
+
 interface Props {
   obraId:      string
   etapas:      Etapa[]
@@ -45,6 +63,7 @@ interface Props {
   podeExcluir: boolean
   equipe:      ObraColaborador[]
   colaboradoresDisponiveis: ColaboradorDisponivel[]
+  orcamentos:  OrcamentoResumido[]
 }
 
 // ---------------------------------------------------------------------------
@@ -52,7 +71,7 @@ interface Props {
 // ---------------------------------------------------------------------------
 
 const brl = (v: number | null | undefined) =>
-  v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : null
+  v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
 
 function fmt(d: string | null) {
   if (!d) return null
@@ -91,10 +110,339 @@ const MEDICAO_STATUS_CLASS: Record<string, string> = {
 const inp = 'h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-foreground/40'
 
 // ---------------------------------------------------------------------------
-// Component
+// MedicaoBoletimRow — expande uma medição e carrega o boletim
 // ---------------------------------------------------------------------------
 
-export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir, equipe, colaboradoresDisponiveis }: Props) {
+function MedicaoBoletimRow({
+  med, podeExcluir, isPending,
+  onStatusChange, onDelete,
+}: {
+  med: Medicao
+  podeExcluir: boolean
+  isPending: boolean
+  onStatusChange: (id: string, status: string) => void
+  onDelete: (id: string) => void
+}) {
+  const [expandido, setExpandido] = useState(false)
+  const [boletim, setBoletim] = useState<BoletimMedicao | null>(null)
+  const [loadingBoletim, setLoadingBoletim] = useState(false)
+  const [boletimErro, setBoletimErro] = useState<string | null>(null)
+
+  async function abrirBoletim() {
+    if (!expandido && med.orcamento_id) {
+      setLoadingBoletim(true)
+      setBoletimErro(null)
+      const res = await getBoletimMedicao(med.id)
+      if (res.error) setBoletimErro(res.error)
+      else setBoletim(res.data ?? null)
+      setLoadingBoletim(false)
+    }
+    setExpandido((v) => !v)
+  }
+
+  const temBoletim = !!med.orcamento_id
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="flex items-center gap-3 p-3">
+        <span className="shrink-0 w-8 text-center text-xs font-mono font-semibold text-muted-foreground">
+          #{med.numero_medicao}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => onStatusChange(med.id, med.status)}
+          disabled={isPending}
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-opacity hover:opacity-70 disabled:opacity-50 ${MEDICAO_STATUS_CLASS[med.status] ?? ''}`}
+          title="Clique para avançar o status"
+        >
+          {MEDICAO_STATUS_LABEL[med.status] ?? med.status}
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">{med.descricao}</p>
+          <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+            {med.percentual != null && <span>{med.percentual.toFixed(1)}%</span>}
+            {med.valor != null && <span className="font-medium text-foreground">{brl(med.valor)}</span>}
+            {med.data_medicao && <span>{fmt(med.data_medicao)}</span>}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {temBoletim && (
+            <button
+              type="button"
+              onClick={abrirBoletim}
+              className="flex items-center gap-1 rounded px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Ver boletim físico-financeiro"
+            >
+              <FileBarChart2 className="size-3.5" />
+              {expandido ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            </button>
+          )}
+          {podeExcluir && (
+            <button
+              type="button"
+              onClick={() => onDelete(med.id)}
+              disabled={isPending}
+              className="text-muted-foreground/50 transition-colors hover:text-destructive disabled:opacity-50"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Boletim expandido */}
+      {expandido && temBoletim && (
+        <div className="border-t border-border bg-muted/20 px-3 py-3">
+          {loadingBoletim && (
+            <div className="flex items-center gap-2 py-2">
+              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Carregando boletim…</span>
+            </div>
+          )}
+          {boletimErro && (
+            <p className="text-xs text-destructive">{boletimErro}</p>
+          )}
+          {boletim && !loadingBoletim && (
+            <>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground border-b border-border">
+                    <th className="pb-1.5 text-left font-medium">Etapa</th>
+                    <th className="pb-1.5 text-right font-medium">Valor orçado</th>
+                    <th className="pb-1.5 text-right font-medium">% exec.</th>
+                    <th className="pb-1.5 text-right font-medium">Valor medido</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {boletim.etapas.map((et) => (
+                    <tr key={et.etapa} className="text-foreground">
+                      <td className="py-1.5 pr-3">{et.etapa}</td>
+                      <td className="py-1.5 text-right tabular-nums text-muted-foreground">{brl(et.valorOrcado)}</td>
+                      <td className="py-1.5 text-right tabular-nums">{et.percentual.toFixed(1)}%</td>
+                      <td className="py-1.5 text-right tabular-nums font-medium">{brl(et.valorMedido)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border font-semibold text-foreground">
+                    <td className="pt-1.5">Total</td>
+                    <td className="pt-1.5 text-right tabular-nums text-muted-foreground">{brl(boletim.totalOrcado)}</td>
+                    <td className="pt-1.5 text-right tabular-nums">{boletim.percentualGlobal.toFixed(1)}%</td>
+                    <td className="pt-1.5 text-right tabular-nums">{brl(boletim.totalMedido)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// FormBoletim — formulário de nova medição boletim
+// ---------------------------------------------------------------------------
+
+function FormBoletim({
+  obraId, orcamentos, onSalvo, onCancelar,
+}: {
+  obraId: string
+  orcamentos: OrcamentoResumido[]
+  onSalvo: () => void
+  onCancelar: () => void
+}) {
+  const [isPending, startTransition] = useTransition()
+
+  const [orcamentoId, setOrcamentoId]         = useState(orcamentos[0]?.id ?? '')
+  const [etapasOrcamento, setEtapasOrcamento] = useState<EtapaOrcamento[]>([])
+  const [loadingEtapas, setLoadingEtapas]     = useState(false)
+  const [percEtapas, setPercEtapas]           = useState<Record<string, string>>({})
+
+  const [descricao,    setDescricao]    = useState('')
+  const [dataMedicao,  setDataMedicao]  = useState('')
+  const [erro, setErro]                 = useState<string | null>(null)
+
+  // Calcula preview ao vivo
+  const orcSelecionado = orcamentos.find((o) => o.id === orcamentoId) ?? null
+  let   valorTotal     = 0
+  for (const et of etapasOrcamento) {
+    const pct = parseFloat((percEtapas[et.etapa] ?? '0').replace(',', '.')) || 0
+    valorTotal += et.valorOrcado * (pct / 100)
+  }
+  const totalOrcamento = orcSelecionado?.total ?? 0
+  const percGlobal     = totalOrcamento > 0 ? (valorTotal / totalOrcamento) * 100 : 0
+
+  const carregarEtapas = useCallback(async (id: string) => {
+    if (!id) return
+    setLoadingEtapas(true)
+    setPercEtapas({})
+    const res = await listarEtapasOrcamento(id)
+    if (res.data) setEtapasOrcamento(res.data)
+    else setErro(res.error ?? 'Erro ao carregar etapas.')
+    setLoadingEtapas(false)
+  }, [])
+
+  useEffect(() => {
+    if (orcamentoId) carregarEtapas(orcamentoId)
+  }, [orcamentoId, carregarEtapas])
+
+  function handleSalvar() {
+    if (!descricao.trim()) return setErro('Descrição obrigatória.')
+    if (!orcamentoId)      return setErro('Selecione um orçamento.')
+    if (etapasOrcamento.length === 0) return setErro('Orçamento sem etapas.')
+
+    const etapasDados = etapasOrcamento.map((et) => ({
+      etapa:      et.etapa,
+      percentual: parseFloat((percEtapas[et.etapa] ?? '0').replace(',', '.')) || 0,
+    }))
+
+    setErro(null)
+    startTransition(async () => {
+      const res = await criarMedicaoBoletim({
+        obraId,
+        orcamentoId,
+        descricao,
+        data_medicao: dataMedicao || null,
+        etapas: etapasDados,
+      })
+      if (res.error) { setErro(res.error); return }
+      onSalvo()
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4">
+      <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Novo boletim físico-financeiro</p>
+
+      {/* Orçamento */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-muted-foreground font-medium">Orçamento de referência *</label>
+        <select
+          value={orcamentoId}
+          onChange={(e) => setOrcamentoId(e.target.value)}
+          className={inp}
+        >
+          <option value="">Selecione o orçamento</option>
+          {orcamentos.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.titulo}{o.total != null ? ` — ${brl(o.total)}` : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Descrição + data */}
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          value={descricao}
+          onChange={(e) => setDescricao(e.target.value)}
+          placeholder="Descrição da medição *"
+          className={inp}
+        />
+        <input
+          type="date"
+          value={dataMedicao}
+          onChange={(e) => setDataMedicao(e.target.value)}
+          className={inp}
+          title="Data da medição"
+        />
+      </div>
+
+      {/* Tabela de % por etapa */}
+      {loadingEtapas && (
+        <div className="flex items-center gap-2">
+          <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Carregando etapas…</span>
+        </div>
+      )}
+
+      {!loadingEtapas && etapasOrcamento.length > 0 && (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/50">
+              <tr className="text-muted-foreground">
+                <th className="px-3 py-2 text-left font-medium">Etapa</th>
+                <th className="px-3 py-2 text-right font-medium">Valor orçado</th>
+                <th className="px-3 py-2 text-right font-medium w-28">% acumulado</th>
+                <th className="px-3 py-2 text-right font-medium">Valor medido</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {etapasOrcamento.map((et) => {
+                const pct = parseFloat((percEtapas[et.etapa] ?? '0').replace(',', '.')) || 0
+                const vm  = et.valorOrcado * (pct / 100)
+                return (
+                  <tr key={et.etapa} className="bg-background hover:bg-muted/30 transition-colors">
+                    <td className="px-3 py-2 font-medium text-foreground">{et.etapa}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{brl(et.valorOrcado)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={percEtapas[et.etapa] ?? ''}
+                        onChange={(e) => setPercEtapas((prev) => ({ ...prev, [et.etapa]: e.target.value }))}
+                        placeholder="0"
+                        className="h-8 w-24 rounded border border-border bg-background px-2 text-right text-xs outline-none focus:border-foreground/40 tabular-nums"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium text-foreground">{brl(vm)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot className="bg-muted/50">
+              <tr className="font-semibold text-foreground">
+                <td className="px-3 py-2">Total</td>
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{brl(totalOrcamento)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{percGlobal.toFixed(1)}%</td>
+                <td className="px-3 py-2 text-right tabular-nums">{brl(valorTotal)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {!loadingEtapas && orcamentoId && etapasOrcamento.length === 0 && (
+        <p className="text-xs text-muted-foreground">Este orçamento não possui etapas cadastradas.</p>
+      )}
+
+      {erro && <p className="text-xs text-destructive">{erro}</p>}
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleSalvar}
+          disabled={isPending}
+          className="flex h-8 items-center gap-1.5 rounded-lg bg-foreground px-3 text-xs font-semibold text-background disabled:opacity-50"
+        >
+          {isPending ? <><Loader2 className="size-3 animate-spin" />Salvando…</> : 'Salvar boletim'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          className="h-8 rounded-lg border border-border px-3 text-xs font-medium text-foreground hover:bg-accent"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Component principal
+// ---------------------------------------------------------------------------
+
+export function ObrasDetalheTabs({
+  obraId, etapas, medicoes, podeExcluir, equipe,
+  colaboradoresDisponiveis, orcamentos,
+}: Props) {
   const router = useRouter()
   const [aba, setAba] = useState<'etapas' | 'medicoes' | 'equipe'>('etapas')
   const [isPending, startTransition] = useTransition()
@@ -107,13 +455,8 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir, equipe
   const [etapaData,  setEtapaData]  = useState('')
   const [etapaErro,  setEtapaErro]  = useState<string | null>(null)
 
-  // Medição form
-  const [showMedicaoForm, setShowMedicaoForm] = useState(false)
-  const [medicaoDesc,  setMedicaoDesc]  = useState('')
-  const [medicaoPerc,  setMedicaoPerc]  = useState('')
-  const [medicaoValor, setMedicaoValor] = useState('')
-  const [medicaoData,  setMedicaoData]  = useState('')
-  const [medicaoErro,  setMedicaoErro]  = useState<string | null>(null)
+  // Medição boletim form
+  const [showBoletimForm, setShowBoletimForm] = useState(false)
 
   // Equipe form
   const [showEquipeForm,    setShowEquipeForm]    = useState(false)
@@ -162,22 +505,6 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir, equipe
   }
 
   // --- Medição actions ---
-  function handleAddMedicao() {
-    if (!medicaoDesc.trim()) return setMedicaoErro('Descrição obrigatória.')
-    setMedicaoErro(null)
-    const perc  = medicaoPerc  ? parseFloat(medicaoPerc.replace(',', '.'))  : null
-    const valor = medicaoValor ? parseFloat(medicaoValor.replace(/\./g, '').replace(',', '.')) : null
-    startTransition(async () => {
-      const res = await criarMedicao(obraId, {
-        descricao: medicaoDesc, percentual: perc, valor, data_medicao: medicaoData || null,
-      })
-      if (res.error) { setMedicaoErro(res.error); return }
-      setMedicaoDesc(''); setMedicaoPerc(''); setMedicaoValor(''); setMedicaoData('')
-      setShowMedicaoForm(false)
-      router.refresh()
-    })
-  }
-
   function handleStatusMedicao(medicaoId: string, status: string) {
     const next = MEDICAO_STATUS_NEXT[status] as 'pendente' | 'aprovada' | 'faturada'
     startTransition(async () => { await atualizarStatusMedicao(medicaoId, obraId, next); router.refresh() })
@@ -213,6 +540,22 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir, equipe
       router.refresh()
     })
   }
+
+  // --- Curva S: calcula pontos acumulados ---
+  const pontosCurvaS: PontoMedicao[] = medicoes
+    .slice()
+    .sort((a, b) => a.numero_medicao - b.numero_medicao)
+    .reduce<PontoMedicao[]>((acc, med, i) => {
+      const anterior = acc[i - 1]?.valorAcumulado ?? 0
+      acc.push({
+        numero_medicao:  med.numero_medicao,
+        valorAcumulado:  anterior + (med.valor ?? 0),
+      })
+      return acc
+    }, [])
+
+  // Valor total do primeiro orçamento com valor (para meta)
+  const totalOrcamentoPrincipal = orcamentos.find((o) => o.total != null)?.total ?? undefined
 
   return (
     <div className="flex flex-col gap-0">
@@ -322,73 +665,51 @@ export function ObrasDetalheTabs({ obraId, etapas, medicoes, podeExcluir, equipe
       {/* Aba Medições */}
       {aba === 'medicoes' && (
         <div className="flex flex-col gap-3 pt-4">
-          {medicoes.length === 0 && !showMedicaoForm && (
-            <p className="text-sm text-muted-foreground">Nenhuma medição cadastrada. Adicione marcos de faturamento.</p>
+          {/* Curva S */}
+          {medicoes.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Curva S — valor acumulado por medição
+              </p>
+              <CurvaSChart
+                pontos={pontosCurvaS}
+                valorTotalOrcamento={totalOrcamentoPrincipal != null ? totalOrcamentoPrincipal : undefined}
+              />
+            </div>
           )}
 
+          {medicoes.length === 0 && !showBoletimForm && (
+            <p className="text-sm text-muted-foreground">Nenhuma medição cadastrada. Crie o primeiro boletim físico-financeiro.</p>
+          )}
+
+          {/* Lista de medições */}
           {medicoes.map((med) => (
-            <div key={med.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-              <span className="shrink-0 w-8 text-center text-xs font-mono font-semibold text-muted-foreground">
-                #{med.numero_medicao}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => handleStatusMedicao(med.id, med.status)}
-                disabled={isPending}
-                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-opacity hover:opacity-70 disabled:opacity-50 ${MEDICAO_STATUS_CLASS[med.status] ?? ''}`}
-                title="Clique para avançar o status"
-              >
-                {MEDICAO_STATUS_LABEL[med.status] ?? med.status}
-              </button>
-
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">{med.descricao}</p>
-                <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                  {med.percentual != null && <span>{med.percentual}%</span>}
-                  {med.valor != null && <span className="font-medium text-foreground">{brl(med.valor)}</span>}
-                  {med.data_medicao && <span>{fmt(med.data_medicao)}</span>}
-                </div>
-              </div>
-
-              {podeExcluir && (
-                <button type="button" onClick={() => handleDeleteMedicao(med.id)} disabled={isPending}
-                  className="shrink-0 text-muted-foreground/50 transition-colors hover:text-destructive disabled:opacity-50">
-                  <Trash2 className="size-3.5" />
-                </button>
-              )}
-            </div>
+            <MedicaoBoletimRow
+              key={med.id}
+              med={med}
+              podeExcluir={podeExcluir}
+              isPending={isPending}
+              onStatusChange={handleStatusMedicao}
+              onDelete={handleDeleteMedicao}
+            />
           ))}
 
-          {showMedicaoForm ? (
-            <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
-              <input value={medicaoDesc} onChange={(e) => setMedicaoDesc(e.target.value)}
-                placeholder="Descrição da medição *" className={inp} />
-              <div className="grid grid-cols-3 gap-2">
-                <input value={medicaoPerc} onChange={(e) => setMedicaoPerc(e.target.value)}
-                  placeholder="% medido" className={inp} inputMode="decimal" />
-                <input value={medicaoValor} onChange={(e) => setMedicaoValor(e.target.value)}
-                  placeholder="Valor (R$)" className={inp} inputMode="decimal" />
-                <input type="date" value={medicaoData} onChange={(e) => setMedicaoData(e.target.value)}
-                  className={inp} />
-              </div>
-              {medicaoErro && <p className="text-xs text-destructive">{medicaoErro}</p>}
-              <div className="flex gap-2">
-                <button type="button" onClick={handleAddMedicao} disabled={isPending}
-                  className="h-8 rounded-lg bg-foreground px-3 text-xs font-semibold text-background disabled:opacity-50">
-                  {isPending ? 'Salvando…' : 'Adicionar'}
-                </button>
-                <button type="button" onClick={() => { setShowMedicaoForm(false); setMedicaoErro(null) }}
-                  className="h-8 rounded-lg border border-border px-3 text-xs font-medium text-foreground hover:bg-accent">
-                  Cancelar
-                </button>
-              </div>
-            </div>
+          {/* Formulário boletim */}
+          {showBoletimForm ? (
+            <FormBoletim
+              obraId={obraId}
+              orcamentos={orcamentos}
+              onSalvo={() => { setShowBoletimForm(false); router.refresh() }}
+              onCancelar={() => setShowBoletimForm(false)}
+            />
           ) : (
-            <button type="button" onClick={() => setShowMedicaoForm(true)}
-              className="flex items-center gap-1.5 self-start rounded-lg border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+            <button
+              type="button"
+              onClick={() => setShowBoletimForm(true)}
+              className="flex items-center gap-1.5 self-start rounded-lg border border-dashed border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+            >
               <Plus className="size-3.5" />
-              Nova medição
+              Novo boletim de medição
             </button>
           )}
         </div>

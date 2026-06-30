@@ -88,7 +88,7 @@ export default async function ObraDetailPage({ params }: PageProps) {
     { data: orcamentosRaw },
   ] = await Promise.all([
     supabase.from('obras_etapas').select('*').eq('obra_id', id).order('ordem').order('created_at'),
-    supabase.from('obras_medicoes').select('*').eq('obra_id', id).order('numero_medicao'),
+    supabase.from('obras_medicoes').select('*, orcamento_id').eq('obra_id', id).order('numero_medicao'),
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     supabase.from('profiles').select('id, full_name').order('full_name'),
     supabase
@@ -103,7 +103,7 @@ export default async function ObraDetailPage({ params }: PageProps) {
       .order('nome', { ascending: true }),
     supabase
       .from('orcamentos')
-      .select('id, titulo, total, status')
+      .select('id, titulo, total, status, bdi_percentual')
       .eq('obra_id', id)
       .order('created_at', { ascending: false }),
   ])
@@ -129,10 +129,11 @@ export default async function ObraDetailPage({ params }: PageProps) {
   const podeExcluir = perfil?.role === 'admin'
 
   const orcamentos = (orcamentosRaw ?? []).map((o) => ({
-    id:     o.id as string,
-    titulo: o.titulo as string,
-    total:  o.total as number | null,
-    status: o.status as string,
+    id:             o.id as string,
+    titulo:         o.titulo as string,
+    total:          o.total as number | null,
+    status:         o.status as string,
+    bdi_percentual: o.bdi_percentual as number | null,
   }))
 
   const STATUS_ORC_LABEL: Record<string, string> = {
@@ -287,11 +288,13 @@ export default async function ObraDetailPage({ params }: PageProps) {
           data_medicao:   m.data_medicao as string | null,
           status:         m.status as string,
           observacoes:    m.observacoes as string | null,
+          orcamento_id:   m.orcamento_id as string | null,
         }))}
         membros={(membros ?? []).map((m) => ({ id: m.id, nome: m.full_name as string }))}
         podeExcluir={podeExcluir}
         equipe={equipe}
         colaboradoresDisponiveis={colaboradoresDisponiveis}
+        orcamentos={orcamentos}
       />
     </div>
   )
