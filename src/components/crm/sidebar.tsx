@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Handshake,
   Landmark,
+  Activity,
   Zap,
   UserCircle,
   FileText,
@@ -123,6 +124,15 @@ const navItems: NavItem[] = [
     modulo: 'financeiro',
     exactMatch: true,
     tourSlug: 'financeiro',
+  },
+  {
+    href: '/financeiro/dashboard',
+    label: 'Saúde Financeira',
+    icon: Activity,
+    modulo: 'financeiro',
+    roles: ['admin', 'socio'],
+    isSubItem: true,
+    parentHref: '/financeiro',
   },
   {
     href: '/financeiro/bancos',
