@@ -8,11 +8,33 @@ import { FollowupsWidget } from '@/components/crm/dashboard/followups-widget'
 import { ConversaoFunil } from '@/components/crm/dashboard/conversao-funil'
 import { ReunioesWidget } from '@/components/crm/dashboard/reunioes-widget'
 import { MetricasAnimadas, type MetricaCard } from '@/components/crm/dashboard/metricas-animadas'
+import { VisaoExecutiva } from '@/components/crm/dashboard/visao-executiva'
+import type { DonutFatia, ProdutoFatia, IndicadorItem } from '@/components/crm/dashboard/visao-executiva'
 import { listEvents, isConfigured } from '@/lib/google-calendar'
 import { listarEstagios } from '@/lib/pipeline-estagios'
 import { mapaEstagios, corPorTipo } from '@/lib/estagios-ui'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { unstable_cache } from 'next/cache'
 import type { NegocioComRelacoes, Followup } from '@/types'
+
+// Paleta de cores hex para os donuts (por tipo/posição)
+const CORES_TIPO: Record<string, string> = {
+  aberto: '#64748b',   // slate-500
+  ganho:  '#10b981',   // emerald-500
+  perdido: '#ef4444',  // red-500
+}
+
+// Paleta adicional para produtos (rotativa)
+const PALETA_PRODUTOS = [
+  '#6366f1', // indigo-500
+  '#10b981', // emerald-500
+  '#f59e0b', // amber-500
+  '#3b82f6', // blue-500
+  '#8b5cf6', // violet-500
+  '#f97316', // orange-500
+  '#ec4899', // pink-500
+  '#14b8a6', // teal-500
+]
 
 const BRL = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -58,7 +80,7 @@ export default async function DashboardPage() {
   const [
     { data: profile },
     { count: totalClientes },
-    { data: negocios },
+    negociosAll,
     { data: empresa },
     estagios,
   ] = await Promise.all([
@@ -68,11 +90,14 @@ export default async function DashboardPage() {
       .eq('id', user.id)
       .single(),
     supabase.from('clientes').select('*', { count: 'exact', head: true }),
-    supabase
-      .from('negocios')
-      .select('*, clientes(razao_social), solucoes(nome), profiles!responsavel_id(full_name)')
-      .order('updated_at', { ascending: false })
-      .limit(200),
+    fetchAllRows<NegocioComRelacoes>(
+      (from, to) =>
+        supabase
+          .from('negocios')
+          .select('*, clientes(razao_social), solucoes(nome), profiles!responsavel_id(full_name)')
+          .order('updated_at', { ascending: false })
+          .range(from, to)
+    ),
     empresaId
       ? supabase.from('empresas').select('nome').eq('id', empresaId).single()
       : Promise.resolve({ data: null }),
@@ -131,7 +156,7 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
   ])
 
-  const negociosList = (negocios ?? []) as NegocioComRelacoes[]
+  const negociosList = negociosAll
 
   const todosEventos = Array.isArray(reunioesResult) ? reunioesResult : []
   const amanha = plusDaysISO(1)
@@ -185,6 +210,152 @@ export default async function DashboardPage() {
     },
     {} as Record<string, number>
   )
+
+  // ─── Visão Executiva: dados para os 3 gráficos ───────────────────────────────
+
+  // 1. Donut Pipeline: valor por etapa (somente negócios não-perdidos)
+  const valorPorEstagio = negociosList.reduce(
+    (acc, n) => {
+      if (mapa[n.estagio]?.tipo === 'perdido') return acc
+      acc[n.estagio] = (acc[n.estagio] ?? 0) + Number(n.valor_estimado ?? 0)
+      return acc
+    },
+    {} as Record<string, number>
+  )
+
+  const fatiasEstagio: DonutFatia[] = estagios
+    .filter((e) => e.tipo !== 'perdido' && (valorPorEstagio[e.slug] ?? 0) > 0)
+    .sort((a, b) => a.ordem - b.ordem)
+    .map((e) => ({
+      slug: e.slug,
+      nome: e.nome,
+      valor: valorPorEstagio[e.slug] ?? 0,
+      cor: e.cor ?? CORES_TIPO[e.tipo] ?? '#64748b',
+      corHex: e.cor ?? CORES_TIPO[e.tipo] ?? '#64748b',
+    }))
+
+  const totalFatiasEstagio = fatiasEstagio.reduce((s, f) => s + f.valor, 0)
+  const totalNegociosPipeline = negociosList.filter((n) => mapa[n.estagio]?.tipo !== 'perdido').length
+
+  // 2. Donut Produtos: negocio_produtos por solucao_id  (busca safe com fetchAllRows)
+  let negocioProdutosRaw: Array<{ solucao_id: string | null; valor: number }> = []
+  try {
+    negocioProdutosRaw = await fetchAllRows<{ solucao_id: string | null; valor: number }>(
+      (from, to) =>
+        supabase
+          .from('negocio_produtos')
+          .select('solucao_id, valor')
+          .range(from, to)
+    )
+  } catch {
+    // tolera falha: gráfico mostra vazio
+  }
+
+  // Busca nomes das soluções para montar a legenda
+  const solucaoIdsNeeded = [
+    ...new Set(negocioProdutosRaw.map((p) => p.solucao_id).filter(Boolean)),
+  ] as string[]
+
+  const solucaoNomeMap: Record<string, string> = {}
+  if (solucaoIdsNeeded.length > 0) {
+    const { data: solsData } = await supabase
+      .from('solucoes')
+      .select('id, nome')
+      .in('id', solucaoIdsNeeded)
+    for (const s of solsData ?? []) solucaoNomeMap[s.id] = s.nome
+  }
+
+  const valorPorSolucao = negocioProdutosRaw.reduce(
+    (acc, p) => {
+      const key = p.solucao_id ?? '__sem_solucao'
+      acc[key] = (acc[key] ?? 0) + Number(p.valor ?? 0)
+      return acc
+    },
+    {} as Record<string, number>
+  )
+
+  const todasFatiasOrdenadas = Object.entries(valorPorSolucao)
+    .filter(([, v]) => v > 0)
+    .sort(([, a], [, b]) => b - a)
+
+  const top8 = todasFatiasOrdenadas.slice(0, 8)
+  const restantes = todasFatiasOrdenadas.slice(8)
+
+  const fatiasProduotos: ProdutoFatia[] = [
+    ...top8.map(([key, valor], i) => ({
+      solucao_id: key === '__sem_solucao' ? null : key,
+      nome: key === '__sem_solucao' ? 'Sem produto' : (solucaoNomeMap[key] ?? 'Produto'),
+      valor,
+      corHex: PALETA_PRODUTOS[i % PALETA_PRODUTOS.length],
+    })),
+    ...(restantes.length > 0
+      ? [
+          {
+            solucao_id: null,
+            nome: 'Outros',
+            valor: restantes.reduce((s, [, v]) => s + v, 0),
+            corHex: '#94a3b8', // slate-400
+          },
+        ]
+      : []),
+  ]
+
+  const totalFatiasProdutos = fatiasProduotos.reduce((s, f) => s + f.valor, 0)
+
+  // 3. Barras Indicadores: soma valor_estimado por indicador (parceiro ou membro do time)
+  // Coletar IDs de parceiros e de profiles (indicado_por)
+  const parceiroAcc: Record<string, number> = {}
+  const internoAcc: Record<string, number> = {}
+
+  for (const n of negociosList) {
+    const valor = Number(n.valor_estimado ?? 0)
+    if (!valor) continue
+    if (n.parceiro_id) {
+      parceiroAcc[n.parceiro_id] = (parceiroAcc[n.parceiro_id] ?? 0) + valor
+    } else if (n.indicado_por) {
+      internoAcc[n.indicado_por] = (internoAcc[n.indicado_por] ?? 0) + valor
+    }
+  }
+
+  // Resolver nomes
+  const parceiroIds = Object.keys(parceiroAcc)
+  const internoIds = Object.keys(internoAcc)
+
+  const [parceirosNomes, internasNomes] = await Promise.all([
+    parceiroIds.length > 0
+      ? supabase.from('parceiros').select('id, nome').in('id', parceiroIds)
+      : Promise.resolve({ data: [] }),
+    internoIds.length > 0
+      ? supabase.from('profiles').select('id, full_name').in('id', internoIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const parceiroNomeMap: Record<string, string> = {}
+  for (const p of parceirosNomes.data ?? []) parceiroNomeMap[p.id] = p.nome
+
+  const internoNomeMap: Record<string, string> = {}
+  for (const p of internasNomes.data ?? []) internoNomeMap[p.id] = p.full_name
+
+  const indicadoresRaw: IndicadorItem[] = [
+    ...parceiroIds.map((id) => ({
+      id: `parceiro_${id}`,
+      nome: parceiroNomeMap[id] ?? 'Parceiro',
+      valor: parceiroAcc[id],
+      tipo: 'parceiro' as const,
+    })),
+    ...internoIds.map((id) => ({
+      id: `interno_${id}`,
+      nome: internoNomeMap[id] ?? 'Colaborador',
+      valor: internoAcc[id],
+      tipo: 'interno' as const,
+    })),
+  ]
+
+  const topIndicadores: IndicadorItem[] = indicadoresRaw
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 6)
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const metricCards: MetricaCard[] = [
     {
@@ -393,6 +564,22 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── Visão Executiva ── */}
+      {negociosList.length > 0 && (
+        <VisaoExecutiva
+          pipeline={{
+            fatias: fatiasEstagio,
+            total: totalFatiasEstagio,
+            totalNegocios: totalNegociosPipeline,
+          }}
+          produtos={{
+            fatias: fatiasProduotos,
+            total: totalFatiasProdutos,
+          }}
+          indicadores={topIndicadores}
+        />
+      )}
     </div>
   )
 }
