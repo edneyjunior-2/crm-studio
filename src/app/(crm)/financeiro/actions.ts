@@ -63,11 +63,27 @@ export async function updateContaReceber(
 export async function deleteContaReceber(id: string): Promise<{ error?: string }> {
   const { supabase } = await getAuthFinanceiro()
 
+  // Se já foi recebida, excluir a movimentação vinculada (estorno) antes de excluir a conta
+  const { data: conta } = await supabase
+    .from('contas_receber')
+    .select('status')
+    .eq('id', id)
+    .single()
+
+  if (conta?.status === 'recebido') {
+    const { error: movErr } = await supabase
+      .from('movimentacoes')
+      .delete()
+      .eq('conta_receber_id', id)
+    if (movErr) return { error: movErr.message }
+  }
+
   const { error } = await supabase.from('contas_receber').delete().eq('id', id)
 
   if (error) return { error: error.message }
 
   revalidatePath('/financeiro')
+  revalidatePath('/financeiro/bancos')
   return {}
 }
 
@@ -305,11 +321,27 @@ export async function updateContaPagar(
 export async function deleteContaPagar(id: string): Promise<{ error?: string }> {
   const { supabase } = await getAuthFinanceiro()
 
+  // Se já foi paga, excluir a movimentação vinculada (estorno) antes de excluir a conta
+  const { data: conta } = await supabase
+    .from('contas_pagar')
+    .select('status')
+    .eq('id', id)
+    .single()
+
+  if (conta?.status === 'pago') {
+    const { error: movErr } = await supabase
+      .from('movimentacoes')
+      .delete()
+      .eq('conta_pagar_id', id)
+    if (movErr) return { error: movErr.message }
+  }
+
   const { error } = await supabase.from('contas_pagar').delete().eq('id', id)
 
   if (error) return { error: error.message }
 
   revalidatePath('/financeiro')
+  revalidatePath('/financeiro/bancos')
   return {}
 }
 

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { EstagioNegocio } from '@/types'
 import { negocioSchema } from '@/lib/schemas'
+import { deleteCalendarEvent } from '@/lib/google/calendar'
 
 export async function createNegocio(formData: FormData): Promise<{ error?: string }> {
   const supabase = await createClient()
@@ -123,10 +124,69 @@ export async function deleteNegocio(id: string): Promise<{ error?: string }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Best-effort: limpar eventos órfãos no Google Calendar antes de excluir
+  try {
+    const { data: atividades } = await supabase
+      .from('atividades')
+      .select('google_event_id, responsavel_id')
+      .eq('negocio_id', id)
+      .not('google_event_id', 'is', null)
+
+    if (atividades && atividades.length > 0) {
+      // Buscar tokens do usuário autenticado (responsável pela exclusão)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('google_access_token, google_refresh_token, google_token_expiry')
+        .eq('id', user.id)
+        .single()
+
+      if (profile?.google_refresh_token) {
+        for (const atividade of atividades) {
+          if (!atividade.google_event_id) continue
+          try {
+            await deleteCalendarEvent({
+              userId: user.id,
+              accessToken: profile.google_access_token ?? '',
+              refreshToken: profile.google_refresh_token,
+              tokenExpiry: profile.google_token_expiry ?? new Date(0).toISOString(),
+              eventId: atividade.google_event_id,
+            })
+          } catch {
+            // Ignora falha individual (evento já pode ter sido excluído manualmente)
+          }
+        }
+      }
+    }
+  } catch {
+    // Falha no cleanup do Google não bloqueia a exclusão do negócio
+  }
+
   const { error } = await supabase.from('negocios').delete().eq('id', id)
 
   if (error) return { error: error.message }
 
   revalidatePath('/pipeline')
+  return {}
+}
+
+export async function reabrirNegocio(id: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase
+    .from('negocios')
+    .update({
+      estagio: 'negociacao',
+      data_fechamento: null,
+      motivo_perda: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/pipeline')
+  revalidatePath('/pipeline/historico-perdidos')
   return {}
 }

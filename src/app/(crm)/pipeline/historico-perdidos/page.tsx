@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { NegocioComRelacoes } from '@/types'
+import { NegocioCardActions } from './negocio-card-actions'
 
 function formatBRL(valor: number | null): string {
   if (valor === null) return '—'
@@ -226,6 +227,9 @@ function NegocioCard({ negocio }: { negocio: NegocioComRelacoes }) {
             {negocio.motivo_perda}
           </p>
         )}
+
+        {/* Ações */}
+        <NegocioCardActions negocioId={negocio.id} negocioTitulo={negocio.titulo} />
       </div>
 
       {/* Coluna de valores */}

@@ -266,12 +266,21 @@ export function AutomacoesContent() {
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 shrink-0">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10">
-            <Zap className="size-3.5 text-emerald-600" />
+          <div className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10">
+            <Zap className="size-3.5 text-amber-600" />
           </div>
           <div className="flex flex-col gap-0.5">
-            <p className="text-xs text-muted-foreground">Rodando agora</p>
-            <p className="text-sm font-semibold text-foreground">{ativas} de {AUTOMACOES.length}</p>
+            {ativas > 0 ? (
+              <>
+                <p className="text-xs text-muted-foreground">Rodando agora</p>
+                <p className="text-sm font-semibold text-foreground">{ativas} de {AUTOMACOES.length}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">Em breve</p>
+                <p className="text-sm font-semibold text-foreground">Em construção</p>
+              </>
+            )}
           </div>
         </div>
       </div>
