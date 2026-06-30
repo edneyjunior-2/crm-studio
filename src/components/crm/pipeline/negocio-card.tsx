@@ -38,6 +38,7 @@ import { deleteNegocio, updateNegocio, updateEstagioComData } from '@/app/(crm)/
 import { getNegocioProdutos } from '@/app/(crm)/pipeline/produtos-actions'
 import { registrarEmailComFollowups } from '@/app/(crm)/pipeline/followup-actions'
 import { RegistrarReuniaoDialog } from './registrar-reuniao-dialog'
+import { BotaoLembrete } from './botao-lembrete'
 import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao, Periodicidade, Parceiro, Profile } from '@/types'
 import type { EstagioPipeline } from '@/lib/pipeline-estagios'
 
@@ -414,6 +415,10 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
             >
               <Mail className="size-3.5" />
             </Button>
+            <BotaoLembrete
+              negocioId={negocio.id}
+              clienteNome={negocio.clientes?.razao_social ?? negocio.titulo}
+            />
             <Button
               variant="ghost"
               size="icon-sm"

@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
+import { createCalendarEvent } from '@/lib/google/calendar'
 
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -77,6 +79,115 @@ export async function registrarEmailComFollowups(
   revalidatePath('/dashboard')
   return {}
 }
+
+// ── Lembrete ──────────────────────────────────────────────────────────────────
+
+interface CriarLembreteParams {
+  negocioId: string
+  /** YYYY-MM-DD */
+  data: string
+  /** HH:MM, padrão 09:00 */
+  hora?: string
+  observacao?: string
+  adicionarCalendario: boolean
+}
+
+interface CriarLembreteResult {
+  error?: string
+  googleEventUrl?: string
+}
+
+export async function criarLembrete(
+  params: CriarLembreteParams
+): Promise<CriarLembreteResult> {
+  const { negocioId, data, hora = '09:00', observacao, adicionarCalendario } = params
+
+  const { supabase, user, empresaId } = await getAuthUser()
+
+  // Busca nome do cliente a partir do negócio
+  const { data: negocio } = await supabase
+    .from('negocios')
+    .select('titulo, clientes(razao_social)')
+    .eq('id', negocioId)
+    .single()
+
+  const neg = negocio as {
+    titulo: string | null
+    clientes: { razao_social: string | null } | { razao_social: string | null }[] | null
+  } | null
+  const rel = neg?.clientes
+  const razaoSocial = Array.isArray(rel) ? rel[0]?.razao_social : rel?.razao_social
+  const clienteNome: string = razaoSocial ?? neg?.titulo ?? 'Cliente'
+
+  let googleEventId: string | null = null
+  let googleEventUrl: string | null = null
+
+  if (adicionarCalendario) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('google_access_token, google_refresh_token, google_token_expiry')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.google_refresh_token) {
+      return {
+        error: 'Google Calendar não conectado. Acesse as Configurações para conectar.',
+      }
+    }
+
+    // Calcula +30 min para o end
+    const [hh, mm] = hora.split(':').map(Number)
+    const endMinutes = (hh * 60 + mm + 30) % (24 * 60)
+    const endHH = String(Math.floor(endMinutes / 60)).padStart(2, '0')
+    const endMM = String(endMinutes % 60).padStart(2, '0')
+
+    const startDateTime = `${data}T${hora}:00-03:00`
+    const endDateTime = `${data}T${endHH}:${endMM}:00-03:00`
+
+    try {
+      const result = await createCalendarEvent({
+        userId: user.id,
+        accessToken: profile.google_access_token ?? '',
+        refreshToken: profile.google_refresh_token,
+        tokenExpiry: profile.google_token_expiry ?? new Date(0).toISOString(),
+        title: `Lembrete: ${clienteNome}`,
+        description: observacao,
+        startDateTime,
+        endDateTime,
+      })
+      googleEventId = result.eventId
+      googleEventUrl = result.eventUrl
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Erro ao criar evento no Google Calendar.'
+      return { error: message }
+    }
+  }
+
+  const { error: insertErr } = await supabase.from('followups').insert({
+    negocio_id: negocioId,
+    responsavel_id: user.id,
+    tipo: 'lembrete',
+    data_agendada: data,
+    observacao: observacao ?? null,
+    status: 'pendente',
+    empresa_id: empresaId,
+    google_event_id: googleEventId,
+    google_event_url: googleEventUrl,
+    created_by: user.id,
+  })
+
+  if (insertErr) {
+    return { error: insertErr.message }
+  }
+
+  revalidatePath('/pipeline')
+  revalidatePath('/dashboard')
+
+  return { googleEventUrl: googleEventUrl ?? undefined }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 
 export async function concluirFollowup(id: string): Promise<{ error?: string }> {
   const { supabase } = await getUser()
