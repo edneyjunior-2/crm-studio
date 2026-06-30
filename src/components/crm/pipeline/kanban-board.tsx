@@ -6,7 +6,7 @@ import { Briefcase, HelpCircle, Trophy, Clock, CalendarCheck, RefreshCw } from '
 import { NegocioCard } from './negocio-card'
 import { updateEstagioComData } from '@/app/(crm)/pipeline/actions'
 import { gerarFinanceiroDoFechamento } from '@/app/(crm)/pipeline/fechamento-financeiro-actions'
-import type { NegocioComRelacoes, Cliente, Solucao } from '@/types'
+import type { NegocioComRelacoes, Cliente, Solucao, Parceiro, Profile } from '@/types'
 import type { EstagioPipeline } from '@/lib/pipeline-estagios'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -81,9 +81,11 @@ interface KanbanBoardProps {
   solucoes: Pick<Solucao, 'id' | 'nome'>[]
   googleConnected: boolean
   estagios: EstagioPipeline[]
+  parceiros?: Pick<Parceiro, 'id' | 'nome'>[]
+  membrosTime?: Pick<Profile, 'id' | 'full_name'>[]
 }
 
-export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, googleConnected, estagios }: KanbanBoardProps) {
+export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, googleConnected, estagios, parceiros = [], membrosTime = [] }: KanbanBoardProps) {
   const [negocios, setNegocios] = useState<NegocioComRelacoes[]>(initialNegocios)
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dragOverSlug, setDragOverSlug] = useState<string | null>(null)
@@ -318,6 +320,8 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
                       onDragStart={handleDragStart}
                       googleConnected={googleConnected}
                       onMoverPara={(targetSlug) => handleMoverPara(negocio, targetSlug)}
+                      parceiros={parceiros}
+                      membrosTime={membrosTime}
                     />
                   ))
                 )}

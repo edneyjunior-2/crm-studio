@@ -75,6 +75,16 @@ export type EstagioNegocio =
 
 export type Periodicidade = 'unico' | 'mensal' | 'trimestral' | 'semestral' | 'anual'
 
+export interface NegocioProduto {
+  id: string
+  negocio_id: string
+  empresa_id: string
+  solucao_id: string | null
+  descricao: string | null
+  valor: number
+  ordem: number
+}
+
 export interface Negocio {
   id: string
   cliente_id: string
@@ -91,6 +101,8 @@ export interface Negocio {
   motivo_perda?: string | null
   estagio_atualizado_em?: string | null
   observacoes: string | null
+  parceiro_id?: string | null
+  indicado_por?: string | null
   created_at: string
   updated_at: string
 }
@@ -99,6 +111,8 @@ export interface NegocioComRelacoes extends Negocio {
   clientes: { razao_social: string } | null
   solucoes: { nome: string } | null
   profiles: { full_name: string } | null
+  parceiros?: { nome: string } | null
+  indicador?: { full_name: string } | null
 }
 
 export interface Followup {

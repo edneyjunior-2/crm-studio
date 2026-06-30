@@ -8,10 +8,43 @@ import type { EstagioNegocio } from '@/types'
 import { negocioSchema } from '@/lib/schemas'
 import { deleteCalendarEvent } from '@/lib/google/calendar'
 
+/** Converte valor BR ("1.234,56") para número. Aceita também "1234.56". */
+function parseBRL(raw: string): number | null {
+  if (!raw) return null
+  // Remove espaços e símbolo R$
+  const clean = raw.trim().replace(/R\$\s?/g, '')
+  // Formato BR: pontos como milhar, vírgula como decimal
+  if (clean.includes(',')) {
+    return Number(clean.replace(/\./g, '').replace(',', '.'))
+  }
+  // Fallback: já é ponto como decimal
+  return Number(clean)
+}
+
+interface ProdutoInput {
+  solucao_id: string | null
+  valor: number
+  ordem: number
+}
+
+function parseProdutos(formData: FormData): ProdutoInput[] {
+  const countRaw = formData.get('produtos_count') as string
+  const count = parseInt(countRaw ?? '0', 10)
+  const produtos: ProdutoInput[] = []
+  for (let i = 0; i < count; i++) {
+    const solucaoId = (formData.get(`produto_solucao_${i}`) as string) || null
+    const valorRaw = (formData.get(`produto_valor_${i}`) as string) ?? ''
+    const valor = parseBRL(valorRaw) ?? 0
+    produtos.push({ solucao_id: solucaoId || null, valor, ordem: i })
+  }
+  return produtos
+}
+
 export async function createNegocio(formData: FormData): Promise<{ error?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const auth = await getAuthUser()
+  if (!auth.user) redirect('/login')
+  const user = auth.user
 
   const rawData = Object.fromEntries(formData)
   // responsavel_id é sempre o usuário autenticado — injetamos antes de validar
@@ -21,25 +54,50 @@ export async function createNegocio(formData: FormData): Promise<{ error?: strin
     return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos' }
   }
 
-  const valorRaw = formData.get('valor_estimado') as string
+  const produtos = parseProdutos(formData)
+  const somaValor = produtos.reduce((acc, p) => acc + p.valor, 0)
+  const primeiraSolucaoId = produtos[0]?.solucao_id ?? (formData.get('solucao_id') as string)
+
   const probRaw = formData.get('probabilidade') as string
   const dataRaw = formData.get('data_previsao_fechamento') as string
-
   const dataFechamento = dataRaw || null
-  const { error } = await supabase.from('negocios').insert({
-    titulo: formData.get('titulo') as string,
-    cliente_id: formData.get('cliente_id') as string,
-    solucao_id: formData.get('solucao_id') as string,
-    responsavel_id: user.id,
-    estagio: formData.get('estagio') as EstagioNegocio,
-    valor_estimado: valorRaw ? Number(valorRaw) : null,
-    probabilidade: probRaw ? Number(probRaw) : null,
-    data_previsao_fechamento: dataFechamento,
-    data_previsao_original: dataFechamento,
-    observacoes: (formData.get('observacoes') as string) || null,
-  })
+
+  const parceiroIdRaw = (formData.get('parceiro_id') as string) || null
+  const indicadoPorRaw = (formData.get('indicado_por') as string) || null
+
+  const { data: negocioData, error } = await supabase
+    .from('negocios')
+    .insert({
+      titulo: formData.get('titulo') as string,
+      cliente_id: formData.get('cliente_id') as string,
+      solucao_id: primeiraSolucaoId,
+      responsavel_id: user.id,
+      estagio: formData.get('estagio') as EstagioNegocio,
+      valor_estimado: somaValor > 0 ? somaValor : null,
+      probabilidade: probRaw ? Number(probRaw) : null,
+      data_previsao_fechamento: dataFechamento,
+      data_previsao_original: dataFechamento,
+      observacoes: (formData.get('observacoes') as string) || null,
+      parceiro_id: parceiroIdRaw,
+      indicado_por: indicadoPorRaw,
+    })
+    .select('id')
+    .single()
 
   if (error) return { error: error.message }
+
+  // Salva produtos se houver
+  if (negocioData?.id && produtos.length > 0 && auth.empresaId) {
+    const rows = produtos.map((p) => ({
+      negocio_id: negocioData.id,
+      empresa_id: auth.empresaId!,
+      solucao_id: p.solucao_id,
+      valor: p.valor,
+      ordem: p.ordem,
+    }))
+    const { error: prodErr } = await supabase.from('negocio_produtos').insert(rows)
+    if (prodErr) return { error: prodErr.message }
+  }
 
   revalidatePath('/pipeline')
   return {}
@@ -50,8 +108,9 @@ export async function updateNegocio(
   formData: FormData
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const auth = await getAuthUser()
+  if (!auth.user) redirect('/login')
+  const user = auth.user
 
   const rawData = Object.fromEntries(formData)
   // responsavel_id pode não estar no formData no update — injetamos para satisfazer o schema
@@ -61,26 +120,87 @@ export async function updateNegocio(
     return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos' }
   }
 
-  const valorRaw = formData.get('valor_estimado') as string
+  const produtos = parseProdutos(formData)
+  const somaValor = produtos.reduce((acc, p) => acc + p.valor, 0)
+  const primeiraSolucaoId = produtos[0]?.solucao_id ?? (formData.get('solucao_id') as string)
+
   const probRaw = formData.get('probabilidade') as string
   const dataRaw = formData.get('data_previsao_fechamento') as string
 
+  const parceiroIdRaw = (formData.get('parceiro_id') as string) || null
+  const indicadoPorRaw = (formData.get('indicado_por') as string) || null
+
+  // Atualiza campos do negócio (exceto valor_estimado e solucao_id, que dependem dos produtos)
   const { error } = await supabase
     .from('negocios')
     .update({
       titulo: formData.get('titulo') as string,
       cliente_id: formData.get('cliente_id') as string,
-      solucao_id: formData.get('solucao_id') as string,
       estagio: formData.get('estagio') as EstagioNegocio,
-      valor_estimado: valorRaw ? Number(valorRaw) : null,
       probabilidade: probRaw ? Number(probRaw) : null,
       data_previsao_fechamento: dataRaw || null,
       observacoes: (formData.get('observacoes') as string) || null,
+      parceiro_id: parceiroIdRaw,
+      indicado_por: indicadoPorRaw,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
 
   if (error) return { error: error.message }
+
+  // Substitui produtos: insert-primeiro, delete-depois — nunca deixa janela com zero produtos.
+  // valor_estimado e solucao_id só são atualizados após o insert bem-sucedido.
+  if (auth.empresaId && produtos.length > 0) {
+    // 1) Captura IDs dos produtos actuais antes de qualquer alteração
+    const { data: produtosAtuais, error: selErr } = await supabase
+      .from('negocio_produtos')
+      .select('id')
+      .eq('negocio_id', id)
+    if (selErr) return { error: selErr.message }
+    const idsAntigos = (produtosAtuais ?? []).map((r) => r.id as string)
+
+    // 2) Insere os novos produtos
+    const rows = produtos.map((p) => ({
+      negocio_id: id,
+      empresa_id: auth.empresaId!,
+      solucao_id: p.solucao_id,
+      valor: p.valor,
+      ordem: p.ordem,
+    }))
+    const { data: novosInseridos, error: insErr } = await supabase
+      .from('negocio_produtos')
+      .insert(rows)
+      .select('id')
+    if (insErr) {
+      // Insert falhou: antigos ainda intactos; desfaz o que porventura inseriu.
+      // valor_estimado/solucao_id NÃO foram tocados — negócio permanece consistente.
+      const inseridos = novosInseridos as { id: string }[] | null
+      if (inseridos && inseridos.length > 0) {
+        const idsNovos = inseridos.map((r) => r.id)
+        await supabase.from('negocio_produtos').delete().in('id', idsNovos)
+      }
+      return { error: insErr.message }
+    }
+
+    // 3) Insert bem-sucedido: remove os antigos (se havia algum)
+    if (idsAntigos.length > 0) {
+      const { error: delErr } = await supabase
+        .from('negocio_produtos')
+        .delete()
+        .in('id', idsAntigos)
+      if (delErr) return { error: delErr.message }
+    }
+
+    // 4) Agora que os produtos estão salvos, actualiza valor_estimado e solucao_id
+    const { error: updProdErr } = await supabase
+      .from('negocios')
+      .update({
+        solucao_id: primeiraSolucaoId,
+        valor_estimado: somaValor > 0 ? somaValor : null,
+      })
+      .eq('id', id)
+    if (updProdErr) return { error: updProdErr.message }
+  }
 
   revalidatePath('/pipeline')
   return {}

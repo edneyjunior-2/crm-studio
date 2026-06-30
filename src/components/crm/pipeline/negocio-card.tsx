@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useId } from 'react'
 import { toast } from 'sonner'
-import { Trash2, User, Calendar, Pencil, Mail, AlertTriangle, Clock, Video } from 'lucide-react'
+import { Trash2, User, Calendar, Pencil, Mail, AlertTriangle, Clock, Video, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,12 +35,65 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { deleteNegocio, updateNegocio, updateEstagioComData } from '@/app/(crm)/pipeline/actions'
+import { getNegocioProdutos } from '@/app/(crm)/pipeline/produtos-actions'
 import { registrarEmailComFollowups } from '@/app/(crm)/pipeline/followup-actions'
 import { RegistrarReuniaoDialog } from './registrar-reuniao-dialog'
-import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao, Periodicidade } from '@/types'
+import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao, Periodicidade, Parceiro, Profile } from '@/types'
 import type { EstagioPipeline } from '@/lib/pipeline-estagios'
 
-// SLA padrão por estágio (em dias) — mapeado por slug
+// ── Helpers de valor BR ───────────────────────────────────────────────────────
+
+function formatBRLInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  const cents = parseInt(digits, 10)
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100)
+}
+
+function parseBRLInput(formatted: string): number {
+  if (!formatted) return 0
+  return Number(formatted.replace(/\./g, '').replace(',', '.')) || 0
+}
+
+// ── Linha de produto (igual ao negocio-form) ──────────────────────────────────
+
+interface ProdutoLinha {
+  key: string
+  solucaoId: string | null
+  valorFormatado: string
+}
+
+function novaProdutoLinha(solucaoId?: string | null, valor?: number): ProdutoLinha {
+  return {
+    key: Math.random().toString(36).slice(2),
+    solucaoId: solucaoId ?? null,
+    valorFormatado: valor ? formatBRLInput(String(Math.round(valor * 100))) : '',
+  }
+}
+
+// ── Indicador helpers ──────────────────────────────────────────────────────────
+
+type IndicadorTipo = 'parceiro' | 'time' | null
+const PREFIX_PARCEIRO = 'p:'
+const PREFIX_TIME = 't:'
+
+function encodeIndicador(tipo: IndicadorTipo, id: string | null): string {
+  if (!tipo || !id) return ''
+  return tipo === 'parceiro' ? `${PREFIX_PARCEIRO}${id}` : `${PREFIX_TIME}${id}`
+}
+
+function decodeIndicador(value: string): { tipo: IndicadorTipo; id: string | null } {
+  if (value.startsWith(PREFIX_PARCEIRO))
+    return { tipo: 'parceiro', id: value.slice(PREFIX_PARCEIRO.length) }
+  if (value.startsWith(PREFIX_TIME))
+    return { tipo: 'time', id: value.slice(PREFIX_TIME.length) }
+  return { tipo: null, id: null }
+}
+
+// ── SLA padrão por estágio (em dias) — mapeado por slug ───────────────────────
 const SLA_DIAS: Record<string, number> = {
   prospeccao: 14,
   qualificacao: 10,
@@ -133,9 +186,11 @@ interface NegocioCardProps {
   onDragStart: (e: React.DragEvent<HTMLDivElement>, id: string) => void
   googleConnected: boolean
   onMoverPara?: (slug: string) => void
+  parceiros?: Pick<Parceiro, 'id' | 'nome'>[]
+  membrosTime?: Pick<Profile, 'id' | 'full_name'>[]
 }
 
-export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart, googleConnected, onMoverPara }: NegocioCardProps) {
+export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart, googleConnected, onMoverPara, parceiros = [], membrosTime = [] }: NegocioCardProps) {
   const [deleteIsPending, startDeleteTransition] = useTransition()
   const [editIsPending, startEditTransition] = useTransition()
   const [emailIsPending, startEmailTransition] = useTransition()
@@ -146,13 +201,82 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
   const [perdaOpen, setPerdaOpen] = useState(false)
   const [estagio, setEstagio] = useState<EstagioNegocio>(negocio.estagio)
   const [clienteId, setClienteId] = useState<string | null>(negocio.cliente_id)
-  const [solucaoId, setSolucaoId] = useState<string | null>(negocio.solucao_id)
   const [emailObs, setEmailObs] = useState('')
   const [agendarD3, setAgendarD3] = useState(true)
   const [agendarD7, setAgendarD7] = useState(false)
   const [motivoSelecionado, setMotivoSelecionado] = useState('')
   const [motivoOutro, setMotivoOutro] = useState('')
   const [slugPerdaDestino, setSlugPerdaDestino] = useState<string>('fechado_perdido')
+
+  // ── Produtos (edit inline) ──────────────────────────────────────────────────
+  const [produtos, setProdutos] = useState<ProdutoLinha[]>([
+    novaProdutoLinha(negocio.solucao_id, negocio.valor_estimado ?? undefined),
+  ])
+  const [produtosCarregados, setProdutosCarregados] = useState(false)
+  const [isLoadingProdutos, setIsLoadingProdutos] = useState(false)
+  const [erroProdutos, setErroProdutos] = useState(false)
+
+  // ── Indicador (edit inline) ────────────────────────────────────────────────
+  function resolveIndicadorInicial(): string {
+    if (negocio.parceiro_id) return encodeIndicador('parceiro', negocio.parceiro_id)
+    if (negocio.indicado_por) return encodeIndicador('time', negocio.indicado_por)
+    return ''
+  }
+  const [indicadorValue, setIndicadorValue] = useState<string>(resolveIndicadorInicial())
+
+  function indicadorLabel(): string {
+    if (!indicadorValue) return ''
+    const { tipo, id } = decodeIndicador(indicadorValue)
+    if (tipo === 'parceiro') return parceiros.find((p) => p.id === id)?.nome ?? '—'
+    if (tipo === 'time') return membrosTime.find((m) => m.id === id)?.full_name ?? '—'
+    return ''
+  }
+
+  const uid = useId()
+
+  // Carrega produtos reais ao abrir o edit dialog
+  useEffect(() => {
+    if (!editOpen) return
+    if (produtosCarregados) return
+
+    setIsLoadingProdutos(true)
+    setErroProdutos(false)
+    getNegocioProdutos(negocio.id)
+      .then((rows) => {
+        if (rows.length > 0) {
+          setProdutos(rows.map((r) => novaProdutoLinha(r.solucao_id, r.valor)))
+        } else {
+          setProdutos([novaProdutoLinha(negocio.solucao_id, negocio.valor_estimado ?? undefined)])
+        }
+        setProdutosCarregados(true)
+      })
+      .catch(() => {
+        setErroProdutos(true)
+        toast.error('Erro ao carregar produtos.')
+      })
+      .finally(() => setIsLoadingProdutos(false))
+  }, [editOpen, negocio.id, produtosCarregados, negocio.solucao_id, negocio.valor_estimado])
+
+  // Total ao vivo
+  const totalProdutos = produtos.reduce((acc, p) => acc + parseBRLInput(p.valorFormatado), 0)
+  const primeiraSolucaoId = produtos[0]?.solucaoId ?? ''
+
+  function addProduto() {
+    setProdutos((prev) => [...prev, novaProdutoLinha()])
+  }
+
+  function removeProduto(key: string) {
+    setProdutos((prev) => (prev.length > 1 ? prev.filter((p) => p.key !== key) : prev))
+  }
+
+  function setProdutoSolucao(key: string, solucaoId: string | null) {
+    setProdutos((prev) => prev.map((p) => (p.key === key ? { ...p, solucaoId } : p)))
+  }
+
+  function setProdutoValor(key: string, raw: string) {
+    const formatted = formatBRLInput(raw)
+    setProdutos((prev) => prev.map((p) => (p.key === key ? { ...p, valorFormatado: formatted } : p)))
+  }
 
   function handleDelete() {
     startDeleteTransition(async () => {
@@ -234,7 +358,19 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
     const formData = new FormData(form)
     formData.set('estagio', estagio)
     formData.set('cliente_id', clienteId ?? '')
-    formData.set('solucao_id', solucaoId ?? '')
+    formData.set('solucao_id', primeiraSolucaoId)
+
+    // Serializa produtos
+    formData.set('produtos_count', String(produtos.length))
+    produtos.forEach((p, i) => {
+      formData.set(`produto_solucao_${i}`, p.solucaoId ?? '')
+      formData.set(`produto_valor_${i}`, p.valorFormatado)
+    })
+
+    // Indicador
+    const { tipo: indTipo, id: indId } = decodeIndicador(indicadorValue)
+    formData.set('parceiro_id', indTipo === 'parceiro' && indId ? indId : '')
+    formData.set('indicado_por', indTipo === 'time' && indId ? indId : '')
 
     startEditTransition(async () => {
       const result = await updateNegocio(negocio.id, formData)
@@ -367,6 +503,25 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
                 </span>
               </div>
             )}
+
+            {/* Indicador: Parceiro ou Time */}
+            {negocio.parceiro_id && negocio.parceiros && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600 text-[8px] font-bold">P</span>
+                <span className="truncate">
+                  <span className="font-medium">Parceiro:</span> {negocio.parceiros.nome}
+                </span>
+              </div>
+            )}
+            {negocio.indicado_por && negocio.indicador && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600 text-[8px] font-bold">T</span>
+                <span className="truncate">
+                  <span className="font-medium">Indicado por:</span> {negocio.indicador.full_name}
+                </span>
+              </div>
+            )}
+
             {negocio.data_previsao_fechamento && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Calendar className="size-3 shrink-0" />
@@ -501,18 +656,19 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={(v) => { if (!editIsPending) setEditOpen(v) }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar negócio</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+            {/* Título */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`titulo-${negocio.id}`}>
+              <Label htmlFor={`${uid}-titulo`}>
                 Título <span className="text-destructive">*</span>
               </Label>
               <Input
-                id={`titulo-${negocio.id}`}
+                id={`${uid}-titulo`}
                 name="titulo"
                 required
                 defaultValue={negocio.titulo}
@@ -520,56 +676,32 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label>
-                  Cliente <span className="text-destructive">*</span>
-                </Label>
-                <Select value={clienteId} onValueChange={setClienteId}>
-                  <SelectTrigger className="w-full">
-                    {clienteId ? (
-                      <span className="flex flex-1 truncate text-left">
-                        {clientes.find((c) => c.id === clienteId)?.razao_social ?? '—'}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Selecione...</span>
-                    )}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.razao_social}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label>
-                  Solução <span className="text-destructive">*</span>
-                </Label>
-                <Select value={solucaoId} onValueChange={setSolucaoId}>
-                  <SelectTrigger className="w-full">
-                    {solucaoId ? (
-                      <span className="flex flex-1 truncate text-left">
-                        {solucoes.find((s) => s.id === solucaoId)?.nome ?? '—'}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Selecione...</span>
-                    )}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {solucoes.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Cliente */}
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                Cliente <span className="text-destructive">*</span>
+              </Label>
+              <Select value={clienteId} onValueChange={setClienteId}>
+                <SelectTrigger className="w-full">
+                  {clienteId ? (
+                    <span className="flex flex-1 truncate text-left">
+                      {clientes.find((c) => c.id === clienteId)?.razao_social ?? '—'}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Selecione...</span>
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  {clientes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.razao_social}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
+            {/* Estágio */}
             <div className="flex flex-col gap-1.5">
               <Label>
                 Estágio <span className="text-destructive">*</span>
@@ -591,24 +723,96 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
               </Select>
             </div>
 
+            {/* ── PRODUTOS ────────────────────────────────────────────────── */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <Label>Produtos / Soluções</Label>
+                {isLoadingProdutos && (
+                  <span className="text-xs text-muted-foreground">Carregando...</span>
+                )}
+              </div>
+              {erroProdutos && (
+                <p className="text-xs text-destructive">
+                  Não foi possível carregar os produtos — reabra para tentar de novo.
+                </p>
+              )}
+
+              <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/20 p-3">
+                {produtos.map((prod, idx) => (
+                  <div key={prod.key} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Select
+                        value={prod.solucaoId ?? ''}
+                        onValueChange={(v) => setProdutoSolucao(prod.key, v || null)}
+                      >
+                        <SelectTrigger className="w-full">
+                          {prod.solucaoId ? (
+                            <span className="flex flex-1 truncate text-left text-sm">
+                              {solucoes.find((s) => s.id === prod.solucaoId)?.nome ?? '—'}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Solução...</span>
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          {solucoes.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="w-36 shrink-0">
+                      <Input
+                        inputMode="numeric"
+                        placeholder="0,00"
+                        value={prod.valorFormatado}
+                        onChange={(e) => setProdutoValor(prod.key, e.target.value)}
+                        aria-label={`Valor do produto ${idx + 1}`}
+                        className="text-right"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={produtos.length === 1}
+                      onClick={() => removeProduto(prod.key)}
+                      aria-label="Remover produto"
+                      className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-30"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between pt-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={addProduto}
+                    className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus className="size-3.5" />
+                    Adicionar produto
+                  </Button>
+                  <span className="text-sm font-semibold text-foreground">
+                    Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalProdutos)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Probabilidade + Data */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor={`valor-${negocio.id}`}>Valor estimado (R$)</Label>
+                <Label htmlFor={`${uid}-prob`}>Probabilidade (%)</Label>
                 <Input
-                  id={`valor-${negocio.id}`}
-                  name="valor_estimado"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  defaultValue={negocio.valor_estimado ?? ''}
-                  placeholder="0,00"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor={`prob-${negocio.id}`}>Probabilidade (%)</Label>
-                <Input
-                  id={`prob-${negocio.id}`}
+                  id={`${uid}-prob`}
                   name="probabilidade"
                   type="number"
                   min={0}
@@ -617,22 +821,64 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
                   placeholder="0 a 100"
                 />
               </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`${uid}-data`}>Previsão de Fechamento</Label>
+                <Input
+                  id={`${uid}-data`}
+                  name="data_previsao_fechamento"
+                  type="date"
+                  defaultValue={negocio.data_previsao_fechamento ?? ''}
+                />
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`data-${negocio.id}`}>Previsão de Fechamento</Label>
-              <Input
-                id={`data-${negocio.id}`}
-                name="data_previsao_fechamento"
-                type="date"
-                defaultValue={negocio.data_previsao_fechamento ?? ''}
-              />
-            </div>
+            {/* ── INDICADOR ──────────────────────────────────────────────── */}
+            {(parceiros.length > 0 || membrosTime.length > 0) && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Indicador</Label>
+                <Select value={indicadorValue} onValueChange={(v) => setIndicadorValue(v ?? '')}>
+                  <SelectTrigger className="w-full">
+                    {indicadorValue ? (
+                      <span className="flex flex-1 truncate text-left">
+                        {indicadorLabel()}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Nenhum...</span>
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum</SelectItem>
+                    {parceiros.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Parceiros</div>
+                        {parceiros.map((p) => (
+                          <SelectItem key={p.id} value={encodeIndicador('parceiro', p.id)}>
+                            {p.nome}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {membrosTime.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Time</div>
+                        {membrosTime.map((m) => (
+                          <SelectItem key={m.id} value={encodeIndicador('time', m.id)}>
+                            {m.full_name}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
+            {/* Observações */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`obs-${negocio.id}`}>Observações</Label>
+              <Label htmlFor={`${uid}-obs`}>Observações</Label>
               <Textarea
-                id={`obs-${negocio.id}`}
+                id={`${uid}-obs`}
                 name="observacoes"
                 defaultValue={negocio.observacoes ?? ''}
                 placeholder="Informações adicionais sobre o negócio..."
@@ -644,7 +890,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
               <DialogClose render={<Button variant="outline" type="button" />}>
                 Cancelar
               </DialogClose>
-              <Button type="submit" disabled={editIsPending || !clienteId || !solucaoId}>
+              <Button type="submit" disabled={editIsPending || isLoadingProdutos || erroProdutos || !clienteId || !primeiraSolucaoId}>
                 {editIsPending ? 'Salvando...' : 'Salvar alterações'}
               </Button>
             </DialogFooter>

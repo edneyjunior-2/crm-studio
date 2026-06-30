@@ -6,7 +6,7 @@ import { listarEstagios } from '@/lib/pipeline-estagios'
 import { Button } from '@/components/ui/button'
 import { KanbanBoard } from '@/components/crm/pipeline/kanban-board'
 import { NegocioForm } from '@/components/crm/pipeline/negocio-form'
-import type { NegocioComRelacoes, Cliente, Solucao } from '@/types'
+import type { NegocioComRelacoes, Cliente, Solucao, Parceiro, Profile } from '@/types'
 
 export default async function PipelinePage() {
   const supabase = await createClient()
@@ -17,11 +17,13 @@ export default async function PipelinePage() {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-  const [estagios, solucoesResult, profileResult, profileGoogleResult] = await Promise.all([
+  const [estagios, solucoesResult, profileResult, profileGoogleResult, parceirosResult, profilesResult] = await Promise.all([
     listarEstagios(),
     supabase.from('solucoes').select('id, nome').eq('ativo', true).order('nome'),
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     supabase.from('profiles').select('google_refresh_token').eq('id', user.id).single(),
+    supabase.from('parceiros').select('id, nome').order('nome'),
+    supabase.from('profiles').select('id, full_name').order('full_name'),
   ])
 
   // Slugs das etapas de fechamento (ganho ou perdido) — para filtro dinâmico
@@ -42,7 +44,9 @@ export default async function PipelinePage() {
             *,
             clientes ( razao_social ),
             solucoes ( nome ),
-            profiles ( full_name )
+            profiles!responsavel_id ( full_name ),
+            parceiros ( nome ),
+            indicador:profiles!indicado_por ( full_name )
           `)
           .order('created_at', { ascending: false })
           .range(from, to)
@@ -90,6 +94,8 @@ export default async function PipelinePage() {
 
   const solucoes = (solucoesResult.data ?? []) as Pick<Solucao, 'id' | 'nome'>[]
   const googleConnected = !!profileGoogleResult.data?.google_refresh_token
+  const parceiros = (parceirosResult.data ?? []) as Pick<Parceiro, 'id' | 'nome'>[]
+  const membrosTime = (profilesResult.data ?? []) as Pick<Profile, 'id' | 'full_name'>[]
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,6 +110,8 @@ export default async function PipelinePage() {
           clientes={clientes}
           solucoes={solucoes}
           estagios={estagios}
+          parceiros={parceiros}
+          membrosTime={membrosTime}
           trigger={
             <Button>
               <Plus className="size-4" />
@@ -119,6 +127,8 @@ export default async function PipelinePage() {
         solucoes={solucoes}
         estagios={estagios}
         googleConnected={googleConnected}
+        parceiros={parceiros}
+        membrosTime={membrosTime}
       />
     </div>
   )
