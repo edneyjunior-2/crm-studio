@@ -161,6 +161,44 @@ async function DashboardContent() {
     mesesFluxo.push({ mes: label, entradas, saidas })
   }
 
+  // ── Posição líquida projetada + DRE gerencial (regime de CAIXA) do mês ──
+  // Totais EM ABERTO (todas as datas) p/ a posição líquida; recebido/pago no mês
+  // p/ o DRE gerencial. fetchAllRows pagina (evita o cap de 1000 do PostgREST).
+  let receberAberto: { valor: number }[] = []
+  let pagarAberto: { valor: number }[] = []
+  let recebidoMes: { valor: number }[] = []
+  let pagoMes: { valor: number; categoria: string | null }[] = []
+  try {
+    receberAberto = await fetchAllRows<{ valor: number }>((from, to) =>
+      supabase.from('contas_receber').select('valor').in('status', ['pendente', 'atrasado']).range(from, to))
+    pagarAberto = await fetchAllRows<{ valor: number }>((from, to) =>
+      supabase.from('contas_pagar').select('valor').in('status', ['pendente', 'atrasado']).range(from, to))
+    recebidoMes = await fetchAllRows<{ valor: number }>((from, to) =>
+      supabase.from('contas_receber').select('valor').eq('status', 'recebido')
+        .gte('data_recebimento', inicioMes).lte('data_recebimento', fimMes).range(from, to))
+    pagoMes = await fetchAllRows<{ valor: number; categoria: string | null }>((from, to) =>
+      supabase.from('contas_pagar').select('valor, categoria').eq('status', 'pago')
+        .gte('data_pagamento', inicioMes).lte('data_pagamento', fimMes).range(from, to))
+  } catch {
+    // degradado — agregados ficam zerados se o banco falhar; o resto do painel segue
+  }
+
+  const totalAReceberAberto = receberAberto.reduce((s, c) => s + Number(c.valor), 0)
+  const totalAPagarAberto = pagarAberto.reduce((s, c) => s + Number(c.valor), 0)
+  const posicaoLiquida = saldoCaixa + totalAReceberAberto - totalAPagarAberto
+
+  const receitasMes = recebidoMes.reduce((s, c) => s + Number(c.valor), 0)
+  const despesasPorCat = new Map<string, number>()
+  for (const c of pagoMes) {
+    const cat = c.categoria || 'Outros'
+    despesasPorCat.set(cat, (despesasPorCat.get(cat) ?? 0) + Number(c.valor))
+  }
+  const despesasCats = [...despesasPorCat.entries()].sort((a, b) => b[1] - a[1])
+  const despesasMes = despesasCats.reduce((s, [, v]) => s + v, 0)
+  const resultadoMes = receitasMes - despesasMes
+  const margemMes = receitasMes > 0 ? (resultadoMes / receitasMes) * 100 : null
+  const mesLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
   const kpiCards = [
     {
       label: 'Saldo em Caixa',
@@ -194,6 +232,35 @@ async function DashboardContent() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Posição líquida projetada — a "saúde" se tudo em aberto se realizar */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Posição líquida projetada</p>
+            <p className={`font-mono text-3xl font-bold ${posicaoLiquida >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {BRL(posicaoLiquida)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Caixa hoje + tudo a receber em aberto − tudo a pagar em aberto
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Caixa</p>
+              <p className="font-mono font-semibold text-blue-600">{BRL(saldoCaixa)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">+ A receber</p>
+              <p className="font-mono font-semibold text-emerald-600">{BRL(totalAReceberAberto)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">− A pagar</p>
+              <p className="font-mono font-semibold text-red-600">{BRL(totalAPagarAberto)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpiCards.map((card) => {
           const Icon = card.icon
@@ -267,6 +334,46 @@ async function DashboardContent() {
           )}
         </div>
       </div>
+
+      {/* DRE gerencial simplificada (regime de caixa) — do mês */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">DRE gerencial — {mesLabel}</h3>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">regime de caixa</span>
+        </div>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Visão gerencial (recebido − pago no mês). Não substitui o DRE/balanço contábil do seu contador.
+        </p>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <span className="text-sm font-medium text-foreground">Receitas (recebidas)</span>
+            <span className="font-mono text-sm font-semibold text-emerald-600">{BRL(receitasMes)}</span>
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-sm font-medium text-foreground">Despesas (pagas)</span>
+            <span className="font-mono text-sm font-semibold text-red-600">− {BRL(despesasMes)}</span>
+          </div>
+          {despesasCats.length > 0 && (
+            <div className="flex flex-col gap-1 pl-3">
+              {despesasCats.map(([cat, val]) => (
+                <div key={cat} className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="truncate">{cat}</span>
+                  <span className="font-mono shrink-0">{BRL(val)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+            <span className="text-sm font-semibold text-foreground">Resultado do mês</span>
+            <span className={`font-mono text-base font-bold ${resultadoMes >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {BRL(resultadoMes)}
+              {margemMes !== null && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">({margemMes.toFixed(0)}% margem)</span>
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -305,9 +412,9 @@ export default async function DashboardFinanceiroPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">Dashboard Financeiro</h2>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">Saúde Financeira</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Visão consolidada de caixa, receitas e despesas.
+          Posição de caixa, a receber/pagar, fluxo e DRE gerencial — visão gerencial, não contábil.
         </p>
       </div>
 
