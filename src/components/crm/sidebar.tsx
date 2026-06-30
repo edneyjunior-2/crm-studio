@@ -99,7 +99,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/pipeline/historico-perdidos',
-    label: 'Hist. Perdidos',
+    label: 'Histórico',
     icon: TrendingDown,
     modulo: 'pipeline',
     isSubItem: true,
