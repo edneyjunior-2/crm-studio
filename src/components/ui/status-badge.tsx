@@ -40,16 +40,20 @@ const VARIANTS = {
   invalido:    'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
 } as const
 
+/** Estilo neutro (slate) usado como fallback para variantes desconhecidas. */
+const VARIANT_FALLBACK = 'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300'
+
 export type StatusBadgeVariant = keyof typeof VARIANTS
 
 interface StatusBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant: StatusBadgeVariant
+  variant: StatusBadgeVariant | string
   children: React.ReactNode
 }
 
 export function StatusBadge({ variant, children, className, ...props }: StatusBadgeProps) {
+  const variantClass = (VARIANTS as Record<string, string>)[variant] ?? VARIANT_FALLBACK
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', VARIANTS[variant], className)} {...props}>
+    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', variantClass, className)} {...props}>
       {children}
     </span>
   )

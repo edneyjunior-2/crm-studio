@@ -33,8 +33,6 @@ const leadSchema = z.object({
   resumo:      z.string().trim().max(4000).optional(),
 })
 
-const ESTAGIOS_ABERTOS = ['prospeccao', 'qualificacao', 'proposta', 'negociacao']
-
 export async function POST(req: NextRequest) {
   // 1) Autenticação por API key → empresa
   const auth = await verificarApiKey(req.headers.get('authorization'))
@@ -66,6 +64,23 @@ export async function POST(req: NextRequest) {
   const telefone = lead.telefone // já normalizado p/ dígitos pelo schema
 
   const db = createAdminClient()
+
+  // 2b) Etapas abertas do tenant (pipeline_estagios) — usado no dedup e no insert
+  const { data: estagiosDoTenant } = await db
+    .from('pipeline_estagios')
+    .select('slug, ordem, tipo')
+    .eq('empresa_id', empresaId)
+    .eq('ativo', true)
+    .order('ordem', { ascending: true })
+
+  const estagiosAbertos: string[] =
+    estagiosDoTenant
+      ?.filter((e) => e.tipo === 'aberto')
+      .map((e) => e.slug as string) ?? []
+
+  // 1ª etapa aberta ativa (menor ordem) — onde o novo lead entra no kanban
+  const estagioInicial: string =
+    estagiosAbertos[0] ?? 'prospeccao'
 
   // 3) Responsável padrão: um admin da empresa (fallback: qualquer perfil)
   const { data: perfis } = await db
@@ -156,7 +171,7 @@ export async function POST(req: NextRequest) {
       .select('id')
       .eq('empresa_id', empresaId)
       .eq('cliente_id', clienteId)
-      .in('estagio', ESTAGIOS_ABERTOS)
+      .in('estagio', estagiosAbertos.length > 0 ? estagiosAbertos : ['prospeccao'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -175,7 +190,7 @@ export async function POST(req: NextRequest) {
         solucao_id:     solucaoId,
         responsavel_id: responsavelId,
         titulo,
-        estagio:        'qualificacao',
+        estagio:        estagioInicial,
         probabilidade,
       })
       .select('id')

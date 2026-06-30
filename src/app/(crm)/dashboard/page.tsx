@@ -9,8 +9,10 @@ import { ConversaoFunil } from '@/components/crm/dashboard/conversao-funil'
 import { ReunioesWidget } from '@/components/crm/dashboard/reunioes-widget'
 import { MetricasAnimadas, type MetricaCard } from '@/components/crm/dashboard/metricas-animadas'
 import { listEvents, isConfigured } from '@/lib/google-calendar'
+import { listarEstagios } from '@/lib/pipeline-estagios'
+import { mapaEstagios, corPorTipo } from '@/lib/estagios-ui'
 import { unstable_cache } from 'next/cache'
-import type { EstagioNegocio, NegocioComRelacoes, Followup } from '@/types'
+import type { NegocioComRelacoes, Followup } from '@/types'
 
 const BRL = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -37,24 +39,6 @@ function formatDate(dateStr: string): string {
   return `${day}/${month}/${year}`
 }
 
-const ESTAGIO_LABEL: Record<EstagioNegocio, string> = {
-  prospeccao: 'Prospecção',
-  qualificacao: 'Qualificação',
-  proposta: 'Proposta',
-  negociacao: 'Negociação',
-  fechado_ganho: 'Fechado Ganho',
-  fechado_perdido: 'Fechado Perdido',
-}
-
-const ESTAGIO_TO_VARIANT: Record<EstagioNegocio, 'prospeccao' | 'qualificacao' | 'proposta' | 'negociacao' | 'fechado_ganho' | 'fechado_perdido'> = {
-  prospeccao: 'prospeccao',
-  qualificacao: 'qualificacao',
-  proposta: 'proposta',
-  negociacao: 'negociacao',
-  fechado_ganho: 'fechado_ganho',
-  fechado_perdido: 'fechado_perdido',
-}
-
 export default async function DashboardPage() {
   // Usa o cache do layout — zero round-trip extra ao Supabase Auth
   const { supabase, user, role, empresaId } = await getAuthUser()
@@ -76,6 +60,7 @@ export default async function DashboardPage() {
     { count: totalClientes },
     { data: negocios },
     { data: empresa },
+    estagios,
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -91,7 +76,10 @@ export default async function DashboardPage() {
     empresaId
       ? supabase.from('empresas').select('nome').eq('id', empresaId).single()
       : Promise.resolve({ data: null }),
+    listarEstagios(),
   ])
+
+  const mapa = mapaEstagios(estagios)
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'time'
 
@@ -152,10 +140,10 @@ export default async function DashboardPage() {
 
   const solucoesDestaque = (solucoesDestaqueRaw ?? []).map((sol) => {
     const negociosAtivos = negociosList.filter(
-      (n) => n.solucao_id === sol.id && n.estagio !== 'fechado_perdido'
+      (n) => n.solucao_id === sol.id && mapa[n.estagio]?.tipo !== 'perdido'
     ).length
     const valorPipeline = negociosList
-      .filter((n) => n.solucao_id === sol.id && n.estagio !== 'fechado_perdido')
+      .filter((n) => n.solucao_id === sol.id && mapa[n.estagio]?.tipo !== 'perdido')
       .reduce((s, n) => s + Number(n.valor_estimado ?? 0), 0)
     return { ...sol, negociosAtivos, valorPipeline }
   })
@@ -167,8 +155,7 @@ export default async function DashboardPage() {
         n.data_previsao_fechamento !== null &&
         n.data_previsao_fechamento >= today &&
         n.data_previsao_fechamento <= sevenDaysLater &&
-        n.estagio !== 'fechado_ganho' &&
-        n.estagio !== 'fechado_perdido'
+        mapa[n.estagio]?.tipo === 'aberto'
     )
     .sort((a, b) =>
       (a.data_previsao_fechamento ?? '').localeCompare(b.data_previsao_fechamento ?? '')
@@ -176,13 +163,13 @@ export default async function DashboardPage() {
 
   const followupsPendentes = (followupsData ?? []) as Followup[]
 
-  const ativos = negociosList.filter((n) => n.estagio !== 'fechado_perdido')
+  const ativos = negociosList.filter((n) => mapa[n.estagio]?.tipo === 'aberto')
   const totalAtivos = ativos.length
   const valorPipeline = ativos.reduce((s, n) => s + Number(n.valor_estimado ?? 0), 0)
 
   const fechadosGanhoMes = negociosList.filter(
     (n) =>
-      n.estagio === 'fechado_ganho' &&
+      mapa[n.estagio]?.tipo === 'ganho' &&
       n.updated_at >= mesAtualInicio &&
       n.updated_at < mesAtualFim
   ).length
@@ -196,7 +183,7 @@ export default async function DashboardPage() {
       acc[n.estagio] = (acc[n.estagio] ?? 0) + 1
       return acc
     },
-    {} as Record<EstagioNegocio, number>
+    {} as Record<string, number>
   )
 
   const metricCards: MetricaCard[] = [
@@ -334,9 +321,9 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        <PipelineChart contagens={contagensPorEstagio} />
+        <PipelineChart estagios={estagios} contagens={contagensPorEstagio} />
 
-        <ConversaoFunil contagens={contagensPorEstagio} />
+        <ConversaoFunil estagios={estagios} contagens={contagensPorEstagio} />
 
         <FollowupsWidget followups={followupsPendentes} />
 
@@ -371,8 +358,8 @@ export default async function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <StatusBadge variant={ESTAGIO_TO_VARIANT[negocio.estagio]}>
-                      {ESTAGIO_LABEL[negocio.estagio]}
+                    <StatusBadge variant={mapa[negocio.estagio]?.tipo === 'ganho' ? 'fechado_ganho' : mapa[negocio.estagio]?.tipo === 'perdido' ? 'fechado_perdido' : negocio.estagio}>
+                      {mapa[negocio.estagio]?.nome ?? negocio.estagio}
                     </StatusBadge>
                     {negocio.data_previsao_fechamento && (
                       <span className="text-xs text-amber-600">

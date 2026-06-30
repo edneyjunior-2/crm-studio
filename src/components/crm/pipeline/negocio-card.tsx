@@ -38,9 +38,10 @@ import { deleteNegocio, updateNegocio, updateEstagioComData } from '@/app/(crm)/
 import { registrarEmailComFollowups } from '@/app/(crm)/pipeline/followup-actions'
 import { RegistrarReuniaoDialog } from './registrar-reuniao-dialog'
 import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao, Periodicidade } from '@/types'
+import type { EstagioPipeline } from '@/lib/pipeline-estagios'
 
-// SLA padrão por estágio (em dias)
-const SLA_DIAS: Partial<Record<EstagioNegocio, number>> = {
+// SLA padrão por estágio (em dias) — mapeado por slug
+const SLA_DIAS: Record<string, number> = {
   prospeccao: 14,
   qualificacao: 10,
   proposta: 7,
@@ -70,7 +71,7 @@ interface SlaBadgeProps {
 }
 
 function SlaBadge({ negocio }: SlaBadgeProps) {
-  const sla = SLA_DIAS[negocio.estagio]
+  const sla = SLA_DIAS[negocio.estagio as string]
   if (!sla) return null
 
   const dias = calcularDiasParado(negocio)
@@ -109,15 +110,6 @@ const PERIODICIDADE_LABELS: Record<Periodicidade, string> = {
   anual: 'Anual',
 }
 
-const ESTAGIOS: { value: EstagioNegocio; label: string }[] = [
-  { value: 'prospeccao', label: 'Prospecção' },
-  { value: 'qualificacao', label: 'Qualificação' },
-  { value: 'proposta', label: 'Proposta' },
-  { value: 'negociacao', label: 'Negociação' },
-  { value: 'fechado_ganho', label: 'Fechado Ganho' },
-  { value: 'fechado_perdido', label: 'Perdido' },
-]
-
 function formatBRL(valor: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)
 }
@@ -137,12 +129,13 @@ interface NegocioCardProps {
   negocio: NegocioComRelacoes
   clientes: Pick<Cliente, 'id' | 'razao_social'>[]
   solucoes: Pick<Solucao, 'id' | 'nome'>[]
+  estagios: EstagioPipeline[]
   onDragStart: (e: React.DragEvent<HTMLDivElement>, id: string) => void
   googleConnected: boolean
-  onMoverPara?: (estagio: EstagioNegocio) => void
+  onMoverPara?: (slug: string) => void
 }
 
-export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleConnected, onMoverPara }: NegocioCardProps) {
+export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart, googleConnected, onMoverPara }: NegocioCardProps) {
   const [deleteIsPending, startDeleteTransition] = useTransition()
   const [editIsPending, startEditTransition] = useTransition()
   const [emailIsPending, startEmailTransition] = useTransition()
@@ -159,6 +152,7 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
   const [agendarD7, setAgendarD7] = useState(false)
   const [motivoSelecionado, setMotivoSelecionado] = useState('')
   const [motivoOutro, setMotivoOutro] = useState('')
+  const [slugPerdaDestino, setSlugPerdaDestino] = useState<string>('fechado_perdido')
 
   function handleDelete() {
     startDeleteTransition(async () => {
@@ -196,8 +190,10 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
   }
 
   function handleEstagioChange(novoEstagio: EstagioNegocio) {
-    if (novoEstagio === 'fechado_perdido' && estagio !== 'fechado_perdido') {
+    const estagioDestino = estagios.find((e) => e.slug === novoEstagio)
+    if (estagioDestino?.tipo === 'perdido' && estagio !== novoEstagio) {
       // Intercepta e abre modal de motivo de perda sem alterar o Select ainda
+      setSlugPerdaDestino(novoEstagio)
       setMotivoSelecionado('')
       setMotivoOutro('')
       setPerdaOpen(true)
@@ -216,7 +212,7 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
     startPerdaTransition(async () => {
       const result = await updateEstagioComData(
         negocio.id,
-        'fechado_perdido',
+        slugPerdaDestino,
         null,
         null,
         null,
@@ -226,7 +222,7 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
         toast.error(result.error)
         return
       }
-      setEstagio('fechado_perdido')
+      setEstagio(slugPerdaDestino as EstagioNegocio)
       setPerdaOpen(false)
       toast.success('Negócio registrado como perdido.')
     })
@@ -385,15 +381,15 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
               </span>
             )}
 
-            {/* Badge de periodicidade — visível em Fechado Ganho */}
-            {negocio.estagio === 'fechado_ganho' && negocio.periodicidade && (
+            {/* Badge de periodicidade — visível em etapas do tipo 'ganho' */}
+            {estagios.find((e) => e.slug === negocio.estagio)?.tipo === 'ganho' && negocio.periodicidade && (
               <span className="mt-0.5 w-fit inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-medium text-emerald-700">
                 ↻ {PERIODICIDADE_LABELS[negocio.periodicidade]}
               </span>
             )}
 
-            {/* Motivo de perda — visível em Perdido */}
-            {negocio.estagio === 'fechado_perdido' && negocio.motivo_perda && (
+            {/* Motivo de perda — visível em etapas do tipo 'perdido' */}
+            {estagios.find((e) => e.slug === negocio.estagio)?.tipo === 'perdido' && negocio.motivo_perda && (
               <p className="mt-1 text-[11px] text-muted-foreground/80 leading-snug line-clamp-2">
                 <span className="font-medium">Motivo: </span>{negocio.motivo_perda}
               </p>
@@ -408,16 +404,16 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
         <select
           value=""
           onChange={(e) => {
-            const val = e.target.value as EstagioNegocio
+            const val = e.target.value
             if (val) onMoverPara?.(val)
           }}
           className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
           aria-label="Mover negócio para outro estágio"
         >
           <option value="" disabled>Mover para...</option>
-          {ESTAGIOS.filter((e) => e.value !== negocio.estagio).map((e) => (
-            <option key={e.value} value={e.value}>
-              {e.label}
+          {estagios.filter((e) => e.slug !== negocio.estagio).map((e) => (
+            <option key={e.slug} value={e.slug}>
+              {e.nome}
             </option>
           ))}
         </select>
@@ -583,12 +579,12 @@ export function NegocioCard({ negocio, clientes, solucoes, onDragStart, googleCo
                 onValueChange={(v) => handleEstagioChange(v as EstagioNegocio)}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  {estagios.find((e) => e.slug === estagio)?.nome ?? estagio}
                 </SelectTrigger>
                 <SelectContent>
-                  {ESTAGIOS.map((e) => (
-                    <SelectItem key={e.value} value={e.value}>
-                      {e.label}
+                  {estagios.map((e) => (
+                    <SelectItem key={e.slug} value={e.slug}>
+                      {e.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>

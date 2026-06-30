@@ -22,20 +22,13 @@ import {
 } from '@/components/ui/select'
 import { createNegocio, updateNegocio } from '@/app/(crm)/pipeline/actions'
 import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao } from '@/types'
-
-const ESTAGIOS: { value: EstagioNegocio; label: string }[] = [
-  { value: 'prospeccao', label: 'Prospecção' },
-  { value: 'qualificacao', label: 'Qualificação' },
-  { value: 'proposta', label: 'Proposta' },
-  { value: 'negociacao', label: 'Negociação' },
-  { value: 'fechado_ganho', label: 'Fechado Ganho' },
-  { value: 'fechado_perdido', label: 'Fechado Perdido' },
-]
+import type { EstagioPipeline } from '@/lib/pipeline-estagios'
 
 interface NegocioFormProps {
   negocio?: NegocioComRelacoes
   clientes: Pick<Cliente, 'id' | 'razao_social'>[]
   solucoes: Pick<Solucao, 'id' | 'nome'>[]
+  estagios: EstagioPipeline[]
   trigger: React.ReactNode
   defaultEstagio?: EstagioNegocio
 }
@@ -44,6 +37,7 @@ export function NegocioForm({
   negocio,
   clientes,
   solucoes,
+  estagios,
   trigger,
   defaultEstagio,
 }: NegocioFormProps) {
@@ -83,7 +77,8 @@ export function NegocioForm({
       setOpen(false)
       if (!negocio) {
         form.reset()
-        setEstagio(defaultEstagio ?? 'prospeccao')
+        const primeiroAberto = estagios.find((e) => e.tipo === 'aberto')?.slug ?? 'prospeccao'
+        setEstagio((defaultEstagio ?? primeiroAberto) as EstagioNegocio)
         setClienteId(null)
         setSolucaoId(null)
       }
@@ -177,14 +172,14 @@ export function NegocioForm({
                 onValueChange={(v) => setEstagio(v as EstagioNegocio)}
               >
                 <SelectTrigger className="w-full">
-                  {ESTAGIOS.find((e) => e.value === estagio)?.label ?? (
+                  {estagios.find((e) => e.slug === estagio)?.nome ?? (
                     <span className="text-muted-foreground">Selecione...</span>
                   )}
                 </SelectTrigger>
                 <SelectContent>
-                  {(negocio ? ESTAGIOS : ESTAGIOS.filter((e) => !e.value.startsWith('fechado_'))).map((e) => (
-                    <SelectItem key={e.value} value={e.value}>
-                      {e.label}
+                  {(negocio ? estagios : estagios.filter((e) => e.tipo === 'aberto')).map((e) => (
+                    <SelectItem key={e.slug} value={e.slug}>
+                      {e.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>

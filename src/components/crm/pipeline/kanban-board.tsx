@@ -6,7 +6,8 @@ import { Briefcase, HelpCircle, Trophy, Clock, CalendarCheck, RefreshCw } from '
 import { NegocioCard } from './negocio-card'
 import { updateEstagioComData } from '@/app/(crm)/pipeline/actions'
 import { gerarFinanceiroDoFechamento } from '@/app/(crm)/pipeline/fechamento-financeiro-actions'
-import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao } from '@/types'
+import type { NegocioComRelacoes, Cliente, Solucao } from '@/types'
+import type { EstagioPipeline } from '@/lib/pipeline-estagios'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,6 +37,21 @@ const PERIODICIDADE_LABELS: Record<Periodicidade, string> = {
   anual: 'Anual',
 }
 
+/** Classe de cor do cabeçalho da coluna baseada no tipo da etapa. */
+function headerClassForTipo(tipo: EstagioPipeline['tipo'], cor: string | null): string {
+  if (cor) return '' // cor customizada via style inline
+  if (tipo === 'ganho') return 'text-emerald-700'
+  if (tipo === 'perdido') return 'text-muted-foreground'
+  return 'text-sky-600'
+}
+
+/** Classe de borda baseada no tipo. */
+function borderClassForTipo(tipo: EstagioPipeline['tipo']): string {
+  if (tipo === 'ganho') return 'border-emerald-300'
+  if (tipo === 'perdido') return 'border-border'
+  return 'border-border/60'
+}
+
 function diasEntre(dataInicio: string, dataFim: string): number {
   const a = new Date(dataInicio)
   const b = new Date(dataFim)
@@ -47,71 +63,15 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const COLUNAS: {
-  estagio: EstagioNegocio
-  label: string
-  headerClass: string
-  borderClass: string
-  dica: string
-  quando: string
-}[] = [
-  {
-    estagio: 'prospeccao',
-    label: 'Prospecção',
-    headerClass: 'text-sky-600',
-    borderClass: 'border-sky-200',
-    dica: 'Leads e oportunidades identificadas, mas ainda sem contato ou qualificação.',
-    quando: 'Mova para Qualificação quando houver contato inicial confirmado e interesse demonstrado.',
-  },
-  {
-    estagio: 'qualificacao',
-    label: 'Qualificação',
-    headerClass: 'text-violet-600',
-    borderClass: 'border-violet-200',
-    dica: 'O cliente tem interesse e o negócio foi avaliado como viável para seguir adiante.',
-    quando: 'Mova para Proposta quando entender as necessidades e estiver pronto para apresentar valores.',
-  },
-  {
-    estagio: 'proposta',
-    label: 'Proposta',
-    headerClass: 'text-amber-600',
-    borderClass: 'border-amber-200',
-    dica: 'Uma proposta comercial formal foi enviada ao cliente e aguarda resposta.',
-    quando: 'Mova para Negociação quando o cliente estiver discutindo termos, condições ou preços.',
-  },
-  {
-    estagio: 'negociacao',
-    label: 'Negociação',
-    headerClass: 'text-orange-600',
-    borderClass: 'border-orange-200',
-    dica: 'Estamos ajustando condições, valores ou escopo com o cliente para chegar a um acordo.',
-    quando: 'Mova para Fechado Ganho ao assinar contrato, ou Fechado Perdido se não avançar.',
-  },
-  {
-    estagio: 'fechado_ganho',
-    label: 'Fechado Ganho',
-    headerClass: 'text-emerald-700',
-    borderClass: 'border-emerald-300',
-    dica: 'Negócio concluído com sucesso — contrato assinado ou serviço contratado.',
-    quando: 'Negócios chegam aqui após fechar contrato. Não há próxima etapa.',
-  },
-  {
-    estagio: 'fechado_perdido',
-    label: 'Perdido',
-    headerClass: 'text-muted-foreground',
-    borderClass: 'border-border',
-    dica: 'O cliente optou por não contratar ou a oportunidade foi encerrada sem sucesso.',
-    quando: 'Negócios chegam aqui quando a oportunidade é descartada por qualquer motivo.',
-  },
-]
-
 function formatBRL(valor: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)
 }
 
 interface DropPendente {
   id: string
-  targetEstagio: EstagioNegocio
+  targetSlug: string
+  targetTipo: EstagioPipeline['tipo']
+  targetLabel: string
   dataAtual: string | null
 }
 
@@ -120,12 +80,13 @@ interface KanbanBoardProps {
   clientes: Pick<Cliente, 'id' | 'razao_social'>[]
   solucoes: Pick<Solucao, 'id' | 'nome'>[]
   googleConnected: boolean
+  estagios: EstagioPipeline[]
 }
 
-export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, googleConnected }: KanbanBoardProps) {
+export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, googleConnected, estagios }: KanbanBoardProps) {
   const [negocios, setNegocios] = useState<NegocioComRelacoes[]>(initialNegocios)
   const [draggedId, setDraggedId] = useState<string | null>(null)
-  const [dragOverEstagio, setDragOverEstagio] = useState<EstagioNegocio | null>(null)
+  const [dragOverSlug, setDragOverSlug] = useState<string | null>(null)
   const [dropPendente, setDropPendente] = useState<DropPendente | null>(null)
   const [novaData, setNovaData] = useState('')
   const [periodicidade, setPeriodicidade] = useState<string>('mensal')
@@ -144,37 +105,44 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
     e.dataTransfer.setData('text/plain', id)
   }
 
-  function handleDragOver(e: React.DragEvent<HTMLDivElement>, estagio: EstagioNegocio) {
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>, slug: string) {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    setDragOverEstagio(estagio)
+    setDragOverSlug(slug)
   }
 
   function handleDragLeave() {
-    setDragOverEstagio(null)
+    setDragOverSlug(null)
   }
 
-  function handleDrop(e: React.DragEvent<HTMLDivElement>, targetEstagio: EstagioNegocio) {
+  function handleDrop(e: React.DragEvent<HTMLDivElement>, estagio: EstagioPipeline) {
     e.preventDefault()
     const id = e.dataTransfer.getData('text/plain')
-    setDragOverEstagio(null)
+    setDragOverSlug(null)
     setDraggedId(null)
 
     const negocio = negocios.find((n) => n.id === id)
-    if (!negocio || negocio.estagio === targetEstagio) return
+    if (!negocio || negocio.estagio === estagio.slug) return
 
     setNovaData(negocio.data_previsao_fechamento ?? '')
     setDataFechamento(todayISO())
     setPeriodicidade('mensal')
     setMotivoPerda('')
     setGerarFinanceiro(true)
-    setDropPendente({ id, targetEstagio, dataAtual: negocio.data_previsao_fechamento })
+    setDropPendente({
+      id,
+      targetSlug: estagio.slug,
+      targetTipo: estagio.tipo,
+      targetLabel: estagio.nome,
+      dataAtual: negocio.data_previsao_fechamento,
+    })
   }
 
   function handleConfirmarDrop() {
     if (!dropPendente) return
-    const { id, targetEstagio } = dropPendente
-    const isGanho = targetEstagio === 'fechado_ganho'
+    const { id, targetSlug, targetTipo } = dropPendente
+    const isGanho = targetTipo === 'ganho'
+    const isPerdido = targetTipo === 'perdido'
 
     const previous = [...negocios]
     setNegocios((prev) =>
@@ -182,26 +150,25 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
         n.id === id
           ? {
               ...n,
-              estagio: targetEstagio,
+              estagio: targetSlug as NegocioComRelacoes['estagio'],
               data_previsao_fechamento: novaData || n.data_previsao_fechamento,
               periodicidade: isGanho ? (periodicidade as Periodicidade) : n.periodicidade,
-              data_fechamento: isGanho ? (dataFechamento || null) : n.data_fechamento,
+              data_fechamento: (isGanho || isPerdido) ? (dataFechamento || null) : null,
             }
           : n
       )
     )
     setDropPendente(null)
 
-    const isPerdido = targetEstagio === 'fechado_perdido'
     const deveGerarFinanceiro = isGanho && gerarFinanceiro
 
     startTransition(async () => {
       const result = await updateEstagioComData(
         id,
-        targetEstagio,
+        targetSlug,
         novaData || null,
         isGanho ? periodicidade : null,
-        isGanho ? (dataFechamento || null) : null,
+        (isGanho || isPerdido) ? (dataFechamento || null) : null,
         isPerdido ? (motivoPerda || null) : null
       )
       if (result.error) {
@@ -233,27 +200,36 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
     setDropPendente(null)
   }
 
-  function handleMoverPara(negocio: NegocioComRelacoes, targetEstagio: EstagioNegocio) {
-    if (negocio.estagio === targetEstagio) return
+  function handleMoverPara(negocio: NegocioComRelacoes, targetSlug: string) {
+    if (negocio.estagio === targetSlug) return
 
-    if (targetEstagio === 'fechado_ganho' || targetEstagio === 'fechado_perdido') {
-      // Reutiliza o mesmo flow de confirmação do drag
+    const estagio = estagios.find((e) => e.slug === targetSlug)
+    const tipo = estagio?.tipo ?? 'aberto'
+
+    if (tipo === 'ganho' || tipo === 'perdido') {
+      // Abre o dialog de confirmação (ganho ou perdido)
       setNovaData(negocio.data_previsao_fechamento ?? '')
       setDataFechamento(todayISO())
       setPeriodicidade('mensal')
       setMotivoPerda('')
       setGerarFinanceiro(true)
-      setDropPendente({ id: negocio.id, targetEstagio, dataAtual: negocio.data_previsao_fechamento })
+      setDropPendente({
+        id: negocio.id,
+        targetSlug,
+        targetTipo: tipo,
+        targetLabel: estagio?.nome ?? targetSlug,
+        dataAtual: negocio.data_previsao_fechamento,
+      })
     } else {
       // Move direto sem dialog
       const previous = [...negocios]
       setNegocios((prev) =>
         prev.map((n) =>
-          n.id === negocio.id ? { ...n, estagio: targetEstagio } : n
+          n.id === negocio.id ? { ...n, estagio: targetSlug as NegocioComRelacoes['estagio'] } : n
         )
       )
       startTransition(async () => {
-        const result = await updateEstagioComData(negocio.id, targetEstagio, null)
+        const result = await updateEstagioComData(negocio.id, targetSlug, null)
         if (result.error) {
           toast.error(result.error)
           setNegocios(previous)
@@ -262,30 +238,38 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
     }
   }
 
+  // Determina tipo do drop pendente para controlar qual dialog abrir
+  const dropTipo = dropPendente?.targetTipo ?? null
+
   return (
     <>
       <div className="flex gap-3 overflow-x-auto pb-4">
-        {COLUNAS.map((coluna) => {
-          const cards = negocios.filter((n) => n.estagio === coluna.estagio)
+        {estagios.map((estagio) => {
+          const cards = negocios.filter((n) => n.estagio === estagio.slug)
           const totalValor = cards.reduce((acc, n) => acc + (n.valor_estimado ?? 0), 0)
-          const isDragOver = dragOverEstagio === coluna.estagio
+          const isDragOver = dragOverSlug === estagio.slug
+          const headerClass = headerClassForTipo(estagio.tipo, estagio.cor)
+          const borderClass = borderClassForTipo(estagio.tipo)
 
           return (
             <div
-              key={coluna.estagio}
-              onDragOver={(e) => handleDragOver(e, coluna.estagio)}
+              key={estagio.slug}
+              onDragOver={(e) => handleDragOver(e, estagio.slug)}
               onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, coluna.estagio)}
+              onDrop={(e) => handleDrop(e, estagio)}
               className={cn(
                 'flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 transition-colors',
-                coluna.borderClass,
+                borderClass,
                 isDragOver && 'bg-muted/60 ring-2 ring-inset ring-muted-foreground/20'
               )}
             >
               <div className="flex items-center justify-between px-3 py-2.5">
                 <div className="flex items-center gap-2">
-                  <span className={cn('text-sm font-semibold', coluna.headerClass)}>
-                    {coluna.label}
+                  <span
+                    className={cn('text-sm font-semibold', headerClass)}
+                    style={estagio.cor ? { color: estagio.cor } : undefined}
+                  >
+                    {estagio.nome}
                   </span>
                   <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">
                     {cards.length}
@@ -294,14 +278,19 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
                     <button
                       type="button"
                       className="flex size-4 items-center justify-center rounded-full text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-                      aria-label={`Ajuda: ${coluna.label}`}
+                      aria-label={`Ajuda: ${estagio.nome}`}
                     >
                       <HelpCircle className="size-3.5" />
                     </button>
                     <div className="pointer-events-none absolute left-0 top-6 z-50 w-56 rounded-lg border border-border bg-popover p-3 shadow-md opacity-0 transition-opacity group-hover/tip:opacity-100 group-hover/tip:pointer-events-auto">
-                      <p className="text-xs font-semibold text-foreground mb-1">{coluna.label}</p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{coluna.dica}</p>
-                      <p className="mt-2 text-[11px] text-muted-foreground/70 leading-relaxed border-t border-border pt-2">{coluna.quando}</p>
+                      <p className="text-xs font-semibold text-foreground mb-1">{estagio.nome}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        {estagio.tipo === 'ganho'
+                          ? 'Negócio concluído com sucesso — contrato assinado ou serviço contratado.'
+                          : estagio.tipo === 'perdido'
+                          ? 'O cliente optou por não contratar ou a oportunidade foi encerrada.'
+                          : `Etapa "${estagio.nome}" do funil de vendas.`}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -325,9 +314,10 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
                       negocio={negocio}
                       clientes={clientes}
                       solucoes={solucoes}
+                      estagios={estagios}
                       onDragStart={handleDragStart}
                       googleConnected={googleConnected}
-                      onMoverPara={(targetEstagio) => handleMoverPara(negocio, targetEstagio)}
+                      onMoverPara={(targetSlug) => handleMoverPara(negocio, targetSlug)}
                     />
                   ))
                 )}
@@ -340,9 +330,9 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
         })}
       </div>
 
-      {/* Popup padrão — atualizar prazo */}
+      {/* Popup padrão — etapa tipo 'aberto': só atualiza prazo */}
       <Dialog
-        open={!!dropPendente && dropPendente.targetEstagio !== 'fechado_ganho' && dropPendente.targetEstagio !== 'fechado_perdido'}
+        open={!!dropPendente && dropTipo === 'aberto'}
         onOpenChange={(v) => { if (!v) handleCancelarDrop() }}
       >
         <DialogContent className="sm:max-w-sm">
@@ -350,7 +340,7 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
             <DialogTitle>Atualizar Prazo de Fechamento</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Ao mover para <strong>{COLUNAS.find(c => c.estagio === dropPendente?.targetEstagio)?.label}</strong>,
+            Ao mover para <strong>{dropPendente?.targetLabel}</strong>,
             deseja atualizar o prazo de fechamento?
           </p>
           <div className="flex flex-col gap-1.5">
@@ -373,9 +363,9 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
         </DialogContent>
       </Dialog>
 
-      {/* Popup especial — Fechado Ganho com stats */}
+      {/* Popup especial — etapa tipo 'ganho': Negócio Fechado! + financeiro */}
       <Dialog
-        open={!!dropPendente && dropPendente.targetEstagio === 'fechado_ganho'}
+        open={!!dropPendente && dropTipo === 'ganho'}
         onOpenChange={(v) => { if (!v) handleCancelarDrop() }}
       >
         <DialogContent className="sm:max-w-md">
@@ -500,9 +490,9 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
         </DialogContent>
       </Dialog>
 
-      {/* Popup Perdido — registrar motivo */}
+      {/* Popup Perdido — etapa tipo 'perdido': registrar motivo */}
       <Dialog
-        open={!!dropPendente && dropPendente.targetEstagio === 'fechado_perdido'}
+        open={!!dropPendente && dropTipo === 'perdido'}
         onOpenChange={(v) => { if (!v) handleCancelarDrop() }}
       >
         <DialogContent className="sm:max-w-sm">

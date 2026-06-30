@@ -20,24 +20,8 @@ import { ClienteDeleteButton } from '@/components/crm/clientes/cliente-delete-bu
 import type { Cliente, Negocio } from '@/types'
 import { listarAtividades } from '@/app/(crm)/pipeline/atividade-actions'
 import { AtividadesTimeline } from '@/components/crm/pipeline/atividades-timeline'
-
-const estagioLabel: Record<string, string> = {
-  prospeccao: 'Prospecção',
-  qualificacao: 'Qualificação',
-  proposta: 'Proposta',
-  negociacao: 'Negociação',
-  fechado_ganho: 'Fechado (Ganho)',
-  fechado_perdido: 'Fechado (Perdido)',
-}
-
-const estagioColor: Record<string, string> = {
-  prospeccao: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  qualificacao: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
-  proposta: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  negociacao: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
-  fechado_ganho: 'bg-green-500/10 text-green-600 dark:text-green-400',
-  fechado_perdido: 'bg-red-500/10 text-red-600 dark:text-red-400',
-}
+import { listarEstagios } from '@/lib/pipeline-estagios'
+import { mapaEstagios, corPorTipo } from '@/lib/estagios-ui'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -50,7 +34,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [clienteResult, negociosResult, processosResult] = await Promise.all([
+  const [clienteResult, negociosResult, processosResult, estagios] = await Promise.all([
     supabase.from('clientes').select('*').eq('id', id).single(),
     supabase
       .from('negocios')
@@ -64,7 +48,10 @@ export default async function ClienteDetailPage({ params }: PageProps) {
       .eq('cliente_id', id)
       .not('status', 'in', '("encerrado","arquivado")')
       .order('created_at', { ascending: false }),
+    listarEstagios(),
   ])
+
+  const mapa = mapaEstagios(estagios)
 
   if (clienteResult.error || !clienteResult.data) {
     notFound()
@@ -302,9 +289,9 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                       {negocio.titulo}
                     </span>
                     <span
-                      className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-medium ${estagioColor[negocio.estagio] ?? 'bg-muted text-muted-foreground'}`}
+                      className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-medium ${corPorTipo(mapa[negocio.estagio]?.tipo ?? 'aberto').badge}`}
                     >
-                      {estagioLabel[negocio.estagio] ?? negocio.estagio}
+                      {mapa[negocio.estagio]?.nome ?? negocio.estagio}
                     </span>
                     {negocio.valor_estimado != null && (
                       <span className="text-xs text-muted-foreground">

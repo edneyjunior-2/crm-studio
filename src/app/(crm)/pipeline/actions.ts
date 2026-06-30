@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 import type { EstagioNegocio } from '@/types'
 import { negocioSchema } from '@/lib/schemas'
 import { deleteCalendarEvent } from '@/lib/google/calendar'
@@ -94,22 +95,39 @@ export async function updateEstagioComData(
   motivoPerda?: string | null
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const auth = await getAuthUser()
+  if (!auth.user) redirect('/login')
 
-  const estagiosValidos: EstagioNegocio[] = [
-    'prospeccao', 'qualificacao', 'proposta', 'negociacao', 'fechado_ganho', 'fechado_perdido',
-  ]
-  if (!estagiosValidos.includes(estagio as EstagioNegocio)) return { error: 'Estágio inválido.' }
+  // Consulta o tipo da etapa de destino para decidir comportamento (sem hardcode de slugs)
+  let tipoEstagio: 'aberto' | 'ganho' | 'perdido' = 'aberto'
+  if (auth.empresaId) {
+    const { data: estagioRow } = await supabase
+      .from('pipeline_estagios')
+      .select('tipo')
+      .eq('empresa_id', auth.empresaId)
+      .eq('slug', estagio)
+      .maybeSingle()
+    if (estagioRow) tipoEstagio = estagioRow.tipo as 'aberto' | 'ganho' | 'perdido'
+  } else {
+    // fallback: tenta adivinhar pelo slug legado
+    if (estagio === 'fechado_ganho') tipoEstagio = 'ganho'
+    else if (estagio === 'fechado_perdido') tipoEstagio = 'perdido'
+  }
 
   const update: Record<string, unknown> = { estagio, updated_at: new Date().toISOString() }
   if (novaData) update.data_previsao_fechamento = novaData
-  if (estagio === 'fechado_ganho') {
+
+  if (tipoEstagio === 'ganho') {
     update.periodicidade = periodicidade ?? null
     update.data_fechamento = dataFechamento ?? null
-  }
-  if (estagio === 'fechado_perdido') {
+    update.motivo_perda = null
+  } else if (tipoEstagio === 'perdido') {
     update.motivo_perda = motivoPerda ?? null
+    update.data_fechamento = dataFechamento ?? null
+  } else {
+    // aberto: limpa data de fechamento e motivo de perda
+    update.data_fechamento = null
+    update.motivo_perda = null
   }
 
   const { error } = await supabase.from('negocios').update(update).eq('id', id)
@@ -171,13 +189,32 @@ export async function deleteNegocio(id: string): Promise<{ error?: string }> {
 
 export async function reabrirNegocio(id: string): Promise<{ error?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const auth = await getAuthUser()
+  if (!auth.user) redirect('/login')
+
+  // Resolve dinamicamente a 1ª etapa ativa do tipo 'aberto' da empresa efetiva
+  let slugReaberto: string | null = null
+  if (auth.empresaId) {
+    const { data: primeiraEtapa } = await supabase
+      .from('pipeline_estagios')
+      .select('slug')
+      .eq('empresa_id', auth.empresaId)
+      .eq('tipo', 'aberto')
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    slugReaberto = primeiraEtapa?.slug ?? null
+  }
+
+  if (!slugReaberto) {
+    return { error: 'Não há etapas abertas configuradas no funil. Adicione ao menos uma etapa do tipo "aberto" nas configurações de pipeline.' }
+  }
 
   const { error } = await supabase
     .from('negocios')
     .update({
-      estagio: 'negociacao',
+      estagio: slugReaberto,
       data_fechamento: null,
       motivo_perda: null,
       updated_at: new Date().toISOString(),

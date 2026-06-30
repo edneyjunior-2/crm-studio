@@ -93,14 +93,7 @@ export const negocioSchema = z.object({
   cliente_id: z.string().uuid('Cliente obrigatório'),
   solucao_id: z.string().uuid('Solução obrigatória'),
   responsavel_id: z.string().uuid('Responsável obrigatório'),
-  estagio: z.enum([
-    'prospeccao',
-    'qualificacao',
-    'proposta',
-    'negociacao',
-    'fechado_ganho',
-    'fechado_perdido',
-  ]),
+  estagio: z.string().min(1, 'Selecione a etapa'),
   valor_estimado: z.coerce.number().min(0).optional().nullable(),
   probabilidade: z.coerce.number().int().min(0).max(100).optional().nullable(),
   data_previsao_fechamento: z

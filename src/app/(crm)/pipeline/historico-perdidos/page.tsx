@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { NegocioComRelacoes } from '@/types'
+import { listarEstagios } from '@/lib/pipeline-estagios'
 import { NegocioCardActions } from './negocio-card-actions'
 
 function formatBRL(valor: number | null): string {
@@ -45,13 +46,17 @@ export default async function HistoricoPerdidosPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const [profile, estagios] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).single().then((r) => r.data),
+    listarEstagios(),
+  ])
 
-  // Calcular início do mês corrente — perdidos anteriores a essa data vão para o histórico
+  // Derivar slugs de fechamento (ganho + perdido) dinamicamente para o tenant
+  const slugsFechamento = estagios
+    .filter((e) => e.tipo === 'ganho' || e.tipo === 'perdido')
+    .map((e) => e.slug)
+
+  // Calcular início do mês corrente — fechados anteriores a essa data vão para o histórico
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
@@ -68,8 +73,8 @@ export default async function HistoricoPerdidosPage() {
           solucoes ( nome ),
           profiles ( full_name )
         `)
-        // Ganhos e perdidos de meses anteriores
-        .in('estagio', ['fechado_ganho', 'fechado_perdido'])
+        // Ganhos e perdidos de meses anteriores (slugs derivados do tenant)
+        .in('estagio', slugsFechamento.length > 0 ? slugsFechamento : ['__none__'])
         .or(
           `and(estagio_atualizado_em.not.is.null,estagio_atualizado_em.lt.${startOfMonth}),` +
           `and(estagio_atualizado_em.is.null,updated_at.lt.${startOfMonth})`
