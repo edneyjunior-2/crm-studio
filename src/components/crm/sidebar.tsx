@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import {
   LayoutDashboard,
@@ -31,12 +31,14 @@ import {
   UserCheck,
   HardHat,
   Calculator,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
 import type { Modulo } from '@/lib/modulos'
 import { logout } from '@/app/(auth)/login/actions'
 import { BugReportButton } from './bug-report-button'
+import { ULTIMA_ATUALIZACAO } from '@/lib/changelog'
 
 interface NavItem {
   href: string
@@ -228,6 +230,25 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const prefersReduced = useReducedMotion()
+  const [temNovidade, setTemNovidade] = useState(false)
+
+  useEffect(() => {
+    function verificar() {
+      setTemNovidade(
+        ULTIMA_ATUALIZACAO !== '' &&
+          localStorage.getItem('atualizacoes_vista') !== ULTIMA_ATUALIZACAO
+      )
+    }
+    verificar()
+    // Reage quando a page de Atualizações marca como visto (mesma aba)
+    window.addEventListener('atualizacoes-vista', verificar)
+    // Reage quando outra aba/janela atualiza o localStorage
+    window.addEventListener('storage', verificar)
+    return () => {
+      window.removeEventListener('atualizacoes-vista', verificar)
+      window.removeEventListener('storage', verificar)
+    }
+  }, [])
 
   const visibleItems = navItems.filter((item) => {
     // Filtro de role (AND com filtro de módulo)
@@ -361,6 +382,57 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
             </p>
           </div>
         )}
+
+        {/* Atualizações */}
+        {(() => {
+          const isAtivActive = pathname === '/atualizacoes' || pathname.startsWith('/atualizacoes/')
+          return (
+            <Link
+              href="/atualizacoes"
+              title={collapsed ? 'Atualizações' : undefined}
+              onClick={() => onMobileClose?.()}
+              className={cn(
+                'group relative flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200',
+                collapsed ? 'justify-center px-0' : 'gap-2.5',
+                isAtivActive
+                  ? 'text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
+              )}
+            >
+              {isAtivActive && !prefersReduced && (
+                <motion.span
+                  layoutId="sidebar-active"
+                  className="absolute inset-0 rounded-lg bg-sidebar-accent"
+                  transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+                  style={{ zIndex: 0 }}
+                />
+              )}
+              {isAtivActive && prefersReduced && (
+                <span className="absolute inset-0 rounded-lg bg-sidebar-accent" />
+              )}
+              {/* Wrapper relativo para o dot de novidade */}
+              <span className="relative">
+                <Sparkles className={cn(
+                  'relative size-4 shrink-0 transition-colors',
+                  isAtivActive
+                    ? 'text-sidebar-primary'
+                    : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/70'
+                )} />
+                {temNovidade && (
+                  <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-red-500 ring-1 ring-sidebar" />
+                )}
+              </span>
+              {!collapsed && (
+                <>
+                  <span className="relative">Atualizações</span>
+                  {isAtivActive && (
+                    <ChevronRight className="relative ml-auto size-3.5 text-sidebar-primary" />
+                  )}
+                </>
+              )}
+            </Link>
+          )
+        })()}
 
         {/* Minha Conta */}
         {(() => {
