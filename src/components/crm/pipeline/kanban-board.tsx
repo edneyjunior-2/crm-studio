@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Briefcase, HelpCircle, Trophy, Clock, CalendarCheck, RefreshCw } from 'lucide-react'
 import { NegocioCard } from './negocio-card'
 import { updateEstagioComData } from '@/app/(crm)/pipeline/actions'
+import { gerarFinanceiroDoFechamento } from '@/app/(crm)/pipeline/fechamento-financeiro-actions'
 import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao } from '@/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -130,6 +131,7 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
   const [periodicidade, setPeriodicidade] = useState<string>('mensal')
   const [dataFechamento, setDataFechamento] = useState('')
   const [motivoPerda, setMotivoPerda] = useState('')
+  const [gerarFinanceiro, setGerarFinanceiro] = useState(true)
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -165,6 +167,7 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
     setDataFechamento(todayISO())
     setPeriodicidade('mensal')
     setMotivoPerda('')
+    setGerarFinanceiro(true)
     setDropPendente({ id, targetEstagio, dataAtual: negocio.data_previsao_fechamento })
   }
 
@@ -190,6 +193,7 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
     setDropPendente(null)
 
     const isPerdido = targetEstagio === 'fechado_perdido'
+    const deveGerarFinanceiro = isGanho && gerarFinanceiro
 
     startTransition(async () => {
       const result = await updateEstagioComData(
@@ -203,6 +207,22 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
       if (result.error) {
         toast.error(result.error)
         setNegocios(previous)
+        return
+      }
+
+      if (deveGerarFinanceiro) {
+        const dataBase = dataFechamento || todayISO()
+        const finResult = await gerarFinanceiroDoFechamento({
+          negocioId: id,
+          dataFechamento: dataBase,
+          periodicidade,
+        })
+        if (finResult.error) {
+          toast.success('Negócio fechado com sucesso!')
+          toast.error(`Financeiro: ${finResult.error}`)
+        } else {
+          toast.success(`Negócio fechado! ${finResult.mensagem}`)
+        }
       } else if (isGanho) {
         toast.success('Negócio fechado com sucesso!')
       }
@@ -222,6 +242,7 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
       setDataFechamento(todayISO())
       setPeriodicidade('mensal')
       setMotivoPerda('')
+      setGerarFinanceiro(true)
       setDropPendente({ id: negocio.id, targetEstagio, dataAtual: negocio.data_previsao_fechamento })
     } else {
       // Move direto sem dialog
@@ -451,6 +472,22 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
               Define com que frequência este cliente renova ou paga pelo serviço.
             </p>
           </div>
+
+          {/* Gerar financeiro automaticamente */}
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 hover:bg-emerald-50 transition-colors">
+            <input
+              type="checkbox"
+              checked={gerarFinanceiro}
+              onChange={(e) => setGerarFinanceiro(e.target.checked)}
+              className="mt-0.5 size-4 accent-emerald-600 cursor-pointer"
+            />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium text-foreground">Gerar conta a receber e comissão</span>
+              <span className="text-xs text-muted-foreground">
+                Cria automaticamente a conta a receber no financeiro e a comissão prevista para o responsável pelo negócio.
+              </span>
+            </div>
+          </label>
 
           <DialogFooter>
             <DialogClose render={<Button variant="outline" type="button" onClick={handleCancelarDrop} />}>
