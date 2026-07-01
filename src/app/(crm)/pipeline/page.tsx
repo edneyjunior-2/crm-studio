@@ -15,7 +15,8 @@ export default async function PipelinePage() {
 
   // Carrega etapas dinâmicas do tenant junto com o restante em paralelo
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  // Primeiro dia do mês corrente em formato YYYY-MM-DD (sem toISOString, para evitar virada de UTC)
+  const primeiroDiaMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
   const [estagios, solucoesResult, profileResult, profileGoogleResult, parceirosResult, profilesResult] = await Promise.all([
     listarEstagios(),
@@ -52,11 +53,10 @@ export default async function PipelinePage() {
           .range(from, to)
 
         if (slugsFechamento.length > 0) {
-          // Negócios abertos: sempre visíveis. Fechados (ganho/perdido): só do mês corrente.
+          // Negócios abertos (data_fechamento NULL): sempre visíveis.
+          // Fechados (ganho/perdido): só do mês corrente (data_fechamento >= primeiro dia do mês).
           q = q.or(
-            `estagio.not.in.(${slugsFechamentoStr}),` +
-            `and(estagio.in.(${slugsFechamentoStr}),estagio_atualizado_em.gte.${startOfMonth}),` +
-            `and(estagio.in.(${slugsFechamentoStr}),estagio_atualizado_em.is.null,updated_at.gte.${startOfMonth})`
+            `data_fechamento.is.null,data_fechamento.gte.${primeiroDiaMes}`
           )
         }
         return q

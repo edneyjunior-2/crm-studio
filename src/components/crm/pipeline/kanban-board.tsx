@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Briefcase, HelpCircle, Trophy, Clock, CalendarCheck, RefreshCw } from 'lucide-react'
@@ -307,7 +308,19 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
                 {cards.length === 0 ? (
                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 py-10 text-center">
                     <Briefcase className="mb-2 size-7 text-muted-foreground/25" />
-                    <p className="text-xs text-muted-foreground/50">Nenhum negócio nesta etapa</p>
+                    {estagio.tipo === 'ganho' || estagio.tipo === 'perdido' ? (
+                      <>
+                        <p className="text-xs text-muted-foreground/50">Nada fechado este mês</p>
+                        <Link
+                          href="/pipeline/historico-perdidos"
+                          className="mt-1 text-xs font-medium text-muted-foreground/70 underline-offset-2 hover:underline"
+                        >
+                          Ver histórico →
+                        </Link>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/50">Nenhum negócio nesta etapa</p>
+                    )}
                   </div>
                 ) : (
                   cards.map((negocio) => (
