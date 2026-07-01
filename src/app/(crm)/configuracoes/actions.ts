@@ -213,7 +213,7 @@ export async function createUser(
   email: string,
   role: string,
   fullName: string
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; warning?: string }> {
   const { supabase, user: adminUser, empresaId } = await getAuthAdmin()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
@@ -270,12 +270,16 @@ export async function createUser(
     const adminName = adminProfile?.full_name ?? 'Administrador'
     const empresaNome = empresa?.nome ?? 'CRM Studio'
 
-    await resend.emails.send({
+    const { error: mailErr } = await resend.emails.send({
       from: FROM,
       to: email,
       subject: `${adminName} convidou você para o CRM Studio`,
       html: buildInviteHtml({ adminName, empresaNome, inviteLink: actionLink, fullName }),
     })
+    if (mailErr) {
+      revalidatePath('/configuracoes')
+      return { warning: 'Usuário criado, mas o e-mail de convite falhou — reenvie o convite manualmente.' }
+    }
   }
 
   revalidatePath('/configuracoes')

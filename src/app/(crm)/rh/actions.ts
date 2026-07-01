@@ -198,7 +198,12 @@ export async function salvarLancamentoFolha(
       created_by: user.id,
     })
 
-    if (error) return { error: error.message }
+    if (error) {
+      if (error.code === '23505') {
+        return { error: 'Já existe um lançamento para este colaborador nessa competência. Recarregue a página e tente novamente.' }
+      }
+      return { error: error.message }
+    }
   }
 
   revalidatePath('/rh')

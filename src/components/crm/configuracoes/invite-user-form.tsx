@@ -49,7 +49,12 @@ export function InviteUserForm() {
         return
       }
 
-      toast.success(`Convite enviado para ${email}.`)
+      if (result.warning) {
+        // Usuário criado mas o e-mail de convite falhou — admin precisa reenviar.
+        toast.warning(result.warning)
+      } else {
+        toast.success(`Convite enviado para ${email}.`)
+      }
       setOpen(false)
       form.reset()
       setRole('comercial')

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthUser } from '@/lib/auth'
-import { createCustomer, createSubscription } from '@/lib/asaas'
+import { createCustomer, createSubscription, cancelSubscription } from '@/lib/asaas'
 
 const planoSchema = z.enum(['starter', 'pro', 'business'])
 
@@ -41,6 +41,19 @@ export async function assinarPlano(
 
   if (!empresa) return { error: 'Empresa não encontrada.' }
 
+  // (a) Guard de duplo-submit: verifica se já existe assinatura não-cancelada
+  //     antes de tocar no Asaas. Evita criar duas subscriptions cobrando a empresa.
+  const { data: assinaturaExistente } = await db
+    .from('assinaturas')
+    .select('id')
+    .eq('empresa_id', empresaId)
+    .neq('status', 'cancelado')
+    .maybeSingle()
+
+  if (assinaturaExistente) {
+    return { error: 'Sua conta já possui uma assinatura ativa.' }
+  }
+
   const email = user.email ?? ''
 
   try {
@@ -75,8 +88,12 @@ export async function assinarPlano(
       })
       .eq('id', empresaId)
 
-    // Registra assinatura
-    await db.from('assinaturas').insert({
+    // Registra assinatura localmente.
+    // (b) Se o insert falhar com 23505 (UNIQUE empresaId + status<>'cancelado'),
+    //     significa que outra requisição concurrent criou a subscription primeiro.
+    //     Nesse caso cancelamos a subscription órfã que acabamos de criar no Asaas
+    //     (best-effort) para não cobrar duas vezes a empresa.
+    const { error: insertErr } = await db.from('assinaturas').insert({
       empresa_id:            empresaId,
       plano,
       asaas_subscription_id: subscription.id,
@@ -85,6 +102,17 @@ export async function assinarPlano(
       cycle:                 'MONTHLY',
       value:                 subscription.value,
     })
+
+    if (insertErr) {
+      if (insertErr.code === '23505') {
+        // Rollback best-effort: cancela a subscription órfã no Asaas
+        cancelSubscription(subscription.id).catch((e: unknown) => {
+          console.error('[assinarPlano] falha ao cancelar subscription órfã no Asaas:', e)
+        })
+        return { error: 'Sua conta já possui uma assinatura ativa.' }
+      }
+      throw new Error(insertErr.message)
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return { error: `Erro ao processar assinatura: ${msg}` }

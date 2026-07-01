@@ -48,7 +48,7 @@ export async function criarEvento(formData: FormData) {
     // Registrar evento na tabela de tracking para habilitar edição e notificações
     if (eventData.id) {
       const admin = createAdminClient()
-      await admin.from('calendario_eventos').insert({
+      const { error: insertErr } = await admin.from('calendario_eventos').insert({
         event_id: eventData.id,
         calendar_id: calendarIdUsado,
         organizer_email: user.email ?? '',
@@ -56,6 +56,15 @@ export async function criarEvento(formData: FormData) {
         titulo: title,
         empresa_id: empresaId,
       })
+      if (insertErr) {
+        // O evento já foi criado no Google — tenta remover para não deixar órfão.
+        try {
+          await deleteEvent(calendarIdUsado, eventData.id, user.email ?? undefined)
+        } catch {
+          // Best-effort: ignora falha na remoção, mas o erro principal é surfaçado.
+        }
+        return { error: `Evento criado no Google, mas falhou ao registrar localmente: ${insertErr.message}` }
+      }
     }
 
     // Salvar e-mails externos novos para autocomplete futuro

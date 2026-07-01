@@ -30,6 +30,16 @@ export async function POST(
   if (!descricao?.trim()) return NextResponse.json({ error: 'Descrição obrigatória' }, { status: 400 })
   if (!data_movimentacao) return NextResponse.json({ error: 'Data obrigatória' }, { status: 400 })
 
+  // Valida formato YYYY-MM-DD e que é uma data de calendário real
+  const dataRegex = /^\d{4}-\d{2}-\d{2}$/
+  if (!dataRegex.test(data_movimentacao)) {
+    return NextResponse.json({ error: 'Formato de data inválido. Use YYYY-MM-DD.' }, { status: 400 })
+  }
+  const dataObj = new Date(data_movimentacao + 'T00:00:00')
+  if (isNaN(dataObj.getTime())) {
+    return NextResponse.json({ error: 'Data inválida.' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('movimentacoes_processo')

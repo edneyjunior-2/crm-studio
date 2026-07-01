@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { z } from 'zod'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
+
+const contatoSchema = z.object({
+  nome: z.string().min(1, 'Nome obrigatório').max(255),
+  email: z.string().email('E-mail inválido').max(255),
+  empresa: z.string().max(255).optional().default(''),
+  assunto: z.string().max(255).optional().default('Contato'),
+  mensagem: z.string().min(1, 'Mensagem obrigatória').max(5000),
+})
 
 const FROM = process.env.EMAIL_FROM ?? 'CRM Studio <nao-responda@crmstudio.com.br>'
 const PARA = process.env.CONTATO_EMAIL ?? 'edneyjuniords@gmail.com'
@@ -16,18 +25,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Muitas mensagens em pouco tempo. Tente novamente mais tarde.' }, { status: 429 })
   }
 
-  let body: Record<string, string>
+  let rawBody: unknown
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
   }
 
-  const { nome, email, empresa = '', assunto = 'Contato', mensagem } = body
-
-  if (!nome?.trim() || !email?.trim() || !mensagem?.trim()) {
-    return NextResponse.json({ error: 'Campos obrigatórios ausentes' }, { status: 400 })
+  const parsed = contatoSchema.safeParse(rawBody)
+  if (!parsed.success) {
+    const mensagem = parsed.error.issues[0]?.message ?? 'Dados inválidos'
+    return NextResponse.json({ error: mensagem }, { status: 400 })
   }
+
+  const { nome, email, empresa, assunto, mensagem } = parsed.data
 
   const resend = new Resend(process.env.RESEND_API_KEY)
 

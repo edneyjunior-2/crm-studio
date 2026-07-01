@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Check } from 'lucide-react'
 import {
@@ -45,6 +45,15 @@ export function CardDetailDialog({ card, open, onOpenChange, onUpdated, clientes
   const [dataLimite, setDataLimite] = useState<string>(card.data_limite ?? '')
   const [concluido, setConcluido] = useState(card.concluido)
   const [isPending, startTransition] = useTransition()
+
+  // Resincroniza todos os campos quando o card muda entre aberturas do dialog
+  useEffect(() => {
+    setTitulo(card.titulo)
+    setDescricao(card.descricao ?? '')
+    setClienteId(card.cliente_id ?? '')
+    setDataLimite(card.data_limite ?? '')
+    setConcluido(card.concluido)
+  }, [card.id])
 
   // Label manual do cliente selecionado (convenção Base UI Select em Dialog)
   const clienteLabel = clienteId

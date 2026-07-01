@@ -213,40 +213,46 @@ export async function criarMedicao(
   const { supabase, empresaId } = await getAuthUser()
   if (!empresaId) return { error: 'Empresa não encontrada.' }
 
-  // Verifica ownership e calcula próximo número de medição
-  const [{ data: obra }, { data: ultimaMedicao }] = await Promise.all([
-    supabase
-      .from('obras')
-      .select('id')
-      .eq('id', obraId)
-      .eq('empresa_id', empresaId)
-      .single(),
-    supabase
+  // Verifica ownership da obra
+  const { data: obra } = await supabase
+    .from('obras')
+    .select('id')
+    .eq('id', obraId)
+    .eq('empresa_id', empresaId)
+    .single()
+
+  if (!obra) return { error: 'Obra não encontrada.' }
+
+  // Retry loop para tratar race condition no numero_medicao (UNIQUE em obra_id+numero_medicao)
+  const MAX_TENTATIVAS = 3
+  for (let tentativa = 0; tentativa < MAX_TENTATIVAS; tentativa++) {
+    const { data: ultimaAtual } = await supabase
       .from('obras_medicoes')
       .select('numero_medicao')
       .eq('obra_id', obraId)
       .order('numero_medicao', { ascending: false })
       .limit(1)
-      .maybeSingle(),
-  ])
+      .maybeSingle()
 
-  if (!obra) return { error: 'Obra não encontrada.' }
+    const numeroMedicao = (ultimaAtual?.numero_medicao ?? 0) + 1
 
-  const numeroMedicao = (ultimaMedicao?.numero_medicao ?? 0) + 1
+    const { error } = await supabase
+      .from('obras_medicoes')
+      .insert({
+        obra_id:         obraId,
+        numero_medicao:  numeroMedicao,
+        descricao:       dados.descricao,
+        percentual:      dados.percentual ?? null,
+        valor:           dados.valor ?? null,
+        data_medicao:    dados.data_medicao ?? null,
+        status:          'pendente',
+      })
 
-  const { error } = await supabase
-    .from('obras_medicoes')
-    .insert({
-      obra_id:         obraId,
-      numero_medicao:  numeroMedicao,
-      descricao:       dados.descricao,
-      percentual:      dados.percentual ?? null,
-      valor:           dados.valor ?? null,
-      data_medicao:    dados.data_medicao ?? null,
-      status:          'pendente',
-    })
-
-  if (error) return { error: error.message }
+    if (!error) break
+    // 23505 = unique_violation → número já foi tomado por outro insert concorrente; tenta de novo
+    if ((error as { code?: string }).code !== '23505') return { error: error.message }
+    if (tentativa === MAX_TENTATIVAS - 1) return { error: 'Conflito ao numerar medição. Tente novamente.' }
+  }
 
   revalidatePath(`/obras/${obraId}`)
   return {}
@@ -422,9 +428,13 @@ export async function getBoletimMedicao(
     return { etapa, valorOrcado, percentual, valorMedido }
   })
 
-  const totalOrcado  = etapas.reduce((s, e) => s + e.valorOrcado, 0)
+  // totalOrcado do boletim = só as etapas medidas (para exibição por etapa)
+  // Denominador do % global = TODAS as etapas do orçamento (com BDI), evita inflação
+  const totalOrcadoBoletim = etapas.reduce((s, e) => s + e.valorOrcado, 0)
+  const totalOrcamentoReal = etapasOrcamento.reduce((s, e) => s + e.valorOrcado, 0)
   const totalMedido  = etapas.reduce((s, e) => s + e.valorMedido, 0)
-  const percentualGlobal = totalOrcado > 0 ? (totalMedido / totalOrcado) * 100 : 0
+  const percentualGlobal = totalOrcamentoReal > 0 ? (totalMedido / totalOrcamentoReal) * 100 : 0
+  const totalOrcado = totalOrcadoBoletim
 
   return {
     data: { etapas, totalOrcado, totalMedido, percentualGlobal },
@@ -461,50 +471,67 @@ export async function criarMedicaoBoletim(dados: {
     .single()
   if (!orc) return { error: 'Orçamento não encontrado.' }
 
-  // Calcula próximo número de medição
-  const { data: ultima } = await supabase
-    .from('obras_medicoes')
-    .select('numero_medicao')
-    .eq('obra_id', dados.obraId)
-    .order('numero_medicao', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // Calcula valor total da medição com base nas etapas do orçamento (denominador correto)
+  const { data: etapasOrcamento, error: etOrcErr } = await listarEtapasOrcamento(dados.orcamentoId)
+  if (etOrcErr || !etapasOrcamento) return { error: etOrcErr ?? 'Erro ao buscar etapas do orçamento.' }
 
-  const numeroMedicao = dados.numero_medicao ?? ((ultima?.numero_medicao ?? 0) + 1)
-
-  // Calcula valor total da medição
-  const { data: etapasOrcamento } = await listarEtapasOrcamento(dados.orcamentoId)
   const mapaOrcado = new Map<string, number>(
-    (etapasOrcamento ?? []).map((e) => [e.etapa, e.valorOrcado]),
+    etapasOrcamento.map((e) => [e.etapa, e.valorOrcado]),
   )
 
-  const totalOrcamento = (orc.total as number | null) ?? 0
-  let   valorTotal     = 0
+  // Denominador do % global = soma de TODAS as etapas do orçamento (com BDI), não só as medidas
+  const totalOrcamentoReal = etapasOrcamento.reduce((s, e) => s + e.valorOrcado, 0)
+
+  let valorTotal = 0
   for (const et of dados.etapas) {
     const valorOrcado = mapaOrcado.get(et.etapa) ?? 0
     valorTotal += valorOrcado * (et.percentual / 100)
   }
 
-  const percentualGlobal = totalOrcamento > 0 ? (valorTotal / totalOrcamento) * 100 : null
+  const percentualGlobal = totalOrcamentoReal > 0 ? (valorTotal / totalOrcamentoReal) * 100 : null
 
-  // Insere medição principal
-  const { data: medicaoInserida, error: medErr } = await supabase
-    .from('obras_medicoes')
-    .insert({
-      obra_id:        dados.obraId,
-      empresa_id:     empresaId,
-      orcamento_id:   dados.orcamentoId,
-      numero_medicao: numeroMedicao,
-      descricao:      dados.descricao,
-      percentual:     percentualGlobal,
-      valor:          valorTotal,
-      data_medicao:   dados.data_medicao ?? null,
-      status:         'pendente',
-    })
-    .select('id')
-    .single()
+  // Insere medição principal com retry loop para race condition no numero_medicao
+  const MAX_TENTATIVAS_BOL = 3
+  let medicaoInserida: { id: string } | null = null
 
-  if (medErr || !medicaoInserida) return { error: medErr?.message ?? 'Erro ao criar medição.' }
+  for (let tentativa = 0; tentativa < MAX_TENTATIVAS_BOL; tentativa++) {
+    const { data: ultima } = await supabase
+      .from('obras_medicoes')
+      .select('numero_medicao')
+      .eq('obra_id', dados.obraId)
+      .order('numero_medicao', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const numeroMedicao = dados.numero_medicao ?? ((ultima?.numero_medicao ?? 0) + 1)
+
+    const { data: inserted, error: medErr } = await supabase
+      .from('obras_medicoes')
+      .insert({
+        obra_id:        dados.obraId,
+        empresa_id:     empresaId,
+        orcamento_id:   dados.orcamentoId,
+        numero_medicao: numeroMedicao,
+        descricao:      dados.descricao,
+        percentual:     percentualGlobal,
+        valor:          valorTotal,
+        data_medicao:   dados.data_medicao ?? null,
+        status:         'pendente',
+      })
+      .select('id')
+      .single()
+
+    if (!medErr && inserted) { medicaoInserida = inserted; break }
+    // 23505 = unique_violation → número já tomado por insert concorrente; tenta de novo
+    if ((medErr as { code?: string } | null)?.code !== '23505') {
+      return { error: medErr?.message ?? 'Erro ao criar medição.' }
+    }
+    if (tentativa === MAX_TENTATIVAS_BOL - 1) {
+      return { error: 'Conflito ao numerar medição. Tente novamente.' }
+    }
+  }
+
+  if (!medicaoInserida) return { error: 'Erro ao criar medição.' }
 
   // Insere etapas do boletim
   if (dados.etapas.length > 0) {

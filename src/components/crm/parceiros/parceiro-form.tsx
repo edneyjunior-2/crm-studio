@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,7 +20,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { createParceiro, updateParceiro } from '@/app/(crm)/parceiros/actions'
 import type { Parceiro } from '@/types'
@@ -35,6 +34,15 @@ interface ParceiroFormProps {
 export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }: ParceiroFormProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [nome, setNome] = useState(parceiro?.nome ?? '')
+  const [empresa, setEmpresa] = useState(parceiro?.empresa ?? '')
+  const [comissaoPercentual, setComissaoPercentual] = useState<string>(
+    parceiro?.comissao_percentual != null ? String(parceiro.comissao_percentual) : ''
+  )
+  const [contatoEmail, setContatoEmail] = useState(parceiro?.contato_email ?? '')
+  const [contatoTelefone, setContatoTelefone] = useState(parceiro?.contato_telefone ?? '')
+  const [dataContrato, setDataContrato] = useState(parceiro?.data_contrato ?? '')
+  const [observacoes, setObservacoes] = useState(parceiro?.observacoes ?? '')
   const [contratoAssinado, setContratoAssinado] = useState(
     parceiro?.contrato_assinado ?? false
   )
@@ -42,14 +50,35 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
     parceiro?.responsavel_id ?? currentUserId ?? ''
   )
 
+  // Resincroniza todos os campos quando o parceiro muda entre aberturas do dialog
+  useEffect(() => {
+    if (!open) return
+    setNome(parceiro?.nome ?? '')
+    setEmpresa(parceiro?.empresa ?? '')
+    setComissaoPercentual(parceiro?.comissao_percentual != null ? String(parceiro.comissao_percentual) : '')
+    setContatoEmail(parceiro?.contato_email ?? '')
+    setContatoTelefone(parceiro?.contato_telefone ?? '')
+    setDataContrato(parceiro?.data_contrato ?? '')
+    setObservacoes(parceiro?.observacoes ?? '')
+    setContratoAssinado(parceiro?.contrato_assinado ?? false)
+    setResponsavelId(parceiro?.responsavel_id ?? currentUserId ?? '')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, parceiro?.id])
+
   function handleOpenChange(nextOpen: boolean) {
     if (!isPending) setOpen(nextOpen)
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const form = e.currentTarget
-    const formData = new FormData(form)
+    const formData = new FormData()
+    formData.set('nome', nome)
+    formData.set('empresa', empresa)
+    formData.set('comissao_percentual', comissaoPercentual)
+    formData.set('contato_email', contatoEmail)
+    formData.set('contato_telefone', contatoTelefone)
+    formData.set('data_contrato', dataContrato)
+    formData.set('observacoes', observacoes)
     formData.set('contrato_assinado', String(contratoAssinado))
     formData.set('responsavel_id', responsavelId)
 
@@ -68,7 +97,13 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
       )
       setOpen(false)
       if (!parceiro) {
-        form.reset()
+        setNome('')
+        setEmpresa('')
+        setComissaoPercentual('')
+        setContatoEmail('')
+        setContatoTelefone('')
+        setDataContrato('')
+        setObservacoes('')
         setContratoAssinado(false)
         setResponsavelId(currentUserId ?? '')
       }
@@ -98,7 +133,8 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
                 id="nome"
                 name="nome"
                 required
-                defaultValue={parceiro?.nome ?? ''}
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
                 placeholder="Nome do parceiro"
               />
             </div>
@@ -114,13 +150,11 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
                   name="responsavel_id"
                 >
                   <SelectTrigger id="responsavel_id">
-                    {responsavelId ? (
-                      <span className="flex flex-1 text-left line-clamp-1">
-                        {profiles.find(p => p.id === responsavelId)?.full_name ?? responsavelId}
-                      </span>
-                    ) : (
-                      <SelectValue placeholder="Selecione o responsável" />
-                    )}
+                    <span className="flex flex-1 text-left line-clamp-1 text-sm">
+                      {responsavelId
+                        ? (profiles.find(p => p.id === responsavelId)?.full_name ?? responsavelId)
+                        : <span className="text-muted-foreground">Selecione o responsável</span>}
+                    </span>
                   </SelectTrigger>
                   <SelectContent>
                     {profiles.map((p) => (
@@ -138,7 +172,8 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
               <Input
                 id="empresa"
                 name="empresa"
-                defaultValue={parceiro?.empresa ?? ''}
+                value={empresa}
+                onChange={(e) => setEmpresa(e.target.value)}
                 placeholder="Razão social ou nome fantasia"
               />
             </div>
@@ -152,7 +187,8 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
                 min={0}
                 max={100}
                 step={0.5}
-                defaultValue={parceiro?.comissao_percentual ?? ''}
+                value={comissaoPercentual}
+                onChange={(e) => setComissaoPercentual(e.target.value)}
                 placeholder="Ex: 5,0"
               />
             </div>
@@ -164,7 +200,8 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
                   id="contato_email"
                   name="contato_email"
                   type="email"
-                  defaultValue={parceiro?.contato_email ?? ''}
+                  value={contatoEmail}
+                  onChange={(e) => setContatoEmail(e.target.value)}
                   placeholder="email@empresa.com"
                 />
               </div>
@@ -173,7 +210,8 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
                 <Input
                   id="contato_telefone"
                   name="contato_telefone"
-                  defaultValue={parceiro?.contato_telefone ?? ''}
+                  value={contatoTelefone}
+                  onChange={(e) => setContatoTelefone(e.target.value)}
                   placeholder="(00) 00000-0000"
                 />
               </div>
@@ -202,7 +240,8 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
                   id="data_contrato"
                   name="data_contrato"
                   type="date"
-                  defaultValue={parceiro?.data_contrato ?? ''}
+                  value={dataContrato}
+                  onChange={(e) => setDataContrato(e.target.value)}
                 />
               </div>
             )}
@@ -212,7 +251,8 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
               <Textarea
                 id="observacoes"
                 name="observacoes"
-                defaultValue={parceiro?.observacoes ?? ''}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
                 placeholder="Informações adicionais sobre o parceiro..."
                 rows={3}
               />

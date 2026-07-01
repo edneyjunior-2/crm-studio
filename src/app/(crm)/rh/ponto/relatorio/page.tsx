@@ -95,7 +95,8 @@ export default async function RelatorioPontoPage({ searchParams }: PageProps) {
     const presencas = pontosCol.filter((p) => p.presente).length
     const faltas = pontosCol.filter((p) => !p.presente).length
     const justificadas = pontosCol.filter((p) => !p.presente && p.justificativa).length
-    const deducao = calcDeducao(col, faltas)
+    const faltasNaoJustificadas = Math.max(0, faltas - justificadas)
+    const deducao = calcDeducao(col, faltasNaoJustificadas)
     return { colaborador: col, presencas, faltas, justificadas, deducao }
   })
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,7 +18,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { createContaReceber, updateContaReceber } from '@/app/(crm)/financeiro/actions'
 import type { ContaReceber, Cliente, Negocio, Moeda } from '@/types'
@@ -41,10 +40,26 @@ const STATUS_OPTIONS = [
 export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaReceberFormProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [descricao, setDescricao] = useState(conta?.descricao ?? '')
+  const [valor, setValor] = useState<string>(conta?.valor != null ? String(conta.valor) : '')
+  const [dataVencimento, setDataVencimento] = useState(conta?.data_vencimento ?? '')
   const [clienteId, setClienteId] = useState<string | null>(conta?.cliente_id ?? null)
   const [negocioId, setNegocioId] = useState<string | null>(conta?.negocio_id ?? null)
   const [status, setStatus] = useState<string>(conta?.status ?? 'pendente')
   const [moeda, setMoeda] = useState<Moeda>(conta?.moeda ?? 'BRL')
+
+  // Resincroniza todos os campos quando a conta muda entre aberturas do dialog
+  useEffect(() => {
+    if (!open) return
+    setDescricao(conta?.descricao ?? '')
+    setValor(conta?.valor != null ? String(conta.valor) : '')
+    setDataVencimento(conta?.data_vencimento ?? '')
+    setClienteId(conta?.cliente_id ?? null)
+    setNegocioId(conta?.negocio_id ?? null)
+    setStatus(conta?.status ?? 'pendente')
+    setMoeda(conta?.moeda ?? 'BRL')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, conta?.id])
 
   function handleOpenChange(nextOpen: boolean) {
     if (!isPending) setOpen(nextOpen)
@@ -52,8 +67,10 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const form = e.currentTarget
-    const formData = new FormData(form)
+    const formData = new FormData()
+    formData.set('descricao', descricao)
+    formData.set('valor', valor)
+    formData.set('data_vencimento', dataVencimento)
     formData.set('cliente_id', clienteId ?? '')
     formData.set('negocio_id', negocioId ?? '')
     formData.set('status', status)
@@ -74,10 +91,13 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
       )
       setOpen(false)
       if (!conta) {
-        form.reset()
+        setDescricao('')
+        setValor('')
+        setDataVencimento('')
         setClienteId(null)
         setNegocioId(null)
         setStatus('pendente')
+        setMoeda('BRL')
       }
     })
   }
@@ -105,7 +125,8 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
                 id="descricao"
                 name="descricao"
                 required
-                defaultValue={conta?.descricao}
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
                 placeholder="Ex: Comissão — Venda ERP Q1"
               />
             </div>
@@ -156,7 +177,11 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
               <Label>Moeda</Label>
               <Select value={moeda} onValueChange={(v) => { if (v) setMoeda(v as Moeda) }}>
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <span className="flex flex-1 text-left line-clamp-1 text-sm">
+                    {MOEDAS.find((m) => m.value === moeda)
+                      ? `${MOEDAS.find((m) => m.value === moeda)!.flag} ${moeda} — ${MOEDAS.find((m) => m.value === moeda)!.label}`
+                      : moeda}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   {MOEDAS.map((m) => (
@@ -180,7 +205,8 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
                   min={0}
                   step={0.01}
                   required
-                  defaultValue={conta?.valor ?? ''}
+                  value={valor}
+                  onChange={(e) => setValor(e.target.value)}
                   placeholder="0,00"
                 />
               </div>
@@ -194,7 +220,8 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
                   name="data_vencimento"
                   type="date"
                   required
-                  defaultValue={conta?.data_vencimento ?? ''}
+                  value={dataVencimento}
+                  onChange={(e) => setDataVencimento(e.target.value)}
                 />
               </div>
             </div>
@@ -203,7 +230,9 @@ export function ContaReceberForm({ conta, clientes, negocios, trigger }: ContaRe
               <Label>Status</Label>
               <Select value={status} onValueChange={(v) => { if (v) setStatus(v) }}>
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <span className="flex flex-1 text-left line-clamp-1 text-sm">
+                    {STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map((s) => (

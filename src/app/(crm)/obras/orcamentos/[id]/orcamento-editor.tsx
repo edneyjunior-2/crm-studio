@@ -151,13 +151,29 @@ export function OrcamentoEditor({ orcamento, itens: itensIniciais, clientes }: {
 
   function mudarQtd(item: Item, q: number) {
     const subtotal = Math.round(q * item.custo_unitario * 100) / 100
+    // Guarda snapshot para reverter em caso de erro
+    const snapshot = itens
     setItens((prev) => prev.map((i) => i.id === item.id ? { ...i, quantidade: q, subtotal } : i))
-    start(async () => { await atualizarItem(item.id, orc.id, { quantidade: q }) })
+    start(async () => {
+      const res = await atualizarItem(item.id, orc.id, { quantidade: q })
+      if (res?.error) {
+        toast.error(`Erro ao atualizar item: ${res.error}`)
+        setItens(snapshot)
+      }
+    })
   }
 
   function remover(item: Item) {
+    // Guarda snapshot para reverter em caso de erro
+    const snapshot = itens
     setItens((prev) => prev.filter((i) => i.id !== item.id))
-    start(async () => { await removerItem(item.id, orc.id) })
+    start(async () => {
+      const res = await removerItem(item.id, orc.id)
+      if (res?.error) {
+        toast.error(`Erro ao remover item: ${res.error}`)
+        setItens(snapshot)
+      }
+    })
   }
 
   // Agrupa por etapa

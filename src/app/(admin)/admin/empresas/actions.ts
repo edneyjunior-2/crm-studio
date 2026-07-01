@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import { randomBytes, createHash } from 'crypto'
-import { createCustomer, createSubscription } from '@/lib/asaas'
+import { createCustomer, createSubscription, cancelSubscription } from '@/lib/asaas'
 import { sendInviteEmail } from '@/lib/email'
 
 // ---------------------------------------------------------------------------
@@ -152,9 +152,22 @@ export async function criarEmpresa(
   }
 
   // ── Path 3: Planos pagos — Asaas customer + subscription ───────────────────
+  //
+  // Ordem segura para evitar órfãos:
+  //   1. Criar recursos no Asaas (customer + subscription)
+  //   2. Persistir localmente (empresa + assinatura)
+  //   3. Se o passo 2 falhar → rollback best-effort no Asaas, depois rollback
+  //      do usuário no Auth (cascade remove empresa + profile).
+  //
+  // Assim nunca fica uma subscription cobrando sem empresa correspondente.
+
+  let asaasCustomerId: string | null = null
+  let asaasSubscriptionId: string | null = null
+
   try {
     // Criar customer no Asaas (cpfCnpj aceita tanto CPF quanto CNPJ)
     const customer = await createCustomer(empresaId, nome, email, documento)
+    asaasCustomerId = customer.id
 
     // nextDueDate = hoje + 3 dias (prazo para o cliente pagar)
     const dueDate = new Date()
@@ -163,9 +176,11 @@ export async function criarEmpresa(
 
     // Criar subscription no Asaas (Asaas envia e-mail com link de pagamento)
     const subscription = await createSubscription(customer.id, plano, nextDueDate)
+    asaasSubscriptionId = subscription.id
 
-    // Atualizar empresa
-    await db
+    // Persistir localmente — se qualquer operação falhar aqui, o bloco catch
+    // executa rollback no Asaas antes de deletar o usuário.
+    const { error: empresaUpdateErr } = await db
       .from('empresas')
       .update({
         plano,
@@ -176,8 +191,9 @@ export async function criarEmpresa(
       })
       .eq('id', empresaId)
 
-    // Registrar assinatura
-    await db.from('assinaturas').insert({
+    if (empresaUpdateErr) throw new Error(empresaUpdateErr.message)
+
+    const { error: assinaturaInsertErr } = await db.from('assinaturas').insert({
       empresa_id:            empresaId,
       plano,
       asaas_subscription_id: subscription.id,
@@ -186,7 +202,15 @@ export async function criarEmpresa(
       cycle:                 'MONTHLY',
       value:                 subscription.value,
     })
+
+    if (assinaturaInsertErr) throw new Error(assinaturaInsertErr.message)
   } catch (err) {
+    // Rollback best-effort no Asaas para não deixar subscription cobrando sem empresa
+    if (asaasSubscriptionId) {
+      cancelSubscription(asaasSubscriptionId).catch((e: unknown) => {
+        console.error('[criarEmpresa] falha ao cancelar subscription órfã no Asaas:', e)
+      })
+    }
     // Rollback: remove user (cascade remove empresa + profile)
     await db.auth.admin.deleteUser(userId)
     const msg = err instanceof Error ? err.message : String(err)

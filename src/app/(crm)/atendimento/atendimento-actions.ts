@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { getAuthUser } from '@/lib/auth'
+import { getAuthUser, getAuthAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
@@ -81,7 +81,15 @@ export async function marcarLida(id: string): Promise<{ error?: string }> {
  * empresa). Deve ser o MESMO número liberado na WhatsApp Cloud API da Meta.
  */
 export async function salvarNumeroAtendimento(numero: string): Promise<{ error?: string }> {
-  const { empresaId } = await authEmpresa()
+  // Apenas admins podem alterar o número do WhatsApp da empresa.
+  let empresaId: string
+  try {
+    const auth = await getAuthAdmin()
+    if (!auth.empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+    empresaId = auth.empresaId
+  } catch {
+    return { error: 'Apenas administradores podem alterar o número do WhatsApp.' }
+  }
   const num = numero?.trim()
   if (!num) return { error: 'Informe o número do WhatsApp.' }
 
@@ -146,13 +154,14 @@ export async function iniciarConversa(
   }
 
   if (msg) {
-    await admin.from('messages').insert({
+    const { error: msgErr } = await admin.from('messages').insert({
       conversation_id: convId,
       direction: 'out',
       author_type: 'humano',
       texto: msg,
       delivery_status: 'pending',
     })
+    if (msgErr) return { error: `Conversa criada, mas falhou ao registrar a mensagem: ${msgErr.message}` }
   }
 
   revalidatePath('/atendimento')

@@ -6,6 +6,46 @@ import { redirect } from 'next/navigation'
 import { sendWelcomeEmail } from '@/lib/email'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
 
+// Remove máscara (pontos, traços, barras) e retorna só os dígitos
+function apenasDigitos(v: string): string {
+  return v.replace(/\D/g, '')
+}
+
+function validarCPF(cpf: string): boolean {
+  const d = apenasDigitos(cpf)
+  if (d.length !== 11) return false
+  // Rejeita sequências homogêneas (ex: 111.111.111-11)
+  if (/^(\d)\1{10}$/.test(d)) return false
+  // Primeiro dígito verificador
+  let soma = 0
+  for (let i = 0; i < 9; i++) soma += parseInt(d[i]) * (10 - i)
+  let resto = (soma * 10) % 11
+  if (resto === 10 || resto === 11) resto = 0
+  if (resto !== parseInt(d[9])) return false
+  // Segundo dígito verificador
+  soma = 0
+  for (let i = 0; i < 10; i++) soma += parseInt(d[i]) * (11 - i)
+  resto = (soma * 10) % 11
+  if (resto === 10 || resto === 11) resto = 0
+  return resto === parseInt(d[10])
+}
+
+function validarCNPJ(cnpj: string): boolean {
+  const d = apenasDigitos(cnpj)
+  if (d.length !== 14) return false
+  if (/^(\d)\1{13}$/.test(d)) return false
+  const calc = (peso: number[]) =>
+    peso.reduce((acc, p, i) => acc + parseInt(d[i]) * p, 0)
+  const mod = (n: number) => {
+    const r = n % 11
+    return r < 2 ? 0 : 11 - r
+  }
+  const d1 = mod(calc([5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]))
+  if (d1 !== parseInt(d[12])) return false
+  const d2 = mod(calc([6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]))
+  return d2 === parseInt(d[13])
+}
+
 export async function cadastrar(formData: FormData): Promise<{ error?: string }> {
   // Anti-abuso: 5 cadastros/hora por IP
   const ip = clientIp(await headers())
@@ -21,6 +61,11 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
 
   if (!nomeResponsavel || !email || !senha) {
     return { error: 'Preencha todos os campos obrigatórios.' }
+  }
+
+  // Validação de formato de e-mail
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: 'Informe um endereço de e-mail válido.' }
   }
 
   if (!aceiteTermo) {
@@ -48,6 +93,10 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
       return { error: 'CNPJ e Razão Social são obrigatórios para pessoa jurídica.' }
     }
 
+    if (!validarCNPJ(cnpj)) {
+      return { error: 'CNPJ inválido. Verifique e tente novamente.' }
+    }
+
     metadata = {
       tipo_pessoa: 'pj',
       empresa_nome: razaoSocial,
@@ -63,6 +112,10 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
 
     if (!cpf) {
       return { error: 'CPF é obrigatório para pessoa física.' }
+    }
+
+    if (!validarCPF(cpf)) {
+      return { error: 'CPF inválido. Verifique e tente novamente.' }
     }
 
     metadata = {
