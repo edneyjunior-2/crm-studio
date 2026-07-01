@@ -465,18 +465,27 @@ export async function marcarPago(
   const multaVal = multa ?? 0
   const jurosVal = juros ?? 0
 
-  // TRAVA ATÔMICA: UPDATE condicional como primeiro passo.
-  // O UPDATE só afeta a linha se status <> 'pago', retornando os dados
-  // necessários para a movimentação. 0 linhas → já estava pago → idempotente.
+  // Lê o valor (imutável) p/ calcular valor_pago ANTES do update atômico.
+  const { data: contaInfo, error: readErr } = await supabase
+    .from('contas_pagar')
+    .select('valor')
+    .eq('id', id)
+    .maybeSingle()
+  if (readErr) return { error: readErr.message }
+  if (!contaInfo) return { error: 'Conta não encontrada.' }
+  const valorPago = Number(contaInfo.valor) + multaVal + jurosVal
+
+  // TRAVA ATÔMICA: status + valor_pago + multa/juros no MESMO update condicional.
+  // Só afeta a linha se status <> 'pago' (idempotente + race-safe) e nunca deixa
+  // a conta 'pago' com valor_pago null. 0 linhas → já estava pago.
   const { data: updated, error: updateErr } = await supabase
     .from('contas_pagar')
     .update({
       status: 'pago',
       data_pagamento,
-      // valor_pago e multa/juros são preenchidos abaixo se tiver banco;
-      // aqui atualizamos os campos que não dependem do valor retornado.
       multa: multaVal,
       juros: jurosVal,
+      valor_pago: valorPago,
     })
     .eq('id', id)
     .neq('status', 'pago')
@@ -486,15 +495,6 @@ export async function marcarPago(
   if (!updated || updated.length === 0) return {} // já pago → idempotente
 
   const conta = updated[0]
-  const valorBase = Number(conta.valor)
-  const valorPago = valorBase + multaVal + jurosVal
-
-  // Atualiza valor_pago (calculado com base no valor real retornado pelo UPDATE).
-  // Feito em update separado pois depende do valor retornado acima.
-  await supabase
-    .from('contas_pagar')
-    .update({ valor_pago: valorPago })
-    .eq('id', id)
 
   // Insere movimentação (se banco informado).
   if (bancoId) {
