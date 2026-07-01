@@ -94,13 +94,15 @@ export async function marcarRecebido(
 ): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
 
-  // Idempotência: não duplicar movimentação se a conta já foi recebida
-  const { data: contaAtual } = await supabase
+  // Idempotência: não duplicar movimentação se a conta já foi recebida.
+  // Fail-closed: se a leitura falhar, aborta (não arrisca duplicar).
+  const { data: contaAtual, error: guardaErr } = await supabase
     .from('contas_receber')
     .select('status')
     .eq('id', id)
     .maybeSingle()
 
+  if (guardaErr) return { error: guardaErr.message }
   if (contaAtual?.status === 'recebido') return {}
 
   if (bancoId) {
@@ -448,13 +450,15 @@ export async function marcarPago(
   const multaVal = multa ?? 0
   const jurosVal = juros ?? 0
 
-  // Idempotência: não duplicar movimentação se a conta já foi paga
-  const { data: contaAtual } = await supabase
+  // Idempotência: não duplicar movimentação se a conta já foi paga.
+  // Fail-closed: se a leitura falhar, aborta (não arrisca duplicar).
+  const { data: contaAtual, error: guardaErr } = await supabase
     .from('contas_pagar')
     .select('status')
     .eq('id', id)
     .maybeSingle()
 
+  if (guardaErr) return { error: guardaErr.message }
   if (contaAtual?.status === 'pago') return {}
 
   let valorBase: number | null = null

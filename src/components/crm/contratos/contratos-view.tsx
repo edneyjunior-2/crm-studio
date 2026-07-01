@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, History, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -36,11 +36,25 @@ export function ContratosView({
   // Evita cadastrar o mesmo contrato duas vezes se o iframe disparar a mensagem repetida
   const ultimoDoc = useRef<string | null>(null)
 
+  // Origem esperada do iframe. O template pode ser same-origin (/contratos/index.html)
+  // OU uma signed URL do Supabase Storage (cross-origin) no white-label — então a
+  // origem é derivada do próprio templateUrl, não fixada em window.location.origin.
+  const iframeOrigin = useMemo(() => {
+    if (typeof window === 'undefined') return ''
+    if (!templateUrl) return window.location.origin
+    try {
+      return new URL(templateUrl, window.location.origin).origin
+    } catch {
+      return window.location.origin
+    }
+  }, [templateUrl])
+
   useEffect(() => {
     function onMessage(e: MessageEvent) {
-      // Segurança: rejeitar mensagens de origens externas
-      if (e.origin !== window.location.origin) return
+      // Segurança: a garantia forte é a mensagem vir do NOSSO iframe (source);
+      // a origem é validada contra a origem real do template.
       if (e.source !== iframeRef.current?.contentWindow) return
+      if (iframeOrigin && e.origin !== iframeOrigin) return
       if (e.data?.type !== 'aurum_contrato_gerado') return
 
       const p = e.data?.parceiro as { mode?: string; fields?: Record<string, string> } | undefined
@@ -94,7 +108,7 @@ export function ContratosView({
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [startTransition, router])
+  }, [startTransition, router, iframeOrigin])
 
   function reEditarContrato(item: ContratoGerado) {
     setActiveTab('gerador')
@@ -102,7 +116,7 @@ export function ContratosView({
     setTimeout(() => {
       iframeRef.current?.contentWindow?.postMessage(
         { type: 'contrato_carregar', dados: item.dados },
-        window.location.origin,
+        iframeOrigin || window.location.origin,
       )
     }, 300)
   }

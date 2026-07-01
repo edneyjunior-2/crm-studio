@@ -227,7 +227,10 @@ export async function POST(request: NextRequest) {
       .eq('id', empresaId)
       .maybeSingle()
     if (statusErr) {
+      // Não conseguimos determinar o status atual → não decidir às cegas.
+      // Retorna 500 para o Asaas reenviar (sem marcar o evento como processado).
       console.error('[webhook] Erro ao buscar status atual da empresa (code=%s)', statusErr.code)
+      return NextResponse.json({ error: 'db_error' }, { status: 500 })
     }
     const statusAtual = empresaAtual?.status ?? null
     if (statusAtual && STATUS_PERMITEM_ATRASADO.has(statusAtual)) {
