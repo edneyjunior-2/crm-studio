@@ -57,48 +57,27 @@ async function FinanceiroContent() {
 
   // contas_receber e contas_pagar são somadas para KPIs monetários — precisamos
   // do conjunto COMPLETO, sem o cap de ~1000 linhas do PostgREST.
-  let receberList: ContaReceberComRelacoes[] = []
-  let pagarList: ContaPagar[] = []
-  let errReceber = false
-  let errPagar = false
-
-  try {
-    receberList = await fetchAllRows<ContaReceberComRelacoes>((from, to) =>
-      supabase
-        .from('contas_receber')
-        .select('*, clientes(razao_social)')
-        .order('data_vencimento', { ascending: true })
-        .range(from, to)
-    )
-  } catch {
-    errReceber = true
-  }
-
-  try {
-    pagarList = await fetchAllRows<ContaPagar>((from, to) =>
-      supabase
-        .from('contas_pagar')
-        .select('*')
-        .order('data_vencimento', { ascending: true })
-        .range(from, to)
-    )
-  } catch {
-    errPagar = true
-  }
-
-  // movimentacoes: saldo de cada banco = saldo_inicial + TODAS entradas - TODAS saídas.
-  // Qualquer cap truncaria o saldo — buscamos tudo com paginação.
-  let movimentacoes: Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>[] = []
-  try {
-    movimentacoes = await fetchAllRows<Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>>((from, to) =>
-      supabase
-        .from('movimentacoes')
-        .select('banco_id, tipo, valor')
-        .range(from, to)
-    )
-  } catch {
-    // saldo dos bancos ficará como saldo_inicial — comportamento degradado aceitável
-  }
+  // As 3 buscas paginadas (receber, pagar, movimentações) são independentes →
+  // em PARALELO, cada uma degradando sozinha (preserva o comportamento anterior).
+  // movimentacoes: saldo de cada banco = saldo_inicial + TODAS entradas - TODAS saídas;
+  // qualquer cap truncaria o saldo, por isso fetchAllRows.
+  type MovLite = Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>
+  const [receberRes, pagarRes, movRes] = await Promise.all([
+    fetchAllRows<ContaReceberComRelacoes>((from, to) =>
+      supabase.from('contas_receber').select('*, clientes(razao_social)').order('data_vencimento', { ascending: true }).range(from, to)
+    ).then((d) => ({ data: d, err: false })).catch(() => ({ data: [] as ContaReceberComRelacoes[], err: true })),
+    fetchAllRows<ContaPagar>((from, to) =>
+      supabase.from('contas_pagar').select('*').order('data_vencimento', { ascending: true }).range(from, to)
+    ).then((d) => ({ data: d, err: false })).catch(() => ({ data: [] as ContaPagar[], err: true })),
+    fetchAllRows<MovLite>((from, to) =>
+      supabase.from('movimentacoes').select('banco_id, tipo, valor').range(from, to)
+    ).then((d) => ({ data: d, err: false })).catch(() => ({ data: [] as MovLite[], err: true })),
+  ])
+  const receberList: ContaReceberComRelacoes[] = receberRes.data
+  const pagarList: ContaPagar[] = pagarRes.data
+  const movimentacoes: MovLite[] = movRes.data
+  const errReceber = receberRes.err
+  const errPagar = pagarRes.err
 
   const [
     { data: clientes },

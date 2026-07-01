@@ -14,20 +14,13 @@ export default async function OnboardingKanbanPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  // profile (role) e fluxo são independentes e ambos usados na RBAC → em paralelo
+  const [{ data: profile }, { data: fluxo, error: fluxoError }] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    supabase.from('fluxos').select('*, owner:profiles!owner_id(full_name)').eq('id', id).single(),
+  ])
 
   const role = profile?.role as 'admin' | 'socio' | 'comercial' | undefined
-
-  // Busca o fluxo com owner
-  const { data: fluxo, error: fluxoError } = await supabase
-    .from('fluxos')
-    .select('*, owner:profiles!owner_id(full_name)')
-    .eq('id', id)
-    .single()
 
   if (fluxoError || !fluxo) notFound()
 
@@ -41,12 +34,18 @@ export default async function OnboardingKanbanPage({ params }: PageProps) {
     redirect('/onboarding')
   }
 
-  // Busca colunas ordenadas
-  const { data: colunas, error: colunasError } = await supabase
-    .from('fluxo_colunas')
-    .select('*')
-    .eq('fluxo_id', id)
-    .order('ordem', { ascending: true })
+  // colunas e cards são independentes → em paralelo
+  const [
+    { data: colunas, error: colunasError },
+    { data: cards, error: cardsError },
+  ] = await Promise.all([
+    supabase.from('fluxo_colunas').select('*').eq('fluxo_id', id).order('ordem', { ascending: true }),
+    supabase
+      .from('fluxo_cards')
+      .select('*, responsavel:profiles!responsavel_id(full_name), cliente:clientes(razao_social)')
+      .eq('fluxo_id', id)
+      .order('ordem', { ascending: true }),
+  ])
 
   if (colunasError) {
     return (
@@ -55,13 +54,6 @@ export default async function OnboardingKanbanPage({ params }: PageProps) {
       </div>
     )
   }
-
-  // Busca cards com responsável e cliente (AC2)
-  const { data: cards, error: cardsError } = await supabase
-    .from('fluxo_cards')
-    .select('*, responsavel:profiles!responsavel_id(full_name), cliente:clientes(razao_social)')
-    .eq('fluxo_id', id)
-    .order('ordem', { ascending: true })
 
   if (cardsError) {
     return (

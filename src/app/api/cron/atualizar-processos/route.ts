@@ -172,25 +172,29 @@ async function handler(req: NextRequest) {
   // Envia e-mails de alerta para os responsáveis com novas movimentações
   if (notificacoes.length > 0) {
     try {
-      // Busca e-mail e nome de cada advogado único
+      // Busca e-mail e nome de cada advogado único — 2 queries em lote (não N+1).
+      // Usa a view profiles_auth p/ o e-mail (getUserById voltava vazio em prod).
       const uniqueIds = [...new Set(notificacoes.map((n) => n.advogadoId))]
       const advMap: Record<string, { email: string; nome: string }> = {}
 
-      await Promise.all(
-        uniqueIds.map(async (id) => {
-          const [{ data: authUser }, { data: perfil }] = await Promise.all([
-            db.auth.admin.getUserById(id),
-            db.from('profiles').select('full_name').eq('id', id).single(),
-          ])
-          const email = authUser?.user?.email
+      if (uniqueIds.length > 0) {
+        const [{ data: authRows }, { data: perfilRows }] = await Promise.all([
+          db.from('profiles_auth').select('id, email').in('id', uniqueIds),
+          db.from('profiles').select('id, full_name').in('id', uniqueIds),
+        ])
+        const nomeMap = new Map(
+          (perfilRows ?? []).map((p) => [p.id as string, (p.full_name as string | null) ?? null])
+        )
+        for (const r of authRows ?? []) {
+          const email = r.email as string | null
           if (email) {
-            advMap[id] = {
+            advMap[r.id as string] = {
               email,
-              nome: (perfil?.full_name as string | null) ?? email.split('@')[0],
+              nome: nomeMap.get(r.id as string) ?? email.split('@')[0],
             }
           }
-        })
-      )
+        }
+      }
 
       await Promise.all(
         notificacoes.map((n) => {
