@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { login } from './actions'
+import { GoogleLoginButton } from './google-login-button'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -60,6 +61,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               Entrar
             </Button>
           </form>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">ou</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <GoogleLoginButton />
         </div>
 
         <p className="mt-8 text-center text-sm text-muted-foreground">
