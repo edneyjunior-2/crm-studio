@@ -120,9 +120,9 @@ export async function POST(request: NextRequest) {
       // Evento duplicado — idempotente
       return NextResponse.json({ ok: true, duplicate: true })
     }
-    // Erro inesperado ao gravar — retornar 200 mesmo assim para não travar fila
-    console.error('[webhook] Erro ao inserir evento:', insertErr.message)
-    return NextResponse.json({ ok: true })
+    // Erro inesperado ao gravar — retornar 500 para o Asaas reenviar
+    console.error('[webhook] Erro inesperado ao inserir evento (code=%s)', insertErr.code)
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 
   // 4. Resolver empresa_id
@@ -217,7 +217,24 @@ export async function POST(request: NextRequest) {
   if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
     novoStatus = 'ativo'
   } else if (event === 'PAYMENT_OVERDUE') {
-    novoStatus = 'atrasado'
+    // Só rebaixar para 'atrasado' se o status atual for reversível.
+    // Se a empresa já está 'cancelado' (ou outro estado terminal), um
+    // PAYMENT_OVERDUE retroativo NÃO deve reverter o acesso.
+    const STATUS_PERMITEM_ATRASADO = new Set(['ativo', 'trial'])
+    const { data: empresaAtual, error: statusErr } = await supabase
+      .from('empresas')
+      .select('status')
+      .eq('id', empresaId)
+      .maybeSingle()
+    if (statusErr) {
+      console.error('[webhook] Erro ao buscar status atual da empresa (code=%s)', statusErr.code)
+    }
+    const statusAtual = empresaAtual?.status ?? null
+    if (statusAtual && STATUS_PERMITEM_ATRASADO.has(statusAtual)) {
+      novoStatus = 'atrasado'
+    }
+    // Se statusAtual for 'cancelado' ou qualquer estado terminal, novoStatus
+    // permanece null e nenhuma atualização de status é feita.
   } else if (event === 'SUBSCRIPTION_DELETED' || event === 'SUBSCRIPTION_CANCELLED' || event === 'SUBSCRIPTION_INACTIVATED') {
     novoStatus = 'cancelado'
   }

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getAuthUser } from '@/lib/auth'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { OrcamentoPdfView } from './pdf-view'
 
 export const dynamic = 'force-dynamic'
@@ -8,9 +9,18 @@ export default async function OrcamentoPdfPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { supabase, empresaId, user } = await getAuthUser()
 
-  const [{ data: orcamento }, { data: itens }, { data: empresa }, { data: perfil }] = await Promise.all([
+  const [{ data: orcamento }, itens, { data: empresa }, { data: perfil }] = await Promise.all([
     supabase.from('orcamentos').select('*, cliente:clientes(razao_social, cnpj), obra:obras(nome, endereco)').eq('id', id).single(),
-    supabase.from('orcamento_itens').select('*').eq('orcamento_id', id).order('etapa').order('created_at'),
+    // fetchAllRows contorna o cap de 1000 linhas do PostgREST
+    fetchAllRows((from, to) =>
+      supabase
+        .from('orcamento_itens')
+        .select('*')
+        .eq('orcamento_id', id)
+        .order('etapa')
+        .order('created_at')
+        .range(from, to),
+    ),
     empresaId
       ? supabase.from('empresas').select('nome, razao_social, nome_fantasia, cnpj').eq('id', empresaId).single()
       : Promise.resolve({ data: null }),
@@ -22,7 +32,7 @@ export default async function OrcamentoPdfPage({ params }: { params: Promise<{ i
   return (
     <OrcamentoPdfView
       orcamento={orcamento}
-      itens={itens ?? []}
+      itens={itens}
       empresa={empresa ?? null}
       usuarioNome={perfil?.full_name ?? null}
     />

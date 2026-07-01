@@ -54,6 +54,9 @@ export async function POST(
   return NextResponse.json({ ok: true })
 }
 
+const BUG_STATUS_PERMITIDOS = ['aberto', 'em_analise', 'corrigido', 'fechado', 'wont_fix'] as const
+type BugStatus = typeof BUG_STATUS_PERMITIDOS[number]
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -61,6 +64,13 @@ export async function PATCH(
   await getAuthPlatformAdmin()
   const { id } = await params
   const { status } = await req.json() as { status: string }
+
+  if (!BUG_STATUS_PERMITIDOS.includes(status as BugStatus)) {
+    return NextResponse.json(
+      { error: `Status inválido. Permitidos: ${BUG_STATUS_PERMITIDOS.join(', ')}` },
+      { status: 400 }
+    )
+  }
 
   const admin = createAdminClient()
   await admin

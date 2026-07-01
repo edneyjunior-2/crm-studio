@@ -14,6 +14,7 @@ import { MovimentacoesTimeline } from './movimentacoes-timeline'
 import { IndicacaoParceiroPrompt } from './indicacao-parceiro-prompt'
 import { ProcessoDetalheTabs } from './processo-detalhe-tabs'
 import { SolicitarGuiaDialog } from './solicitar-guia-dialog'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import type { DocItem } from './doc-actions'
 
 
@@ -75,10 +76,26 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
 
   if (error || !processo) notFound()
 
-  // Busca paralela: movimentações, histórico interno, prazos, documentos, perfil, auth users
+  // Busca paralela: movimentações (fetchAllRows — evita cap 1000), histórico interno, prazos, documentos, perfil, auth users
   const admin = createAdminClient()
+
+  // fetchAllRows lança em erro de banco — capturamos para não derrubar o RSC
+  let movimentacoes: Record<string, unknown>[] | null = null
+  let errMov: { message: string } | null = null
+  try {
+    movimentacoes = await fetchAllRows((from, to) =>
+      supabase
+        .from('movimentacoes_processo')
+        .select('*')
+        .eq('processo_id', id)
+        .order('data_movimentacao', { ascending: false })
+        .range(from, to),
+    )
+  } catch (e) {
+    errMov = e as { message: string }
+  }
+
   const [
-    { data: movimentacoes, error: errMov },
     { data: movInternas },
     { data: prazosRaw },
     { data: documentosRaw },
@@ -86,7 +103,6 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     { data: authUsers },
     { data: empresaProfiles },
   ] = await Promise.all([
-    supabase.from('movimentacoes_processo').select('*').eq('processo_id', id).order('data_movimentacao', { ascending: false }),
     supabase.from('movimentacoes_internas_processo').select('id, assunto, descricao, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
     supabase.from('processos_prazos').select('id, descricao, data_prazo, cumprido, responsavel_id, profiles!responsavel_id(full_name)').eq('processo_id', id).order('data_prazo', { ascending: true }),
     supabase.from('processos_documentos').select('id, nome, storage_path, mime_type, tamanho, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
@@ -136,7 +152,9 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   }
 
   // Audiências (futuras e passadas)
-  const audiencias = (movimentacoes ?? []).filter((m) => isAudiencia(m.descricao))
+  type MovRow = { id: string; descricao: string; complemento: string | null; data_movimentacao: string; codigo_movimento: number | null }
+  const movimentacoesTyped = (movimentacoes ?? []) as MovRow[]
+  const audiencias = movimentacoesTyped.filter((m) => isAudiencia(m.descricao))
 
   // Valores do resumo (KPIs)
   const movCount = movimentacoes?.length ?? 0
@@ -160,9 +178,8 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
 
   // Agrupa movimentações por mês (já vêm ordenadas desc por data)
   const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-  type Mov = { id: string; descricao: string; complemento: string | null; data_movimentacao: string; codigo_movimento: number | null }
-  const gruposMov: { mes: string; itens: Mov[] }[] = []
-  for (const m of (movimentacoes ?? []) as Mov[]) {
+  const gruposMov: { mes: string; itens: MovRow[] }[] = []
+  for (const m of movimentacoesTyped) {
     const [ano, mes] = m.data_movimentacao.slice(0, 10).split('-')
     const rotulo = `${MESES[Number(mes) - 1] ?? mes} de ${ano}`
     const ultimo = gruposMov[gruposMov.length - 1]

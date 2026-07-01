@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { clienteImportadoSchema } from '@/lib/schemas'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { getAuthUser } from '@/lib/auth'
 
 export interface LinhaImportacao {
   razao_social: string
@@ -128,6 +129,9 @@ export async function createCliente(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Resolve empresa efetiva (platform admin pode estar operando em outro tenant)
+  const { empresaId } = await getAuthUser()
+
   const origemTipo = (formData.get('origem_tipo') as string) || null
   const parceiroId = (formData.get('parceiro_id') as string) || null
   const indicadoPor = (formData.get('indicado_por') as string) || null
@@ -137,6 +141,20 @@ export async function createCliente(
   const cpf = (formData.get('cpf') as string) || null
   const bloqueioExclusividade = (formData.get('bloqueio_exclusividade') as string) !== 'false'
   const razaoSocial = formData.get('razao_social') as string
+
+  // Só define responsavel_id como o usuário logado se ele tiver um profile
+  // no tenant efetivo. Platform admin operando em outro tenant não tem profile
+  // lá — gravar user.id quebraria a FK/embed profiles!responsavel_id.
+  let responsavelId: string | null = null
+  if (empresaId) {
+    const { data: profileCheck } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .eq('empresa_id', empresaId)
+      .maybeSingle()
+    responsavelId = profileCheck ? user.id : null
+  }
 
   const { data, error } = await supabase.from('clientes').insert({
     razao_social: razaoSocial,
@@ -153,8 +171,8 @@ export async function createCliente(
     indicado_por: origemTipo === 'indicacao_interna' ? indicadoPor : null,
     area_tipo: areaTipo as 'publica' | 'privada',
     bloqueio_exclusividade: bloqueioExclusividade,
-    responsavel_id: user.id,
-    responsavel_desde: new Date().toISOString(),
+    responsavel_id: responsavelId,
+    responsavel_desde: responsavelId ? new Date().toISOString() : null,
     created_by: user.id,
   }).select('id, razao_social').single()
 
@@ -211,6 +229,12 @@ export async function deleteCliente(id: string): Promise<{ error?: string }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Apenas admin pode excluir clientes
+  const { role } = await getAuthUser()
+  if (role !== 'admin') {
+    return { error: 'Sem permissão para excluir clientes.' }
+  }
+
   const { error } = await supabase.from('clientes').delete().eq('id', id)
 
   if (error) return { error: error.message }
@@ -225,6 +249,20 @@ export async function importarClientes(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { importados: 0, pulados: [], erro: 'Não autenticado.' }
+
+  // Resolve empresa efetiva e verifica se user.id tem profile nela
+  // (platform admin operando em outro tenant não tem — FK responsavel_id quebraria)
+  const { empresaId } = await getAuthUser()
+  let responsavelId: string | null = null
+  if (empresaId) {
+    const { data: profileCheck } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .eq('empresa_id', empresaId)
+      .maybeSingle()
+    responsavelId = profileCheck ? user.id : null
+  }
 
   // Buscar CNPJs já existentes na empresa (RLS limita ao usuário/empresa)
   let clientesExistentes: { cnpj: string | null }[] = []
@@ -254,8 +292,8 @@ export async function importarClientes(
       contato_telefone: string | null
       segmento: string | null
       observacoes: string | null
-      responsavel_id: string
-      responsavel_desde: string
+      responsavel_id: string | null
+      responsavel_desde: string | null
       created_by: string
       area_tipo: 'publica'
     }
@@ -300,8 +338,8 @@ export async function importarClientes(
         contato_telefone: data.contato_telefone ?? null,
         segmento: data.segmento ?? null,
         observacoes: data.observacoes ?? null,
-        responsavel_id: user.id,
-        responsavel_desde: new Date().toISOString(),
+        responsavel_id: responsavelId,
+        responsavel_desde: responsavelId ? new Date().toISOString() : null,
         created_by: user.id,
         area_tipo: 'publica',
       },

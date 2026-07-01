@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -12,7 +13,16 @@ interface HealthResponse {
 export async function GET(request: NextRequest) {
   const token = process.env.HEALTH_CHECK_TOKEN
   const provided = request.headers.get('x-health-token')
-  if (!token || provided !== token) {
+  // Timing-safe comparison: rejects immediately if token is unset or lengths differ,
+  // otherwise compares constant-time to prevent timing oracle attacks.
+  if (!token || !provided) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+  const tokenBuf    = Buffer.from(token,    'utf8')
+  const providedBuf = Buffer.from(provided, 'utf8')
+  const tokenMatch  = tokenBuf.byteLength === providedBuf.byteLength &&
+    timingSafeEqual(tokenBuf, providedBuf)
+  if (!tokenMatch) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

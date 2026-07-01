@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 const STATUS_OBRA  = ['orcamento', 'em_andamento', 'pausada', 'concluida', 'cancelada'] as const
 const STATUS_ETAPA = ['pendente', 'em_andamento', 'concluida'] as const
@@ -157,15 +158,15 @@ export async function atualizarStatusEtapa(
     return { error: 'Status inválido.' }
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
+  const { supabase, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const { error } = await supabase
     .from('obras_etapas')
     .update({ status })
     .eq('id', etapaId)
     .eq('obra_id', obraId)
+    .eq('empresa_id', empresaId)
 
   if (error) return { error: error.message }
 
@@ -260,15 +261,15 @@ export async function atualizarStatusMedicao(
     return { error: 'Status inválido.' }
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado.' }
+  const { supabase, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const { error } = await supabase
     .from('obras_medicoes')
     .update({ status })
     .eq('id', medicaoId)
     .eq('obra_id', obraId)
+    .eq('empresa_id', empresaId)
 
   if (error) return { error: error.message }
 
@@ -331,17 +332,23 @@ export async function listarEtapasOrcamento(
 
   const bdi = (orc.bdi_percentual as number | null) ?? 0
 
-  // Busca itens agrupando por etapa
-  const { data: itens, error: itensErr } = await supabase
-    .from('orcamento_itens')
-    .select('etapa, subtotal')
-    .eq('orcamento_id', orcamentoId)
-
-  if (itensErr) return { error: itensErr.message }
+  // Busca TODOS os itens agrupando por etapa (fetchAllRows contorna o cap de 1000)
+  let itens: { etapa: string | null; subtotal: number | null }[]
+  try {
+    itens = await fetchAllRows<{ etapa: string | null; subtotal: number | null }>((from, to) =>
+      supabase
+        .from('orcamento_itens')
+        .select('etapa, subtotal')
+        .eq('orcamento_id', orcamentoId)
+        .range(from, to),
+    )
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
 
   // Agrupa por etapa e soma subtotais (aplicando BDI)
   const mapaEtapas = new Map<string, number>()
-  for (const item of itens ?? []) {
+  for (const item of itens) {
     const etapa = (item.etapa as string | null) ?? 'Sem etapa'
     const sub   = (item.subtotal as number | null) ?? 0
     mapaEtapas.set(etapa, (mapaEtapas.get(etapa) ?? 0) + sub)

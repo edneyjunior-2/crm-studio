@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  const auth = await getAuthUser()
+  const supabase = auth.supabase
 
   const { data, error } = await supabase
     .from('parceiros')
@@ -17,9 +16,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  const auth = await getAuthUser()
+  const supabase = auth.supabase
+  const empresaId = auth.empresaId
+  if (!empresaId) return NextResponse.json({ error: 'Empresa não identificada' }, { status: 403 })
 
   const body = await req.json() as {
     nome: string
@@ -32,10 +32,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nome obrigatório' }, { status: 400 })
   }
 
-  // Verifica se já existe parceiro com esse nome (evita duplicata)
+  // Verifica se já existe parceiro com esse nome NESTA empresa (evita duplicata cross-tenant)
   const { data: existing } = await supabase
     .from('parceiros')
     .select('id, nome')
+    .eq('empresa_id', empresaId)
     .ilike('nome', body.nome.trim())
     .limit(1)
     .maybeSingle()
@@ -57,7 +58,8 @@ export async function POST(req: NextRequest) {
   const { data: parceiro, error } = await supabase
     .from('parceiros')
     .insert({
-      nome: body.nome.trim(),
+      empresa_id:       empresaId,
+      nome:             body.nome.trim(),
       contato_email:    body.contato_email?.trim() || null,
       contato_telefone: body.contato_telefone?.trim() || null,
     })

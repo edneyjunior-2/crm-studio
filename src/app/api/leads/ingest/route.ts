@@ -41,7 +41,20 @@ export async function POST(req: NextRequest) {
   }
   const empresaId = auth.empresaId
 
-  // 1b) Rate-limit por empresa: 60 leads/min (generoso p/ bot; barra runaway/loop)
+  // 1b) Verifica se a empresa está ativa — chaves de empresas canceladas/suspensas não ingerem leads
+  const { data: empresaStatus } = await createAdminClient()
+    .from('empresas')
+    .select('status')
+    .eq('id', empresaId)
+    .maybeSingle()
+  if (empresaStatus?.status === 'cancelado' || empresaStatus?.status === 'suspenso') {
+    return NextResponse.json(
+      { error: 'Conta suspensa ou cancelada. Entre em contato com o suporte.' },
+      { status: 403 },
+    )
+  }
+
+  // 1c) Rate-limit por empresa: 60 leads/min (generoso p/ bot; barra runaway/loop)
   if (!(await rateLimit(`leads-ingest:${empresaId}`, 60, 60))) {
     return NextResponse.json({ error: 'Limite de ingestão excedido. Tente novamente em instantes.' }, { status: 429 })
   }

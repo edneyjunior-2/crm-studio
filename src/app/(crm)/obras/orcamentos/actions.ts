@@ -199,20 +199,30 @@ export interface OrcamentoPdfData {
 export async function getOrcamentoPdfData(id: string): Promise<{ data?: OrcamentoPdfData; error?: string }> {
   const { supabase, empresaId } = await getAuthUser()
 
-  const [{ data: orcamento, error }, { data: itens }, { data: empresa }] = await Promise.all([
+  const [{ data: orcamento, error }, itensResult, { data: empresa }] = await Promise.all([
     supabase.from('orcamentos').select('*, cliente:clientes(razao_social, cnpj), obra:obras(nome, endereco)').eq('id', id).single(),
-    supabase.from('orcamento_itens').select('*').eq('orcamento_id', id).order('etapa').order('created_at'),
+    // fetchAllRows contorna o cap de 1000 linhas do PostgREST
+    fetchAllRows<OrcamentoPdfData['itens'][number]>((from, to) =>
+      supabase
+        .from('orcamento_itens')
+        .select('*')
+        .eq('orcamento_id', id)
+        .order('etapa')
+        .order('created_at')
+        .range(from, to),
+    ).then((rows) => ({ data: rows, error: null })).catch((e: Error) => ({ data: null, error: e })),
     empresaId
       ? supabase.from('empresas').select('nome, razao_social, nome_fantasia, cnpj').eq('id', empresaId).single()
       : Promise.resolve({ data: null }),
   ])
 
   if (error || !orcamento) return { error: error?.message ?? 'Orçamento não encontrado.' }
+  if (itensResult.error) return { error: (itensResult.error as Error).message }
 
   return {
     data: {
       orcamento: orcamento as OrcamentoPdfData['orcamento'],
-      itens: (itens ?? []) as OrcamentoPdfData['itens'],
+      itens: (itensResult.data ?? []) as OrcamentoPdfData['itens'],
       empresa: (empresa ?? null) as OrcamentoPdfData['empresa'],
     },
   }

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, HardHat } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 interface PageProps {
   searchParams: Promise<{ tab?: string }>
@@ -52,20 +53,24 @@ export default async function ObrasPage({ searchParams }: PageProps) {
     tabAtiva === 'canceladas'  ? ['cancelada'] :
     ['orcamento', 'em_andamento', 'pausada']
 
-  const [{ data: obras, error }, { data: kpiRaw }] = await Promise.all([
+  const [{ data: obras, error }, kpiRaw] = await Promise.all([
     supabase
       .from('obras')
       .select('id, nome, tipo, status, valor_contrato, data_previsao_termino, cidade, estado, clientes(razao_social), responsavel:profiles!responsavel_id(full_name)')
       .in('status', statusFiltro)
       .order('created_at', { ascending: false }),
-    supabase
-      .from('obras')
-      .select('id, status, valor_contrato'),
+    // fetchAllRows contorna o cap de 1000 obras nos KPIs
+    fetchAllRows<{ id: string; status: string; valor_contrato: number | null }>((from, to) =>
+      supabase
+        .from('obras')
+        .select('id, status, valor_contrato')
+        .range(from, to),
+    ),
   ])
 
-  const totalObras      = (kpiRaw ?? []).length
-  const emAndamento     = (kpiRaw ?? []).filter((o) => o.status === 'em_andamento').length
-  const valorTotal      = (kpiRaw ?? [])
+  const totalObras      = kpiRaw.length
+  const emAndamento     = kpiRaw.filter((o) => o.status === 'em_andamento').length
+  const valorTotal      = kpiRaw
     .filter((o) => o.status === 'em_andamento' && o.valor_contrato)
     .reduce((acc, o) => acc + (o.valor_contrato as number), 0)
 

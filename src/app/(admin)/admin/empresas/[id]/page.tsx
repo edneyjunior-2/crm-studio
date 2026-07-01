@@ -77,13 +77,19 @@ export default async function EmpresaDetailPage({
 
   if (!empresa) notFound()
 
-  // Busca e-mails dos usuários via Auth (service role)
-  const usuariosComEmail = await Promise.all(
-    (profiles ?? []).map(async (p) => {
-      const { data } = await db.auth.admin.getUserById(p.id)
-      return { ...p, email: data.user?.email ?? '—' }
-    })
-  )
+  // Busca e-mails dos usuários via VIEW profiles_auth (service role, query única)
+  // NÃO usar db.auth.admin.getUserById() em loop — N+1 GoTrue volta vazio em prod.
+  const ids = (profiles ?? []).map((p) => p.id)
+  const { data: authRows } = ids.length > 0
+    ? await db.from('profiles_auth').select('id, email, last_sign_in_at').in('id', ids)
+    : { data: [] as { id: string; email: string | null; last_sign_in_at: string | null }[] }
+
+  const authByIdMap = new Map((authRows ?? []).map((r) => [r.id, r]))
+
+  const usuariosComEmail = (profiles ?? []).map((p) => ({
+    ...p,
+    email: authByIdMap.get(p.id)?.email ?? '—',
+  }))
 
   const atualizarComId = atualizarEmpresa.bind(null, id)
 

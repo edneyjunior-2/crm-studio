@@ -11,12 +11,13 @@ export function getOAuthClient() {
   )
 }
 
-export function getAuthUrl(): string {
+export function getAuthUrl(state: string): string {
   const auth = getOAuthClient()
   return auth.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
     prompt: 'consent',
+    state,
   })
 }
 

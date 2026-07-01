@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Plus, Landmark, TrendingUp, TrendingDown, Pencil, QrCode } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { BancoForm } from '@/components/crm/financeiro/banco-form'
@@ -42,19 +43,21 @@ export default async function BancoDetailPage({ params }: PageProps) {
     redirect('/dashboard')
   }
 
-  const [{ data: bancoData, error: bancoError }, { data: movsData }] = await Promise.all([
+  const [{ data: bancoData, error: bancoError }, movimentacoes] = await Promise.all([
     supabase.from('bancos').select('*').eq('id', id).single(),
-    supabase
-      .from('movimentacoes')
-      .select('*')
-      .eq('banco_id', id)
-      .order('data', { ascending: false }),
+    fetchAllRows<Movimentacao>((from, to) =>
+      supabase
+        .from('movimentacoes')
+        .select('*')
+        .eq('banco_id', id)
+        .order('data', { ascending: false })
+        .range(from, to) as unknown as PromiseLike<{ data: Movimentacao[] | null; error: import('@supabase/supabase-js').PostgrestError | null }>
+    ),
   ])
 
   if (bancoError || !bancoData) notFound()
 
   const banco = bancoData as Banco
-  const movimentacoes = (movsData ?? []) as Movimentacao[]
 
   const entradas = movimentacoes
     .filter((m) => m.tipo === 'entrada')

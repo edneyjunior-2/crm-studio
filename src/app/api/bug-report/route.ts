@@ -14,11 +14,17 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   // Deriva empresa_id, nome e role do servidor — nunca confiar nos valores do cliente
+  // maybeSingle() evita 406 quando o perfil ainda não existe (criação de conta em andamento)
   const { data: profile } = await supabase
     .from('profiles')
     .select('empresa_id, role, full_name')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
+
+  // empresa_id é obrigatório para isolar o bug por tenant
+  if (!profile?.empresa_id) {
+    return NextResponse.json({ error: 'Perfil de usuário não encontrado' }, { status: 403 })
+  }
 
   const body = await req.json() as {
     descricao: string

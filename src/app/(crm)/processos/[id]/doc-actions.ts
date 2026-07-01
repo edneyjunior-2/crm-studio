@@ -92,18 +92,28 @@ export async function gerarUrlDownloadDocumento(
 
 export async function excluirDocumento(
   docId: string,
-  storagePath: string,
+  _storagePath?: string, // ignorado — o path vem do banco para evitar path-injection por tenant
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
 
-  const { data, error } = await supabase
-    .from('processos_documentos').delete().eq('id', docId).select('processo_id')
-  if (error) return { error: error.message }
-  if (!data?.length) return { error: 'Sem permissão para excluir este documento.' }
+  // 1) Busca storage_path no banco (RLS garante isolamento por empresa) ANTES de deletar
+  const { data: doc, error: fetchErr } = await supabase
+    .from('processos_documentos')
+    .select('storage_path, processo_id')
+    .eq('id', docId)
+    .maybeSingle()
+  if (fetchErr) return { error: fetchErr.message }
+  if (!doc) return { error: 'Sem permissão para excluir este documento.' }
 
-  await supabase.storage.from('processos-docs').remove([storagePath])
-  revalidatePath(`/processos/${data[0].processo_id}`)
+  // 2) Exclui o registro (RLS impede deleção de outros tenants)
+  const { error: delErr } = await supabase
+    .from('processos_documentos').delete().eq('id', docId)
+  if (delErr) return { error: delErr.message }
+
+  // 3) Remove do storage usando o path vindo do banco, não do cliente
+  await supabase.storage.from('processos-docs').remove([doc.storage_path])
+  revalidatePath(`/processos/${doc.processo_id}`)
   return {}
 }

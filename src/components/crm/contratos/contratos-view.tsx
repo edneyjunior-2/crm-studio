@@ -38,6 +38,9 @@ export function ContratosView({
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {
+      // Segurança: rejeitar mensagens de origens externas
+      if (e.origin !== window.location.origin) return
+      if (e.source !== iframeRef.current?.contentWindow) return
       if (e.data?.type !== 'aurum_contrato_gerado') return
 
       const p = e.data?.parceiro as { mode?: string; fields?: Record<string, string> } | undefined
@@ -99,7 +102,7 @@ export function ContratosView({
     setTimeout(() => {
       iframeRef.current?.contentWindow?.postMessage(
         { type: 'contrato_carregar', dados: item.dados },
-        '*',
+        window.location.origin,
       )
     }, 300)
   }

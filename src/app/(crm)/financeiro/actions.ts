@@ -68,7 +68,7 @@ export async function deleteContaReceber(id: string): Promise<{ error?: string }
     .from('contas_receber')
     .select('status')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
   if (conta?.status === 'recebido') {
     const { error: movErr } = await supabase
@@ -93,6 +93,15 @@ export async function marcarRecebido(
   bancoId?: string
 ): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
+
+  // Idempotência: não duplicar movimentação se a conta já foi recebida
+  const { data: contaAtual } = await supabase
+    .from('contas_receber')
+    .select('status')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (contaAtual?.status === 'recebido') return {}
 
   if (bancoId) {
     const { data: conta } = await supabase
@@ -326,7 +335,7 @@ export async function deleteContaPagar(id: string): Promise<{ error?: string }> 
     .from('contas_pagar')
     .select('status')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
   if (conta?.status === 'pago') {
     const { error: movErr } = await supabase
@@ -439,6 +448,15 @@ export async function marcarPago(
   const multaVal = multa ?? 0
   const jurosVal = juros ?? 0
 
+  // Idempotência: não duplicar movimentação se a conta já foi paga
+  const { data: contaAtual } = await supabase
+    .from('contas_pagar')
+    .select('status')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (contaAtual?.status === 'pago') return {}
+
   let valorBase: number | null = null
 
   if (bancoId) {
@@ -472,13 +490,13 @@ export async function marcarPago(
   }
 
   if (valorBase === null) {
-    const { data: contaAtual } = await supabase
+    const { data: contaValor } = await supabase
       .from('contas_pagar')
       .select('valor')
       .eq('id', id)
       .single()
 
-    valorBase = contaAtual ? Number(contaAtual.valor) : null
+    valorBase = contaValor ? Number(contaValor.valor) : null
   }
 
   const valorPago = valorBase !== null ? valorBase + multaVal + jurosVal : null

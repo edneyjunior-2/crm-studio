@@ -67,7 +67,7 @@ export async function criarEvento(formData: FormData) {
       if (externos.length > 0) {
         await admin
           .from('calendario_contatos')
-          .upsert(externos.map((email) => ({ email, empresa_id: empresaId })), { onConflict: 'email', ignoreDuplicates: true })
+          .upsert(externos.map((email) => ({ email, empresa_id: empresaId })), { onConflict: 'empresa_id,email', ignoreDuplicates: true })
       }
     }
 
@@ -243,7 +243,7 @@ export async function editarEvento(
         .from('calendario_contatos')
         .upsert(
           externos.map((email) => ({ email, empresa_id: empresaId })),
-          { onConflict: 'email', ignoreDuplicates: true },
+          { onConflict: 'empresa_id,email', ignoreDuplicates: true },
         )
       if (contatosError) {
         console.error('Erro ao salvar contatos externos do calendário:', contatosError)
@@ -303,9 +303,8 @@ export async function excluirEvento(eventId: string) {
 }
 
 export async function criarBloqueio(formData: FormData): Promise<{ error?: string; success?: boolean }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autorizado' }
+  const { user, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const titulo = (formData.get('titulo') as string)?.trim()
   const descricao = (formData.get('descricao') as string)?.trim() || null
@@ -348,6 +347,7 @@ export async function criarBloqueio(formData: FormData): Promise<{ error?: strin
 
   const registros = datas.map((data) => ({
     user_id: user.id,
+    empresa_id: empresaId,
     titulo,
     descricao,
     data,
@@ -355,6 +355,7 @@ export async function criarBloqueio(formData: FormData): Promise<{ error?: strin
     hora_fim,
   }))
 
+  const supabase = await createClient()
   const { error } = await supabase.from('agenda_bloqueios').insert(registros)
 
   if (error) return { error: error.message }
@@ -368,15 +369,16 @@ export async function salvarNota(
   eventTitle: string,
   texto: string,
 ): Promise<{ error?: string; success?: boolean }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autorizado' }
+  const { user, empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
+  const supabase = await createClient()
   const { error } = await supabase.from('calendario_notas').upsert(
     {
       event_id: eventId,
       event_title: eventTitle,
       texto,
+      empresa_id: empresaId,
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     },
