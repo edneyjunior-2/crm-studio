@@ -17,6 +17,34 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-06-30-historico-busca',
+    data: '2026-06-30',
+    titulo: 'Histórico de negócios com abas e busca',
+    tipo: 'melhoria',
+    itens: [
+      'Abas selecionáveis "Perdidos" e "Ganhos" no histórico',
+      'Campo de busca por cliente, título, solução ou responsável',
+      'Negócios fechados saem do funil na virada do mês e ficam arquivados no histórico',
+      'Clique no negócio para ver a linha do tempo do processo',
+    ],
+  },
+  {
+    id: '2026-06-30-login-google',
+    data: '2026-06-30',
+    titulo: 'Entrar com Google',
+    tipo: 'novidade',
+    itens: ['Login com a conta Google direto na tela de acesso'],
+  },
+  {
+    id: '2026-06-30-lembrete',
+    data: '2026-06-30',
+    titulo: 'Lembretes no Google Calendar',
+    tipo: 'novidade',
+    itens: [
+      'Crie um lembrete de follow-up no negócio que vai direto para o seu Google Calendar',
+    ],
+  },
+  {
     id: '2026-06-30-saude-financeira',
     data: '2026-06-30',
     titulo: 'Painel de Saúde Financeira',
