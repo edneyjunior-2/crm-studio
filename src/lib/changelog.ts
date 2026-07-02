@@ -17,6 +17,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-02-financeiro-fechamento',
+    data: '2026-07-02',
+    titulo: 'Financeiro do fechamento se ajusta sozinho',
+    tipo: 'melhoria',
+    itens: [
+      'Reabriu um negócio ganho? A conta a receber e a comissão ainda não recebidas são estornadas automaticamente',
+      'Editou o valor de um negócio já ganho? A conta a receber e a comissão previstas são atualizadas com o novo valor',
+      'Contas já recebidas e comissões já pagas nunca são alteradas',
+      'Fechar o mesmo negócio duas vezes não gera mais lançamentos duplicados',
+    ],
+  },
+  {
     id: '2026-06-30-historico-busca',
     data: '2026-06-30',
     titulo: 'Histórico de negócios com abas e busca',
