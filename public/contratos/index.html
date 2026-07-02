@@ -959,40 +959,96 @@
     const DEFAULT_CONTRACT_BLOCKS = [
       { type: 'h1', text: 'CONTRATO DE PARCERIA PROFISSIONAL' },
 
-      { type: 'p', text: 'SÓCIA: AURUM EFICIÊNCIA FISCAL LTDA (AURUM TAX ADVISORY), pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 53.322.759/0001-57, com sede na Av. Luís Viana Filho, 13223, Bloco 6, Sala 101, São Cristóvão, Salvador/BA, CEP: 41.500-300, neste ato representada por seu sócio-diretor, EDNEY VIANA PAIXÃO, inscrito no CPF sob o nº 489.837.215-53, doravante denominada simplesmente AURUM.' },
+      { type: 'p', text: 'Pelo presente instrumento particular, de um lado:' },
 
-      { type: 'p', mode: 'pj', text: 'PARCEIRO: {{PARCEIRO_RAZAO}}, pessoa jurídica de direito privado[, inscrita no CNPJ sob o nº {{PARCEIRO_CNPJ}}][, com sede na {{PARCEIRO_ENDERECO}}], neste ato representada por[ seu {{REP_CARGO}},] {{REP_NOME}}[, {{REP_NACIONALIDADE}}][, inscrito no CPF sob o nº {{REP_CPF}}][ e RG nº {{REP_RG}}], doravante denominado simplesmente PARCEIRO.' },
+      { type: 'p', text: 'AURUM EFICIÊNCIA FISCAL LTDA (AURUM TAX ADVISORY), pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 53.322.759/0001-57, com sede na Avenida Luís Viana Filho, nº 13.223, Bloco 06, Sala 101, São Cristóvão, Salvador/BA, CEP 41.500-300, neste ato representada por seu sócio-diretor EDNEY VIANA PAIXÃO, inscrito no CPF sob o nº 489.837.215-53, doravante denominada simplesmente AURUM;' },
 
-      { type: 'p', mode: 'pf', text: 'PARCEIRO: {{PF_NOME}}[, {{PF_NACIONALIDADE}}][, {{PF_ESTADO_CIVIL}}][, {{PF_PROFISSAO}}], {{PF_INSCRITO}} no CPF sob o nº {{PF_CPF}}[ e RG nº {{PF_RG}}], residente e {{PF_DOMICILIADO}} na {{PF_ENDERECO}}, doravante {{PF_DENOMINADO}} simplesmente PARCEIRO.' },
+      { type: 'p', text: 'e, de outro lado,' },
+
+      { type: 'p', mode: 'pj', text: '{{PARCEIRO_RAZAO}}, pessoa jurídica de direito privado[, inscrita no CNPJ sob o nº {{PARCEIRO_CNPJ}}][, com sede na {{PARCEIRO_ENDERECO}}], neste ato representada por[ seu {{REP_CARGO}},] {{REP_NOME}}[, {{REP_NACIONALIDADE}}][, inscrito no CPF sob o nº {{REP_CPF}}][ e RG nº {{REP_RG}}], doravante denominada simplesmente PARCEIRO.' },
+
+      { type: 'p', mode: 'pf', text: '{{PF_NOME}}[, {{PF_NACIONALIDADE}}][, {{PF_ESTADO_CIVIL}}][, {{PF_PROFISSAO}}], {{PF_INSCRITO}} no CPF sob o nº {{PF_CPF}}[ e RG nº {{PF_RG}}], residente e {{PF_DOMICILIADO}} na {{PF_ENDERECO}}, doravante {{PF_DENOMINADO}} simplesmente PARCEIRO.' },
+
+      { type: 'p', text: 'Resolvem celebrar o presente CONTRATO DE PARCERIA PROFISSIONAL, que se regerá pelas cláusulas e condições seguintes:' },
 
       { type: 'h2', text: 'CLÁUSULA PRIMEIRA – DO OBJETO E DA NATUREZA DA PARCERIA' },
-      { type: 'p', text: '1.1. O objeto deste contrato é o estabelecimento de parceria profissional para a prospecção, indicação e viabilização de negócios na área de consultoria tributária e recuperação de ativos fiscais.' },
-      { type: 'p', text: '1.2. Esta parceria se aplica especificamente às operações e clientes prospectados e trazidos pelo PARCEIRO para a estrutura técnica da AURUM.' },
+      { type: 'p', text: '1.1. O presente contrato tem por objeto o estabelecimento de parceria profissional para prospecção, indicação, desenvolvimento e viabilização de negócios relacionados à consultoria tributária, recuperação de créditos tributários e demais soluções empresariais oferecidas pela AURUM.' },
+      { type: 'p', text: '1.2. Esta parceria aplica-se exclusivamente às oportunidades, clientes e operações originadas ou intermediadas pelo PARCEIRO.' },
+      { type: 'p', text: '1.3. O presente instrumento não gera vínculo empregatício, societário, associativo ou de representação exclusiva entre as partes, mantendo cada uma sua plena autonomia jurídica, financeira e operacional.' },
 
-      { type: 'h2', text: 'CLÁUSULA SEGUNDA – DA REMUNERAÇÃO ({{COMISSAO_PCT}}% SOBRE OPERAÇÕES)' },
+      { type: 'h2', text: 'CLÁUSULA SEGUNDA – DA REMUNERAÇÃO' },
       { type: 'p', text: '2.1. Como contraprestação pela prospecção e indicação de negócios, o PARCEIRO fará jus ao percentual de {{COMISSAO_PCT}}% ({{COMISSAO_EXT}} por cento) sobre o valor líquido dos honorários efetivamente recebidos pela AURUM em cada operação por ele originada.' },
-      { type: 'p', text: '2.2. Entende-se por valor líquido o montante recebido pela AURUM após a dedução dos impostos incidentes sobre a nota fiscal de prestação de serviços.' },
-      { type: 'p', text: '2.3. O pagamento da comissão de {{COMISSAO_PCT}}% será realizado em até 05 (cinco) dias úteis contados da data em que o cliente efetuar o pagamento dos honorários na conta bancária da AURUM.' },
+      { type: 'p', text: '2.2. Considera-se valor líquido o montante efetivamente recebido pela AURUM após a dedução exclusivamente dos tributos incidentes sobre a respectiva nota fiscal.' },
+      { type: 'p', text: '2.3. O pagamento será realizado em até 05 (cinco) dias úteis após o efetivo recebimento dos valores pela AURUM.' },
+      { type: 'p', text: '2.4. O direito à remuneração do PARCEIRO permanecerá assegurado enquanto houver recebimentos decorrentes de contratos ou operações por ele originadas, ainda que este contrato venha a ser rescindido posteriormente.' },
+
+      { type: 'h2', text: 'CLÁUSULA SEGUNDA-A – DA TRANSPARÊNCIA E PRESTAÇÃO DE CONTAS' },
+      { type: 'p', text: '2A.1. A AURUM manterá registros individualizados das operações originadas pelo PARCEIRO.' },
+      { type: 'p', text: '2A.2. A cada pagamento de comissão será disponibilizado relatório contendo:' },
+      { type: 'p', text: 'a) identificação do cliente;' },
+      { type: 'p', text: 'b) valor contratado;' },
+      { type: 'p', text: 'c) valor faturado;' },
+      { type: 'p', text: 'd) tributos deduzidos;' },
+      { type: 'p', text: 'e) valor líquido recebido;' },
+      { type: 'p', text: 'f) cálculo da comissão;' },
+      { type: 'p', text: 'g) data do recebimento.' },
+      { type: 'p', text: '2A.3. Mediante solicitação escrita, a AURUM disponibilizará documentos necessários à conferência dos valores recebidos, incluindo contratos, notas fiscais e comprovantes de pagamento.' },
+      { type: 'p', text: '2A.4. O PARCEIRO poderá solicitar auditoria documental das operações por ele originadas mediante aviso prévio de 05 (cinco) dias úteis.' },
+      { type: 'p', text: '2A.5. Constatada divergência em prejuízo do PARCEIRO, a diferença será quitada em até 05 (cinco) dias úteis, acrescida de correção monetária pelo IPCA.' },
+
+      { type: 'h2', text: 'CLÁUSULA SEGUNDA-B – DA IDENTIFICAÇÃO DAS OPERAÇÕES ORIGINADAS PELO PARCEIRO' },
+      { type: 'p', text: '2B.1. Consideram-se originadas pelo PARCEIRO todas as oportunidades, indicações, apresentações comerciais, contatos empresariais, reuniões, negociações ou clientes captados por sua atuação direta ou indireta.' },
+      { type: 'p', text: '2B.2. A formalização posterior do contrato com o cliente não afasta o direito à comissão, desde que demonstrada a participação do PARCEIRO na origem da oportunidade.' },
+      { type: 'p', text: '2B.3. Serão admitidos como meios de prova e-mails, mensagens eletrônicas, propostas comerciais, atas de reunião, relatórios de visita e demais documentos aptos a demonstrar a origem da operação.' },
+
+      { type: 'h2', text: 'CLÁUSULA SEGUNDA-C – DO INADIMPLEMENTO DAS COMISSÕES' },
+      { type: 'p', text: '2C.1. O atraso no pagamento das comissões sujeitará a AURUM à multa moratória de 2% (dois por cento), correção monetária pelo IPCA e juros de mora de 1% (um por cento) ao mês, calculados pro rata die.' },
+      { type: 'p', text: '2C.2. O atraso superior a 15 (quinze) dias autorizará o PARCEIRO a suspender novas indicações de negócios até a regularização do débito.' },
+      { type: 'p', text: '2C.3. O atraso superior a 30 (trinta) dias constituirá falta grave contratual, autorizando a rescisão imediata pelo PARCEIRO, sem prejuízo das comissões vencidas e vincendas.' },
+      { type: 'p', text: '2C.4. Em caso de cobrança judicial ou extrajudicial, a parte inadimplente responderá pelas despesas de cobrança, custas e honorários advocatícios.' },
 
       { type: 'h2', text: 'CLÁUSULA TERCEIRA – DAS OBRIGAÇÕES DAS PARTES' },
-      { type: 'p', text: '3.1. Compete ao PARCEIRO identificar oportunidades e realizar o acompanhamento comercial inicial.' },
-      { type: 'p', text: '3.2. Compete à AURUM disponibilizar o suporte tecnológico, realizar a auditoria técnica, protocolar os pedidos administrativos ou judiciais e emitir o diagnóstico de conformidade.' },
-      { type: 'p', text: '3.3. A AURUM obriga-se a garantir ao PARCEIRO o direito de acesso, acompanhamento do desenvolvimento dos serviços e de toda a troca de comunicações relativas a cada cliente ou oportunidade por este indicada.' },
+      { type: 'p', text: '3.1. Compete ao PARCEIRO identificar oportunidades de negócios, realizar apresentações comerciais e acompanhar o relacionamento inicial com os clientes.' },
+      { type: 'p', text: '3.2. Compete à AURUM realizar a análise técnica, auditoria fiscal, elaboração de diagnósticos, execução dos serviços contratados e atendimento técnico aos clientes.' },
+      { type: 'p', text: '3.3. A AURUM garantirá ao PARCEIRO acesso às informações relacionadas aos clientes por ele originados.' },
+      { type: 'p', text: '3.4. A AURUM compromete-se a comunicar ao PARCEIRO toda contratação, proposta, negociação ou recebimento envolvendo clientes por ele originados.' },
 
       { type: 'h2', text: 'CLÁUSULA QUARTA – DO COMPLIANCE E ANTICORRUPÇÃO' },
-      { type: 'p', text: '4.1. As partes declaram total ciência e compromisso com a Lei nº 12.846/2013 (Lei Antissuborno).' },
-      { type: 'p', text: '4.2. O PARCEIRO obriga-se a não oferecer, prometer ou entregar qualquer tipo de vantagem indevida a agentes públicos ou terceiros para agilizar processos ou obter contratos em nome da AURUM, sob pena de rescisão imediata e responsabilização civil.' },
+      { type: 'p', text: '4.1. As partes declaram observância integral à Lei nº 12.846/2013 e demais normas anticorrupção aplicáveis.' },
+      { type: 'p', text: '4.2. Nenhuma das partes poderá oferecer ou prometer vantagens indevidas a agentes públicos ou privados visando obtenção de benefícios comerciais.' },
+      { type: 'p', text: '4.3. O descumprimento desta cláusula autorizará a rescisão imediata do contrato, sem prejuízo das responsabilidades legais cabíveis.' },
 
-      { type: 'h2', text: 'CLÁUSULA QUINTA – DA CONFIDENCIALIDADE E SIGILO' },
-      { type: 'p', text: '5.1. O PARCEIRO reconhece que as metodologias de análise e softwares da AURUM são segredos de negócio, sendo vedada sua reprodução ou compartilhamento com terceiros.' },
-      { type: 'p', text: '5.2. O sigilo sobre os dados dos clientes deve ser mantido mesmo após o término desta parceria.' },
+      { type: 'h2', text: 'CLÁUSULA QUINTA – DA CONFIDENCIALIDADE' },
+      { type: 'p', text: '5.1. As partes obrigam-se a manter absoluto sigilo sobre informações técnicas, comerciais, estratégicas, financeiras e operacionais a que tiverem acesso em razão desta parceria.' },
+      { type: 'p', text: '5.2. O dever de confidencialidade permanecerá vigente por 05 (cinco) anos após o encerramento deste contrato.' },
+      { type: 'p', text: '5.3. A obrigação de sigilo não se aplica às informações que sejam públicas, determinadas por ordem judicial ou exigidas por autoridade competente.' },
 
-      { type: 'h2', text: 'CLÁUSULA SEXTA – DA NÃO CONCORRÊNCIA' },
-      { type: 'p', text: '6.1. O PARCEIRO não poderá atuar em concorrência direta com a AURUM, utilizando-se do conhecimento adquirido nesta parceria para desviar clientes ou projetos para outras empresas do mesmo ramo, pelo período de 24 (vinte e quatro) meses após a vigência deste contrato.' },
+      { type: 'h2', text: 'CLÁUSULA SEXTA – DA NÃO EXCLUSIVIDADE E DA NÃO CAPTAÇÃO INDEVIDA' },
+      { type: 'p', text: '6.1. A presente parceria não possui caráter de exclusividade.' },
+      { type: 'p', text: '6.2. O PARCEIRO poderá manter e celebrar outras parcerias profissionais ou comerciais, inclusive com empresas atuantes no mesmo segmento da AURUM.' },
+      { type: 'p', text: '6.3. O PARCEIRO compromete-se apenas a não utilizar informações confidenciais da AURUM para desvio de clientes ou oportunidades comerciais originadas exclusivamente por esta.' },
+      { type: 'p', text: '6.4. As restrições desta cláusula não se aplicam:' },
+      { type: 'p', text: 'a) aos clientes próprios do PARCEIRO;' },
+      { type: 'p', text: 'b) aos clientes já atendidos pelo PARCEIRO antes da assinatura deste contrato;' },
+      { type: 'p', text: 'c) às parcerias profissionais já existentes;' },
+      { type: 'p', text: 'd) às oportunidades desenvolvidas de forma independente.' },
+      { type: 'p', text: '6.5. Após o encerramento deste contrato, pelo prazo de 12 (doze) meses, o PARCEIRO compromete-se apenas a não aliciar clientes efetivamente atendidos pela AURUM em operações originadas exclusivamente por esta.' },
+      { type: 'p', text: '6.6. Nenhuma disposição deste contrato poderá ser interpretada como limitação ao livre exercício da advocacia ou de outras atividades empresariais regularmente exercidas pelo PARCEIRO.' },
 
-      { type: 'h2', text: 'CLÁUSULA SÉTIMA – DA VIGÊNCIA E FORO' },
-      { type: 'p', text: '7.1. O contrato tem vigência por prazo indeterminado, podendo ser rescindido por qualquer das partes mediante aviso prévio de 30 (trinta) dias.' },
-      { type: 'p', text: '7.2. Fica eleito o foro da Comarca de Salvador/BA para dirimir quaisquer dúvidas oriundas deste instrumento.' },
+      { type: 'h2', text: 'CLÁUSULA SÉTIMA – DA VIGÊNCIA E RESCISÃO' },
+      { type: 'p', text: '7.1. O presente contrato vigorará por prazo indeterminado.' },
+      { type: 'p', text: '7.2. Qualquer das partes poderá rescindi-lo mediante aviso prévio escrito de 30 (trinta) dias.' },
+      { type: 'p', text: '7.3. A rescisão não prejudicará o direito do PARCEIRO às comissões decorrentes das operações por ele originadas durante a vigência contratual.' },
+
+      { type: 'h2', text: 'CLÁUSULA OITAVA – DAS DISPOSIÇÕES GERAIS' },
+      { type: 'p', text: '8.1. A eventual tolerância de qualquer das partes quanto ao descumprimento de obrigações contratuais não constituirá novação ou renúncia de direitos.' },
+      { type: 'p', text: '8.2. Qualquer alteração deste contrato deverá ser realizada por escrito e assinada por ambas as partes.' },
+      { type: 'p', text: '8.3. Este contrato obriga as partes, seus sucessores e cessionários autorizados.' },
+
+      { type: 'h2', text: 'CLÁUSULA NONA – DO FORO' },
+      { type: 'p', text: '9.1. Fica eleito o foro da Comarca de Salvador, Estado da Bahia, com renúncia expressa a qualquer outro, por mais privilegiado que seja, para dirimir quaisquer controvérsias oriundas deste contrato.' },
+
+      { type: 'p', text: 'E, por estarem justos e contratados, firmam o presente instrumento em duas vias de igual teor e forma.' },
 
       { type: 'right', text: '[{{CIDADE_ASSINATURA}}, ][{{DATA_ASSINATURA_EXT}}.]' },
 
