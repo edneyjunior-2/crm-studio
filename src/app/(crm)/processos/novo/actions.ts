@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/auth'
+import { assertModulo } from '@/lib/gating'
 import {
   buscarProcessoDataJud,
   detectarTribunal,
@@ -55,6 +56,9 @@ export async function criarProcesso(
   formData: FormData,
 ): Promise<CriarProcessoState | null> {
   const { supabase, empresaId } = await getAuthUser()
+
+  const erroModulo = await assertModulo('processos')
+  if (erroModulo) return { error: erroModulo }
 
   // Precisamos do empresa_id efetivo (empresa_ativa_id p/ platform admin) para as
   // movimentações (o trigger preenche em processos_juridicos, mas precisamos

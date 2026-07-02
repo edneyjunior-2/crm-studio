@@ -3,8 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { assertModulo } from '@/lib/gating'
 
 export async function createComissao(formData: FormData): Promise<{ error?: string }> {
+  const erroModulo = await assertModulo('comissoes')
+  if (erroModulo) return { error: erroModulo }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

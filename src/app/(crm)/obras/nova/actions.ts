@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth'
+import { assertModulo } from '@/lib/gating'
 
 export interface CriarObraState { error?: string; id?: string }
 
@@ -10,6 +11,9 @@ export async function criarObra(
   _prev: CriarObraState | null,
   formData: FormData,
 ): Promise<CriarObraState | null> {
+  const erroModulo = await assertModulo('obras')
+  if (erroModulo) return { error: erroModulo }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getAuthAdmin } from '@/lib/auth'
 import { colaboradorSchema, ausenciaSchema, lancamentoFolhaSchema } from '@/lib/schemas-rh'
+import { assertModulo } from '@/lib/gating'
 
 // ============================================================================
 // Colaboradores
@@ -12,6 +13,9 @@ export async function createColaborador(
   formData: FormData
 ): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthAdmin()
+
+  const erroModulo = await assertModulo('rh')
+  if (erroModulo) return { error: erroModulo }
 
   const raw = {
     nome: formData.get('nome'),
@@ -143,6 +147,9 @@ export async function salvarLancamentoFolha(
   formData: FormData
 ): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthAdmin()
+
+  const erroModulo = await assertModulo('rh')
+  if (erroModulo) return { error: erroModulo }
 
   const raw = {
     colaborador_id: formData.get('colaborador_id'),

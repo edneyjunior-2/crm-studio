@@ -2,9 +2,30 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthAdmin } from '@/lib/auth'
+import { assertModulo } from '@/lib/gating'
+import { LIMITES_POR_PLANO } from '@/lib/modulos'
 
 export async function createSolucao(formData: FormData): Promise<{ error?: string }> {
-  const { supabase, user } = await getAuthAdmin()
+  const { supabase, user, empresaId, plano } = await getAuthAdmin()
+
+  const erroModulo = await assertModulo('solucoes')
+  if (erroModulo) return { error: erroModulo }
+
+  // Limite de plano: conta soluções ATIVAS da empresa. -1 = ilimitado.
+  const limiteSolucoes = LIMITES_POR_PLANO[plano].solucoes
+  if (limiteSolucoes !== -1 && empresaId) {
+    const { count, error: countError } = await supabase
+      .from('solucoes')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresaId)
+      .eq('ativo', true)
+    if (countError) return { error: countError.message }
+    if ((count ?? 0) >= limiteSolucoes) {
+      return {
+        error: `Limite de ${limiteSolucoes} soluções ativas do seu plano atingido. Faça upgrade para cadastrar mais.`,
+      }
+    }
+  }
 
   const comissaoRaw = formData.get('comissao_percentual') as string
   const comissao = comissaoRaw ? parseFloat(comissaoRaw) : null

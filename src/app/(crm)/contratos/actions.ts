@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { assertModulo } from '@/lib/gating'
 
 export interface ContratoGerado {
   id: string
@@ -21,6 +22,9 @@ export async function salvarContratoGerado(input: {
 }): Promise<{ error?: string }> {
   const { supabase, user, empresaId } = await getAuthUser()
   if (!empresaId) return { error: 'Empresa não encontrada.' }
+
+  const erroModulo = await assertModulo('contratos')
+  if (erroModulo) return { error: erroModulo }
 
   const { error } = await supabase.from('contratos_gerados').insert({
     empresa_id:    empresaId,

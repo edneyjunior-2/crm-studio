@@ -2,14 +2,34 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/auth'
+import { assertModulo } from '@/lib/gating'
+import { LIMITES_POR_PLANO } from '@/lib/modulos'
 
 // ─── Fluxos ────────────────────────────────────────────────────────────────
 
 export async function createFluxo(formData: FormData): Promise<{ error?: string }> {
-  const { supabase, user, role } = await getAuthUser()
+  const { supabase, user, role, empresaId, plano } = await getAuthUser()
 
   if (!['admin', 'socio'].includes(role ?? '')) {
     return { error: 'Sem permissão para criar fluxos de onboarding.' }
+  }
+
+  const erroModulo = await assertModulo('fluxos')
+  if (erroModulo) return { error: erroModulo }
+
+  // Limite de plano: conta fluxos da empresa. -1 = ilimitado.
+  const limiteFunis = LIMITES_POR_PLANO[plano].funis
+  if (limiteFunis !== -1 && empresaId) {
+    const { count, error: countError } = await supabase
+      .from('fluxos')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresaId)
+    if (countError) return { error: countError.message }
+    if ((count ?? 0) >= limiteFunis) {
+      return {
+        error: `Limite de ${limiteFunis} fluxo(s) do seu plano atingido. Faça upgrade para criar mais.`,
+      }
+    }
   }
 
   const { error } = await supabase.from('fluxos').insert({

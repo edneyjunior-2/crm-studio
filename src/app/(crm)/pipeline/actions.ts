@@ -7,6 +7,37 @@ import { getAuthUser } from '@/lib/auth'
 import type { EstagioNegocio } from '@/types'
 import { negocioSchema } from '@/lib/schemas'
 import { deleteCalendarEvent } from '@/lib/google/calendar'
+import {
+  estornarFinanceiroDoNegocio,
+  sincronizarFinanceiroDoNegocio,
+} from '@/app/(crm)/pipeline/fechamento-financeiro-actions'
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
+type TipoEstagio = 'aberto' | 'ganho' | 'perdido'
+
+/**
+ * Resolve o tipo (aberto/ganho/perdido) de uma etapa do funil da empresa
+ * efetiva — nunca por slug fixo. Fallback pelo slug legado só quando a
+ * empresa não pôde ser identificada (compat com dados pré-multitenant).
+ */
+async function resolverTipoEstagio(
+  supabase: SupabaseServerClient,
+  empresaId: string | null,
+  slug: string
+): Promise<TipoEstagio> {
+  if (empresaId) {
+    const { data } = await supabase
+      .from('pipeline_estagios')
+      .select('tipo')
+      .eq('empresa_id', empresaId)
+      .eq('slug', slug)
+      .maybeSingle()
+    if (data) return data.tipo as TipoEstagio
+  }
+  if (slug === 'fechado_ganho') return 'ganho'
+  if (slug === 'fechado_perdido') return 'perdido'
+  return 'aberto'
+}
 
 /** Converte valor BR ("1.234,56") para número. Aceita também "1234.56". */
 function parseBRL(raw: string): number | null {
@@ -130,13 +161,27 @@ export async function updateNegocio(
   const parceiroIdRaw = (formData.get('parceiro_id') as string) || null
   const indicadoPorRaw = (formData.get('indicado_por') as string) || null
 
+  // Etapa atual (antes desta edição) e etapa que será salva — o form de edição
+  // permite trocar a etapa, então isso também é um caminho de "ganho → aberto/perdido"
+  // (reabertura implícita), além do reabrirNegocio e do updateEstagioComData.
+  const estagioNovo = formData.get('estagio') as EstagioNegocio
+  const { data: negocioAntes } = await supabase
+    .from('negocios')
+    .select('estagio')
+    .eq('id', id)
+    .maybeSingle()
+  const [tipoAntes, tipoNovo] = await Promise.all([
+    negocioAntes ? resolverTipoEstagio(supabase, auth.empresaId, negocioAntes.estagio) : Promise.resolve(null),
+    resolverTipoEstagio(supabase, auth.empresaId, estagioNovo),
+  ])
+
   // Atualiza campos do negócio (exceto valor_estimado e solucao_id, que dependem dos produtos)
   const { error } = await supabase
     .from('negocios')
     .update({
       titulo: formData.get('titulo') as string,
       cliente_id: formData.get('cliente_id') as string,
-      estagio: formData.get('estagio') as EstagioNegocio,
+      estagio: estagioNovo,
       probabilidade: probRaw ? Number(probRaw) : null,
       data_previsao_fechamento: dataRaw || null,
       observacoes: (formData.get('observacoes') as string) || null,
@@ -147,6 +192,15 @@ export async function updateNegocio(
     .eq('id', id)
 
   if (error) return { error: error.message }
+
+  // Etapa saiu de "ganho": estorna o financeiro do fechamento ainda não liquidado
+  // (conta 'pendente' e comissão 'previsto'). Nunca mexe em conta 'recebido'/comissão 'pago'.
+  if (tipoAntes === 'ganho' && tipoNovo !== 'ganho') {
+    const estorno = await estornarFinanceiroDoNegocio(id)
+    if (estorno.error) {
+      return { error: `Negócio salvo, mas houve erro ao estornar financeiro: ${estorno.error}` }
+    }
+  }
 
   // Substitui produtos: insert-primeiro, delete-depois — nunca deixa janela com zero produtos.
   // valor_estimado e solucao_id só são atualizados após o insert bem-sucedido.
@@ -200,6 +254,17 @@ export async function updateNegocio(
       })
       .eq('id', id)
     if (updProdErr) return { error: updProdErr.message }
+
+    // 5) Negócio permanece (ou passou a ser) "ganho": ressincroniza a conta a
+    // receber pendente e a comissão prevista para o valor recém-salvo. Idempotente
+    // e sem efeito se não havia conta/comissão gerada ainda (ex.: fechamento via
+    // formulário sem passar pelo fluxo de gerarFinanceiroDoFechamento).
+    if (tipoNovo === 'ganho') {
+      const sync = await sincronizarFinanceiroDoNegocio(id)
+      if (sync.error) {
+        return { error: `Produtos salvos, mas houve erro ao ressincronizar financeiro: ${sync.error}` }
+      }
+    }
   }
 
   revalidatePath('/pipeline')
@@ -213,26 +278,22 @@ export async function updateEstagioComData(
   periodicidade?: string | null,
   dataFechamento?: string | null,
   motivoPerda?: string | null
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; aviso?: string; transicionou?: boolean }> {
   const supabase = await createClient()
   const auth = await getAuthUser()
   if (!auth.user) redirect('/login')
 
-  // Consulta o tipo da etapa de destino para decidir comportamento (sem hardcode de slugs)
-  let tipoEstagio: 'aberto' | 'ganho' | 'perdido' = 'aberto'
-  if (auth.empresaId) {
-    const { data: estagioRow } = await supabase
-      .from('pipeline_estagios')
-      .select('tipo')
-      .eq('empresa_id', auth.empresaId)
-      .eq('slug', estagio)
-      .maybeSingle()
-    if (estagioRow) tipoEstagio = estagioRow.tipo as 'aberto' | 'ganho' | 'perdido'
-  } else {
-    // fallback: tenta adivinhar pelo slug legado
-    if (estagio === 'fechado_ganho') tipoEstagio = 'ganho'
-    else if (estagio === 'fechado_perdido') tipoEstagio = 'perdido'
-  }
+  // Etapa atual (origem) e etapa de destino — sem hardcode de slugs, resolvido
+  // pelo tipo cadastrado nas etapas do tenant.
+  const { data: negocioAtual } = await supabase
+    .from('negocios')
+    .select('estagio')
+    .eq('id', id)
+    .maybeSingle()
+  const [tipoOrigem, tipoEstagio] = await Promise.all([
+    negocioAtual ? resolverTipoEstagio(supabase, auth.empresaId, negocioAtual.estagio) : Promise.resolve(null),
+    resolverTipoEstagio(supabase, auth.empresaId, estagio),
+  ])
 
   const update: Record<string, unknown> = { estagio, updated_at: new Date().toISOString() }
   if (novaData) update.data_previsao_fechamento = novaData
@@ -250,11 +311,42 @@ export async function updateEstagioComData(
     update.motivo_perda = null
   }
 
-  const { error } = await supabase.from('negocios').update(update).eq('id', id)
-  if (error) return { error: error.message }
+  // Trava anti-duplo-fechamento: ao entrar em "ganho" vindo de um estágio
+  // não-ganho, o UPDATE é condicional (.neq no estágio de destino). Se dois
+  // requests concorrentes fecharem o MESMO negócio, só um casa 1 linha; o outro
+  // casa 0 → transicionou=false → o cliente não re-dispara gerarFinanceiro
+  // (evita conta/comissão duplicadas sem depender de UNIQUE, que quebraria a
+  // conta manual vinculada ao negócio).
+  let transicionou = true
+  if (tipoEstagio === 'ganho' && tipoOrigem !== 'ganho') {
+    const { data: flip, error } = await supabase
+      .from('negocios')
+      .update(update)
+      .eq('id', id)
+      .neq('estagio', estagio)
+      .select('id')
+    if (error) return { error: error.message }
+    transicionou = (flip?.length ?? 0) > 0
+  } else {
+    const { error } = await supabase.from('negocios').update(update).eq('id', id)
+    if (error) return { error: error.message }
+  }
+
+  // Etapa saiu de "ganho" (drag no kanban p/ aberto OU perdido): estorna o
+  // financeiro do fechamento ainda não liquidado. Nunca mexe em conta
+  // 'recebido'/comissão 'pago' — só reporta um aviso quando existir.
+  let aviso: string | undefined
+  if (tipoOrigem === 'ganho' && tipoEstagio !== 'ganho') {
+    const estorno = await estornarFinanceiroDoNegocio(id)
+    if (estorno.error) {
+      aviso = `Etapa alterada, mas houve erro ao estornar financeiro: ${estorno.error}`
+    } else if (estorno.aviso) {
+      aviso = estorno.aviso
+    }
+  }
 
   revalidatePath('/pipeline')
-  return {}
+  return { transicionou, ...(aviso ? { aviso } : {}) }
 }
 
 export async function deleteNegocio(id: string): Promise<{ error?: string }> {
@@ -339,10 +431,21 @@ export async function deleteNegocio(id: string): Promise<{ error?: string }> {
   return {}
 }
 
-export async function reabrirNegocio(id: string): Promise<{ error?: string }> {
+export async function reabrirNegocio(id: string): Promise<{ error?: string; aviso?: string }> {
   const supabase = await createClient()
   const auth = await getAuthUser()
   if (!auth.user) redirect('/login')
+
+  // Etapa atual do negócio — usada para saber se ele estava "ganho" e portanto
+  // tem financeiro de fechamento para estornar.
+  const { data: negocioAtual } = await supabase
+    .from('negocios')
+    .select('estagio')
+    .eq('id', id)
+    .maybeSingle()
+  const tipoOrigem = negocioAtual
+    ? await resolverTipoEstagio(supabase, auth.empresaId, negocioAtual.estagio)
+    : null
 
   // Resolve dinamicamente a 1ª etapa ativa do tipo 'aberto' da empresa efetiva
   let slugReaberto: string | null = null
@@ -375,7 +478,20 @@ export async function reabrirNegocio(id: string): Promise<{ error?: string }> {
 
   if (error) return { error: error.message }
 
+  // Negócio estava "ganho": estorna o financeiro do fechamento ainda não
+  // liquidado (conta 'pendente' e comissão 'previsto'). Conta 'recebido' e
+  // comissão 'pago' nunca são apagadas — só geram um aviso.
+  let aviso: string | undefined
+  if (tipoOrigem === 'ganho') {
+    const estorno = await estornarFinanceiroDoNegocio(id)
+    if (estorno.error) {
+      aviso = `Negócio reaberto, mas houve erro ao estornar financeiro: ${estorno.error}`
+    } else if (estorno.aviso) {
+      aviso = estorno.aviso
+    }
+  }
+
   revalidatePath('/pipeline')
   revalidatePath('/pipeline/historico-perdidos')
-  return {}
+  return aviso ? { aviso } : {}
 }

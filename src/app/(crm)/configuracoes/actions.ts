@@ -8,7 +8,7 @@ import { getAuthAdmin, getAuthUser } from '@/lib/auth'
 import type { StatusEmpresa } from '@/lib/auth'
 import { cancelSubscription } from '@/lib/asaas'
 import { encarregadoSchema } from '@/lib/schemas'
-import { MODULOS } from '@/lib/modulos'
+import { MODULOS, LIMITES_POR_PLANO } from '@/lib/modulos'
 import { appUrl } from '@/lib/site-url'
 import { z } from 'zod'
 
@@ -214,12 +214,27 @@ export async function createUser(
   role: string,
   fullName: string
 ): Promise<{ error?: string; warning?: string }> {
-  const { supabase, user: adminUser, empresaId } = await getAuthAdmin()
+  const { supabase, user: adminUser, empresaId, plano } = await getAuthAdmin()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const roleResult = roleSchema.safeParse(role)
   if (!roleResult.success) return { error: 'Role inválido' }
   role = roleResult.data
+
+  // Limite de plano: conta usuários (profiles) da empresa. -1 = ilimitado.
+  const limiteUsuarios = LIMITES_POR_PLANO[plano].usuarios
+  if (limiteUsuarios !== -1) {
+    const { count, error: countError } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('empresa_id', empresaId)
+    if (countError) return { error: countError.message }
+    if ((count ?? 0) >= limiteUsuarios) {
+      return {
+        error: `Limite de ${limiteUsuarios} usuário(s) do seu plano atingido. Faça upgrade para convidar mais pessoas.`,
+      }
+    }
+  }
 
   const admin = createAdminClient()
 

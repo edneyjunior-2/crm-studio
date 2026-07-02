@@ -4,9 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { contaPagarSchema, contaReceberSchema } from '@/lib/schemas'
 import { getAuthFinanceiro } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertModulo } from '@/lib/gating'
 
 export async function createContaReceber(formData: FormData): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
+
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
 
   const parsed = contaReceberSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -35,6 +39,9 @@ export async function updateContaReceber(
   formData: FormData
 ): Promise<{ error?: string }> {
   const { supabase } = await getAuthFinanceiro()
+
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
 
   const parsed = contaReceberSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -72,6 +79,9 @@ export async function updateContaReceber(
 export async function deleteContaReceber(id: string): Promise<{ error?: string }> {
   const { supabase } = await getAuthFinanceiro()
 
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
+
   // Captura o id da movimentação vinculada (se houver) ANTES de deletar.
   // Ordem segura: delete a CONTA primeiro; só então delete a movimentação.
   // Se o delete da conta falhar, a movimentação permanece intacta e o saldo
@@ -105,6 +115,9 @@ export async function marcarRecebido(
   bancoId?: string
 ): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
+
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
 
   // TRAVA ATÔMICA: UPDATE condicional como primeiro passo.
   // O UPDATE só afeta a linha se status <> 'recebido' E status atual for
@@ -168,6 +181,9 @@ function toDateString(d: Date): string {
 
 export async function createContaPagar(formData: FormData): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
+
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
 
   const parsed = contaPagarSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
@@ -321,6 +337,9 @@ export async function updateContaPagar(
 ): Promise<{ error?: string }> {
   const { supabase } = await getAuthFinanceiro()
 
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
+
   const parsed = contaPagarSchema.safeParse(Object.fromEntries(formData))
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos' }
@@ -365,6 +384,9 @@ export async function updateContaPagar(
 export async function deleteContaPagar(id: string): Promise<{ error?: string }> {
   const { supabase } = await getAuthFinanceiro()
 
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
+
   // Captura o id da movimentação vinculada ANTES de deletar (ver comentário em
   // deleteContaReceber). Ordem: delete a CONTA primeiro; se ok, delete a mov.
   // Assim o saldo nunca fica órfão por falha parcial.
@@ -395,6 +417,9 @@ export async function uploadComprovante(
   formData: FormData
 ): Promise<{ error?: string; url?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
+
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
 
   const file = formData.get('comprovante') as File | null
   if (!file || file.size === 0) return { error: 'Nenhum arquivo selecionado' }
@@ -480,6 +505,9 @@ export async function marcarPago(
   juros?: number
 ): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
+
+  const erroModulo = await assertModulo('financeiro')
+  if (erroModulo) return { error: erroModulo }
 
   const multaVal = multa ?? 0
   const jurosVal = juros ?? 0

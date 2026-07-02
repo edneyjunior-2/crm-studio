@@ -217,9 +217,12 @@ export function modulosEfetivos(
     }
   }
 
-  // Remove módulos reservados globalmente
+  // Remove módulos reservados globalmente — EXCETO os concedidos explicitamente
+  // via extras (empresas.modulos_ativos). Ativar um reservado (ex.: add-on
+  // 'atendimentos') é justamente por modulos_ativos; sem esta exceção a ativação
+  // era anulada aqui e o item nunca aparecia no menu.
   for (const r of MODULOS_RESERVADOS) {
-    base.delete(r)
+    if (!extras.includes(r)) base.delete(r)
   }
 
   // Remove módulos que perderam a dependência

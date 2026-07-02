@@ -3,11 +3,15 @@
 import { revalidatePath } from 'next/cache'
 import { getAuthFinanceiro } from '@/lib/auth'
 import { produtoSchema, movimentacaoEstoqueSchema } from '@/lib/schemas-estoque'
+import { assertModulo } from '@/lib/gating'
 
 // ─── Produtos ────────────────────────────────────────────────────────────────
 
 export async function createProduto(formData: FormData): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
+
+  const erroModulo = await assertModulo('estoque')
+  if (erroModulo) return { error: erroModulo }
 
   const raw = Object.fromEntries(formData)
   const parsed = produtoSchema.safeParse(raw)
@@ -66,6 +70,9 @@ export async function registrarMovimentacao(
   formData: FormData
 ): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
+
+  const erroModulo = await assertModulo('estoque')
+  if (erroModulo) return { error: erroModulo }
 
   const raw = Object.fromEntries(formData)
   const parsed = movimentacaoEstoqueSchema.safeParse(raw)

@@ -180,7 +180,10 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
         return
       }
 
-      if (deveGerarFinanceiro) {
+      // Só gera financeiro se ESTE request foi quem de fato moveu o negócio p/
+      // ganho (result.transicionou). Fechamentos concorrentes do mesmo negócio
+      // não duplicam conta/comissão.
+      if (deveGerarFinanceiro && result.transicionou !== false) {
         const dataBase = dataFechamento || todayISO()
         const finResult = await gerarFinanceiroDoFechamento({
           negocioId: id,
