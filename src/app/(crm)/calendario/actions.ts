@@ -70,8 +70,10 @@ export async function criarEvento(formData: FormData) {
     // Salvar e-mails externos novos para autocomplete futuro
     if (attendees.length > 0) {
       const admin = createAdminClient()
-      const { data: internos } = await admin.auth.admin.listUsers()
-      const emailsInternos = new Set((internos?.users ?? []).map((u) => u.email))
+      // E-mail vem da view profiles_auth (banco, via service_role), NÃO de
+      // auth.admin.listUsers() (GoTrue) — que falha/retorna vazio em prod.
+      const { data: internos } = await admin.from('profiles_auth').select('email')
+      const emailsInternos = new Set((internos ?? []).map((u) => u.email))
       const externos = attendees.filter((e) => !emailsInternos.has(e))
       if (externos.length > 0) {
         await admin
@@ -244,8 +246,10 @@ export async function editarEvento(
 
   // Salvar e-mails externos novos
   if (attendees.length > 0) {
-    const { data: internos } = await admin.auth.admin.listUsers()
-    const emailsInternos = new Set((internos?.users ?? []).map((u) => u.email))
+    // E-mail vem da view profiles_auth (banco, via service_role), NÃO de
+    // auth.admin.listUsers() (GoTrue) — que falha/retorna vazio em prod.
+    const { data: internos } = await admin.from('profiles_auth').select('email')
+    const emailsInternos = new Set((internos ?? []).map((u) => u.email))
     const externos = attendees.filter((e) => !emailsInternos.has(e))
     if (externos.length > 0) {
       const { error: contatosError } = await admin

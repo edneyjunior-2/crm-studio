@@ -439,13 +439,15 @@ export async function reenviarConviteEmail(
 
   const db = createAdminClient()
 
-  const [{ data: userData }, { data: empresa }, { data: profile }] = await Promise.all([
-    db.auth.admin.getUserById(userId),
+  // NÃO usar db.auth.admin.getUserById() — GoTrue falha/retorna vazio em prod
+  // neste projeto Supabase. Ler o e-mail da VIEW profiles_auth (service role).
+  const [{ data: authRow }, { data: empresa }, { data: profile }] = await Promise.all([
+    db.from('profiles_auth').select('id, email').eq('id', userId).maybeSingle(),
     db.from('empresas').select('nome').eq('id', empresaId).single(),
     db.from('profiles').select('full_name').eq('id', userId).single(),
   ])
 
-  const email = userData.user?.email ?? ''
+  const email = authRow?.email ?? ''
   if (!email) return { sent: false, error: 'Usuário não encontrado.' }
 
   const nome       = profile?.full_name ?? email
@@ -484,8 +486,10 @@ export async function gerarLinkAcesso(
 
   const db = createAdminClient()
 
-  const { data: userData } = await db.auth.admin.getUserById(userId)
-  const email = userData.user?.email ?? ''
+  // NÃO usar db.auth.admin.getUserById() — GoTrue falha/retorna vazio em prod
+  // neste projeto Supabase. Ler o e-mail da VIEW profiles_auth (service role).
+  const { data: authRow } = await db.from('profiles_auth').select('id, email').eq('id', userId).maybeSingle()
+  const email = authRow?.email ?? ''
   if (!email) return { error: 'Usuário não encontrado.' }
 
   // redirectTo deve apontar para o app (onde o cliente define a senha).

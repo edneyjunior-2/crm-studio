@@ -50,28 +50,32 @@ export default async function ResponsabilidadesPage() {
 
   const [
     { data: perfil },
-    { data: authUsers },
     { data: profiles },
   ] = await Promise.all([
     supabase.from('profiles').select('role').eq('id', user.id).single(),
-    admin.auth.admin.listUsers(),
     // RLS scoped: traz apenas profiles da mesma empresa
     supabase.from('profiles').select('id, full_name'),
   ])
 
   const isAdmin = perfil?.role === 'admin' || perfil?.role === 'socio'
 
-  // Apenas IDs que pertencem a esta empresa (via RLS)
-  const empresaUserIds = new Set((profiles ?? []).map((p) => p.id))
+  // E-mails via view profiles_auth (service-role) — NÃO admin.auth.admin.listUsers()
+  // (GoTrue), que falha/retorna vazio em produção neste projeto.
+  const profileIds = (profiles ?? []).map((p) => p.id)
+  const { data: authRows } = profileIds.length
+    ? await admin.from('profiles_auth').select('id, email').in('id', profileIds)
+    : { data: [] as { id: string; email: string | null }[] }
+  const emailMap = new Map((authRows ?? []).map((r) => [r.id as string, r.email as string | null]))
+
   const profileMap = Object.fromEntries(
     (profiles ?? []).map((p) => [p.id, { nome: p.full_name as string, cargo: (p as Record<string, unknown>).cargo as string | null }])
   )
-  const membros = (authUsers?.users ?? [])
-    .filter((u) => u.email && empresaUserIds.has(u.id))
-    .map((u) => ({
-      id:    u.id,
-      nome:  profileMap[u.id]?.nome ?? u.email!.split('@')[0],
-      cargo: profileMap[u.id]?.cargo ?? null,
+  const membros = (profiles ?? [])
+    .filter((p) => emailMap.get(p.id))
+    .map((p) => ({
+      id:    p.id,
+      nome:  profileMap[p.id]?.nome ?? emailMap.get(p.id)!.split('@')[0],
+      cargo: profileMap[p.id]?.cargo ?? null,
     }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 

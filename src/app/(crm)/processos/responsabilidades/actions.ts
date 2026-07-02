@@ -40,11 +40,13 @@ export async function reatribuirResponsavel(
     const processo = data[0] as { id: string; numero_processo: string; assunto: string | null }
     try {
       const admin = createAdminClient()
-      const [{ data: authUser }, { data: advPerfil }] = await Promise.all([
-        admin.auth.admin.getUserById(novoAdvogadoId),
+      // GOTCHA: admin.auth.admin.getUserById() (GoTrue) falha/retorna vazio em
+      // prod neste projeto — ler da view profiles_auth (service-role) em vez do GoTrue.
+      const [{ data: authRow }, { data: advPerfil }] = await Promise.all([
+        admin.from('profiles_auth').select('email').eq('id', novoAdvogadoId).maybeSingle(),
         supabase.from('profiles').select('full_name').eq('id', novoAdvogadoId).single(),
       ])
-      const email = authUser?.user?.email
+      const email = authRow?.email
       if (email) {
         await sendReatribuicaoEmail({
           to:             email,

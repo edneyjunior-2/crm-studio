@@ -127,7 +127,9 @@ export default async function CalendarioPage({
     { data: notificacoesRaw },
     { data: notasRaw },
   ] = await Promise.all([
-    admin.auth.admin.listUsers(),
+    // E-mail vem da view profiles_auth (banco, via service_role), NÃO de
+    // auth.admin.listUsers() (GoTrue) — que falha/retorna vazio em prod.
+    admin.from('profiles_auth').select('id, email'),
     admin.from('profiles').select('id, full_name').eq('empresa_id', empresaId),
     admin.from('calendario_contatos').select('email, nome').eq('empresa_id', empresaId).order('email'),
     admin.from('agenda_bloqueios')
@@ -151,8 +153,8 @@ export default async function CalendarioPage({
 
   const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name as string]))
   // Só membros do próprio tenant: profileMap já vem filtrado por empresa_id,
-  // então restringe a lista (authUsers vem global do listUsers, que não filtra).
-  const membrosInternos: MembroInterno[] = (authUsers?.users ?? [])
+  // então restringe a lista (authUsers vem global da view, que não filtra por empresa).
+  const membrosInternos: MembroInterno[] = (authUsers ?? [])
     .filter((u) => u.email && profileMap[u.id])
     .map((u) => ({ id: u.id, nome: profileMap[u.id] ?? u.email!.split('@')[0], email: u.email! }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))

@@ -79,6 +79,10 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   // Busca paralela: movimentações (fetchAllRows — evita cap 1000), histórico interno, prazos, documentos, perfil, auth users
   const admin = createAdminClient()
 
+  // advogado_id já é conhecido aqui (processo já foi buscado acima) — inclui no
+  // lote de e-mails abaixo, mesmo que por algum motivo não esteja em empresaProfiles.
+  const advogadoIdProcesso = (processo as Record<string, unknown>).advogado_id as string | null
+
   // fetchAllRows lança em erro de banco — capturamos para não derrubar o RSC
   let movimentacoes: Record<string, unknown>[] | null = null
   let errMov: { message: string } | null = null
@@ -100,14 +104,12 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     { data: prazosRaw },
     { data: documentosRaw },
     { data: perfil },
-    { data: authUsers },
     { data: empresaProfiles },
   ] = await Promise.all([
     supabase.from('movimentacoes_internas_processo').select('id, assunto, descricao, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
     supabase.from('processos_prazos').select('id, descricao, data_prazo, cumprido, responsavel_id, profiles!responsavel_id(full_name)').eq('processo_id', id).order('data_prazo', { ascending: true }),
     supabase.from('processos_documentos').select('id, nome, storage_path, mime_type, tamanho, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
     supabase.from('profiles').select('role').eq('id', user.id).single(),
-    admin.auth.admin.listUsers(),
     supabase.from('profiles').select('id, full_name'),
   ])
 
@@ -116,12 +118,20 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   }
   const podeExcluir = perfil?.role === 'admin'
 
-  // Filtra authUsers para conter apenas membros desta empresa (via RLS nos profiles)
-  const empresaUserIds = new Set((empresaProfiles ?? []).map((p) => p.id))
+  // E-mails via view profiles_auth (service-role) — NÃO admin.auth.admin.listUsers()
+  // (GoTrue), que falha/retorna vazio em produção neste projeto.
+  const idsParaEmail = new Set((empresaProfiles ?? []).map((p) => p.id))
+  if (advogadoIdProcesso) idsParaEmail.add(advogadoIdProcesso)
+  const { data: authRows } = idsParaEmail.size
+    ? await admin.from('profiles_auth').select('id, email').in('id', [...idsParaEmail])
+    : { data: [] as { id: string; email: string | null }[] }
+  const emailMap = new Map((authRows ?? []).map((r) => [r.id as string, r.email as string | null]))
+
+  // Filtra para conter apenas membros desta empresa (via RLS nos profiles)
   const profileMap = Object.fromEntries((empresaProfiles ?? []).map((p) => [p.id, p.full_name as string]))
-  const membros = (authUsers?.users ?? [])
-    .filter((u) => u.email && empresaUserIds.has(u.id))
-    .map((u) => ({ id: u.id, nome: profileMap[u.id] ?? u.email!.split('@')[0], email: u.email! }))
+  const membros = (empresaProfiles ?? [])
+    .filter((p) => emailMap.get(p.id))
+    .map((p) => ({ id: p.id, nome: profileMap[p.id] ?? emailMap.get(p.id)!.split('@')[0], email: emailMap.get(p.id)! }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
   const clienteRaw = processo.clientes as unknown
@@ -133,10 +143,8 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   const partes = (processo.partes_raw as { polo: string; nome: string }[] | null) ?? []
 
   // Email do advogado responsável (para pré-selecionar no agendamento)
-  const advogadoId  = (processo as Record<string, unknown>).advogado_id as string | null
-  const advogadoEmail = advogadoId
-    ? (authUsers?.users ?? []).find((u) => u.id === advogadoId)?.email ?? null
-    : null
+  const advogadoId  = advogadoIdProcesso
+  const advogadoEmail = advogadoId ? emailMap.get(advogadoId) ?? null : null
 
   // Indicação → Parceiro
   const indicacao = (processo as Record<string, unknown>).indicacao as string | null
