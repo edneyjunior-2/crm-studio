@@ -21,19 +21,49 @@ export async function entrarNaEmpresa(
 
   // ── Passo 2: confirmar vinculação ─────────────────────────────────────────
   if (step === 'confirmar') {
-    const empresaId = formData.get('empresa_id') as string | null
-    if (!empresaId) return { step: 'idle', error: 'Dados inválidos. Tente novamente.' }
+    // Segurança: NUNCA confiar no empresa_id vindo do form (campo oculto —
+    // um usuário mal-intencionado poderia forjar o FormData com o UUID de
+    // QUALQUER empresa e se vincular a ela). Em vez disso, re-exigimos o
+    // CÓDIGO de acesso e re-executamos a MESMA validação server-side do
+    // passo 1 (RPC SECURITY DEFINER) para obter o empresa_id REAL.
+    const rawCodigo = formData.get('codigo') as string | null
+    const codigo = rawCodigo?.trim().toUpperCase() ?? ''
+    if (!codigo) return { step: 'idle', error: 'Sessão expirada. Digite o código novamente.' }
 
-    // Não relemos a empresa aqui — o usuário ainda não tem empresa_id, então
-    // current_empresa_id() = NULL e a RLS de empresas bloquearia a query.
-    // A validação foi feita no passo 1 via RPC SECURITY DEFINER; o empresaId
-    // que chega aqui é o que retornamos no preview.
-    const { error: updateErr } = await supabase
+    const { data: empresas, error } = await supabase
+      .rpc('buscar_empresa_por_codigo', { p_codigo: codigo })
+
+    const empresa = empresas?.[0] ?? null
+
+    if (error || !empresa) {
+      return { step: 'idle', error: 'Código inválido. Verifique com o administrador da sua empresa.' }
+    }
+
+    if (empresa.status === 'cancelado') {
+      return { step: 'idle', error: 'Esta empresa não tem uma assinatura ativa no CRM Studio.' }
+    }
+
+    // Nunca permite TROCAR de empresa por aqui — só vincula quem ainda está sem.
+    const { data: profileAtual } = await supabase
       .from('profiles')
-      .update({ empresa_id: empresaId })
+      .select('empresa_id')
       .eq('id', user.id)
+      .single()
+
+    if (profileAtual?.empresa_id) redirect('/dashboard')
+
+    // Guarda condicional (.is empresa_id null) como trava extra contra corrida
+    // de duplo-submit — só atualiza quem, no instante do UPDATE, ainda está
+    // sem empresa_id.
+    const { data: updated, error: updateErr } = await supabase
+      .from('profiles')
+      .update({ empresa_id: empresa.id })
+      .eq('id', user.id)
+      .is('empresa_id', null)
+      .select('id')
 
     if (updateErr) return { step: 'idle', error: 'Erro ao vincular à empresa. Tente novamente.' }
+    if (!updated || updated.length === 0) redirect('/dashboard')
 
     redirect('/dashboard')
   }

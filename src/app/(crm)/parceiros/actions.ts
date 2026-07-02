@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthFinanceiro, getAuthUser } from '@/lib/auth'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function createParceiro(formData: FormData): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
@@ -65,9 +66,28 @@ export async function updateParceiro(
 export async function deleteParceiro(id: string): Promise<{ error?: string }> {
   const { supabase } = await getAuthFinanceiro()
 
+  // Busca o contrato ANTES de apagar a linha (senão o path some do banco).
+  const { data: parceiro } = await supabase
+    .from('parceiros')
+    .select('contrato_url')
+    .eq('id', id)
+    .maybeSingle()
+
   const { error } = await supabase.from('parceiros').delete().eq('id', id)
 
   if (error) return { error: error.message }
+
+  // Best-effort: remove o arquivo do contrato no Storage (bucket 'contratos').
+  // Não bloqueia a exclusão do parceiro se a remoção falhar — o registro já foi
+  // apagado; loga e segue, igual ao padrão de uploadContrato/removeContrato.
+  if (parceiro?.contrato_url) {
+    try {
+      const admin = createAdminClient()
+      await admin.storage.from('contratos').remove([parceiro.contrato_url])
+    } catch (storageError) {
+      console.error('Erro ao remover contrato do Storage:', storageError)
+    }
+  }
 
   revalidatePath('/parceiros')
   return {}

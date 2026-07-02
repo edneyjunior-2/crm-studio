@@ -51,6 +51,22 @@ export async function updateSolucao(id: string, formData: FormData): Promise<{ e
 export async function deleteSolucao(id: string): Promise<{ error?: string }> {
   const { supabase } = await getAuthAdmin()
 
+  // negocio_produtos.solucao_id é ON DELETE SET NULL: excluir sem checar zeraria
+  // silenciosamente a solução (e a comissão) de negócios já fechados/em andamento.
+  // negocios.solucao_id ainda é RESTRICT/NO ACTION, mas checar aqui também dá um
+  // erro amigável em vez do erro cru de violação de FK.
+  const [{ count: emProdutos, error: errProdutos }, { count: emNegocios, error: errNegocios }] =
+    await Promise.all([
+      supabase.from('negocio_produtos').select('id', { count: 'exact', head: true }).eq('solucao_id', id),
+      supabase.from('negocios').select('id', { count: 'exact', head: true }).eq('solucao_id', id),
+    ])
+
+  if (errProdutos) return { error: errProdutos.message }
+  if (errNegocios) return { error: errNegocios.message }
+  if ((emProdutos ?? 0) > 0 || (emNegocios ?? 0) > 0) {
+    return { error: 'Esta solução está em uso em negócios e não pode ser excluída.' }
+  }
+
   const { error } = await supabase.from('solucoes').delete().eq('id', id)
 
   if (error) return { error: error.message }

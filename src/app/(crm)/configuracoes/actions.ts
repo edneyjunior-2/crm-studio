@@ -241,6 +241,21 @@ export async function createUser(
   const userId = linkData.user?.id
   if (!userId) return { error: 'Erro ao criar o usuário.' }
 
+  // Segurança multi-tenant: se o e-mail já existir no Auth com convite PENDENTE
+  // de OUTRA empresa, generateLink({type:'invite'}) devolve o MESMO userId (não
+  // cria um novo). Sem esta checagem, o upsert abaixo SOBRESCREVERIA o profile
+  // já existente (empresa_id/role/nome), sequestrando o usuário de outra
+  // empresa. Mesmo guard já usado em reenviarConvite.
+  const { data: profileExistente } = await admin
+    .from('profiles')
+    .select('empresa_id')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (profileExistente && profileExistente.empresa_id && profileExistente.empresa_id !== empresaId) {
+    return { error: 'Este e-mail já pertence a outra empresa.' }
+  }
+
   const { error: profileError } = await admin
     .from('profiles')
     .upsert({ id: userId, full_name: fullName, role, empresa_id: empresaId })

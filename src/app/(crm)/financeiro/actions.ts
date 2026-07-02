@@ -41,6 +41,15 @@ export async function updateContaReceber(
     return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos' }
   }
 
+  const statusForm = formData.get('status') as string
+
+  // Marcar como 'recebido' só pode acontecer via marcarRecebido, que cria a
+  // movimentação bancária correspondente. Bloqueia essa transição aqui para
+  // impedir que o saldo fique corrompido (status mudado sem lançamento).
+  if (statusForm === 'recebido') {
+    return { error: 'Para receber, use a ação "Receber".' }
+  }
+
   const { error } = await supabase
     .from('contas_receber')
     .update({
@@ -50,7 +59,7 @@ export async function updateContaReceber(
       valor: parseFloat(formData.get('valor') as string),
       moeda: (formData.get('moeda') as string) || 'BRL',
       data_vencimento: formData.get('data_vencimento') as string,
-      status: formData.get('status') as string,
+      status: statusForm,
     })
     .eq('id', id)
 
@@ -98,18 +107,20 @@ export async function marcarRecebido(
   const { supabase, user } = await getAuthFinanceiro()
 
   // TRAVA ATÔMICA: UPDATE condicional como primeiro passo.
-  // O UPDATE só afeta a linha se status <> 'recebido', retornando os dados
-  // necessários para a movimentação. Se 0 linhas voltarem → já estava recebido
+  // O UPDATE só afeta a linha se status <> 'recebido' E status atual for
+  // liquidável ('pendente'/'atrasado') — uma conta 'cancelado' não pode virar
+  // 'recebido'. Se 0 linhas voltarem → já estava recebido/não liquidável
   // → idempotente (não erro). Elimina a race condition de duplo clique.
   const { data: updated, error: updateErr } = await supabase
     .from('contas_receber')
     .update({ status: 'recebido', data_recebimento })
     .eq('id', id)
     .neq('status', 'recebido')
+    .in('status', ['pendente', 'atrasado'])
     .select('descricao, valor, moeda')
 
   if (updateErr) return { error: updateErr.message }
-  if (!updated || updated.length === 0) return {} // já recebido → idempotente
+  if (!updated || updated.length === 0) return {} // já recebido/não liquidável → idempotente
 
   // UPDATE confirmado → insere movimentação (se banco informado).
   if (bancoId) {
@@ -317,6 +328,14 @@ export async function updateContaPagar(
 
   const recorrente = formData.get('recorrente') === 'true'
   const frequencia = (formData.get('frequencia') as string) || null
+  const statusForm = formData.get('status') as string
+
+  // Marcar como 'pago' só pode acontecer via marcarPago, que cria a movimentação
+  // bancária correspondente. Bloqueia essa transição aqui para impedir que o
+  // saldo fique corrompido (status mudado sem lançamento).
+  if (statusForm === 'pago') {
+    return { error: 'Para pagar, use a ação "Pagar".' }
+  }
 
   const { error } = await supabase
     .from('contas_pagar')
@@ -328,7 +347,7 @@ export async function updateContaPagar(
       moeda: (formData.get('moeda') as string) || 'BRL',
       data_vencimento: formData.get('data_vencimento') as string,
       categoria: (formData.get('categoria') as string) || null,
-      status: formData.get('status') as string,
+      status: statusForm,
       recorrente,
       frequencia: recorrente ? frequencia : null,
       cartao_info: (formData.get('cartao_info') as string) || null,
@@ -476,8 +495,10 @@ export async function marcarPago(
   const valorPago = Number(contaInfo.valor) + multaVal + jurosVal
 
   // TRAVA ATÔMICA: status + valor_pago + multa/juros no MESMO update condicional.
-  // Só afeta a linha se status <> 'pago' (idempotente + race-safe) e nunca deixa
-  // a conta 'pago' com valor_pago null. 0 linhas → já estava pago.
+  // Só afeta a linha se status <> 'pago' E status atual for liquidável
+  // ('pendente'/'atrasado') — uma conta 'cancelado' não pode virar 'pago'
+  // (idempotente + race-safe) e nunca deixa a conta 'pago' com valor_pago null.
+  // 0 linhas → já estava pago/não liquidável.
   const { data: updated, error: updateErr } = await supabase
     .from('contas_pagar')
     .update({
@@ -489,10 +510,11 @@ export async function marcarPago(
     })
     .eq('id', id)
     .neq('status', 'pago')
+    .in('status', ['pendente', 'atrasado'])
     .select('descricao, valor, moeda, fornecedor, categoria')
 
   if (updateErr) return { error: updateErr.message }
-  if (!updated || updated.length === 0) return {} // já pago → idempotente
+  if (!updated || updated.length === 0) return {} // já pago/não liquidável → idempotente
 
   const conta = updated[0]
 

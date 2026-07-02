@@ -175,6 +175,19 @@ export async function removerItem(itemId: string, orcamentoId: string): Promise<
 
 export async function excluirOrcamento(id: string): Promise<{ error?: string }> {
   const { supabase } = await getAuthUser()
+
+  // orcamento_id em obras_medicoes é ON DELETE SET NULL: excluir o orçamento sem
+  // checar deixaria medições já lançadas órfãs do baseline (sem referência ao
+  // orçamento que as originou). Bloqueia com erro amigável quando há vínculo.
+  const { count, error: countError } = await supabase
+    .from('obras_medicoes')
+    .select('id', { count: 'exact', head: true })
+    .eq('orcamento_id', id)
+  if (countError) return { error: countError.message }
+  if ((count ?? 0) > 0) {
+    return { error: 'Este orçamento tem medições vinculadas e não pode ser excluído.' }
+  }
+
   const { error } = await supabase.from('orcamentos').delete().eq('id', id)
   if (error) return { error: error.message }
   revalidatePath('/obras/orcamentos')

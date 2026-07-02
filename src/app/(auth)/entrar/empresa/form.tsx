@@ -70,7 +70,9 @@ export function EntrarEmpresaForm() {
 
           <form action={action} className="flex flex-col gap-2">
             <input type="hidden" name="_step" value="confirmar" />
-            <input type="hidden" name="empresa_id" value={state.empresaId} />
+            {/* Reenvia o código (não o empresa_id) — a action re-valida o
+                código no servidor via RPC para obter o empresa_id real. */}
+            <input type="hidden" name="codigo" value={state.codigo} />
             <Button type="submit" className="w-full" disabled={pending}>
               {pending ? (
                 <Loader2 className="size-4 animate-spin" />
