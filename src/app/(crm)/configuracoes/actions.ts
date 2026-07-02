@@ -307,9 +307,15 @@ export async function reenviarConvite(userId: string): Promise<{ error?: string 
     return { error: 'Usuário não encontrado nesta empresa.' }
   }
 
-  const { data: authData, error: getErr } = await admin.auth.admin.getUserById(userId)
-  const email = authData?.user?.email
-  if (getErr || !email) return { error: 'E-mail do usuário não encontrado.' }
+  // GOTCHA: admin.auth.admin.getUserById() (GoTrue) falha/retorna vazio em prod
+  // neste projeto — ler da view profiles_auth (service-role) em vez do GoTrue.
+  const { data: authRow } = await admin
+    .from('profiles_auth')
+    .select('email')
+    .eq('id', userId)
+    .maybeSingle()
+  const email = authRow?.email
+  if (!email) return { error: 'E-mail do usuário não encontrado.' }
 
   if (!process.env.RESEND_API_KEY) {
     return { error: 'Envio de e-mail não está configurado no servidor.' }
