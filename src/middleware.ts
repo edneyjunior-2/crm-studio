@@ -17,7 +17,11 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') ?? ''
   const pathname = request.nextUrl.pathname
 
-  const isWww   = hostname === 'www.crmstudio.com.br'
+  // O apex (crmstudio.com.br) é tratado igual ao www: rotas do CRM/login são
+  // redirecionadas para app.crmstudio.com.br. Sem isto, o login renderizava no
+  // apex e o fluxo do Google (PKCE) gravava o code_verifier no host errado →
+  // "code challenge does not match previously saved code verifier" no callback.
+  const isWww   = hostname === 'www.crmstudio.com.br' || hostname === 'crmstudio.com.br'
   const isApp   = hostname === 'app.crmstudio.com.br'
   const isAdmin = hostname === 'admin.crmstudio.com.br'
 
