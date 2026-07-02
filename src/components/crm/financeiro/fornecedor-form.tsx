@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select'
 import { createFornecedor, updateFornecedor } from '@/app/(crm)/financeiro/fornecedores/actions'
 import type { Fornecedor } from '@/types'
+import { formatCNPJ, formatCPF } from '@/lib/masks'
 
 const PIX_TIPOS = [
   { value: 'cpf', label: 'CPF' },
@@ -40,9 +41,16 @@ export function FornecedorForm({ fornecedor, trigger }: FornecedorFormProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [pixTipo, setPixTipo] = useState<string | null>(fornecedor?.pix_tipo ?? null)
+  const [pixChave, setPixChave] = useState(fornecedor?.pix_chave ?? '')
 
   function handleOpenChange(nextOpen: boolean) {
     if (!isPending) setOpen(nextOpen)
+  }
+
+  function handlePixChaveChange(value: string) {
+    if (pixTipo === 'cnpj') setPixChave(formatCNPJ(value))
+    else if (pixTipo === 'cpf') setPixChave(formatCPF(value))
+    else setPixChave(value)
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -66,6 +74,7 @@ export function FornecedorForm({ fornecedor, trigger }: FornecedorFormProps) {
       if (!fornecedor) {
         form.reset()
         setPixTipo(null)
+        setPixChave('')
       }
     })
   }
@@ -136,7 +145,8 @@ export function FornecedorForm({ fornecedor, trigger }: FornecedorFormProps) {
                   id="pix_chave"
                   name="pix_chave"
                   required
-                  defaultValue={fornecedor?.pix_chave ?? ''}
+                  value={pixChave}
+                  onChange={(e) => handlePixChaveChange(e.target.value)}
                   placeholder={
                     pixTipo === 'cpf'
                       ? '000.000.000-00'

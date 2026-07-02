@@ -28,14 +28,7 @@ import {
   TIPO_CONTRATO_LABEL,
   TIPO_REMUNERACAO_LABEL,
 } from '@/types/rh'
-
-function formatCpf(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 11)
-  return digits
-    .replace(/^(\d{3})(\d)/, '$1.$2')
-    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1-$2')
-}
+import { formatCPF } from '@/lib/masks'
 
 function formatTelefone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11)
@@ -150,7 +143,7 @@ export function ColaboradorForm({ colaborador, trigger }: ColaboradorFormProps) 
                   id="cpf"
                   name="cpf"
                   value={cpf}
-                  onChange={(e) => setCpf(formatCpf(e.target.value))}
+                  onChange={(e) => setCpf(formatCPF(e.target.value))}
                   placeholder="000.000.000-00"
                 />
               </div>

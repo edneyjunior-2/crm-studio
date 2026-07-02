@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createCliente, updateCliente, assumirCliente, verificarCnpj, type VerificarCnpjResult } from '@/app/(crm)/clientes/actions'
 import type { Cliente } from '@/types'
+import { formatCNPJ, formatCPF, onlyDigits } from '@/lib/masks'
 
 interface ParceiroOption {
   id: string
@@ -57,23 +58,6 @@ interface CnpjWsResponse {
   // formatos legados (fallback)
   atividade_principal?: { code: string; text: string }[]
   qsa?: { nome_socio?: string }[]
-}
-
-function formatCnpj(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 14)
-  return digits
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1/$2')
-    .replace(/(\d{4})(\d)/, '$1-$2')
-}
-
-function formatCpf(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 11)
-  return digits
-    .replace(/^(\d{3})(\d)/, '$1.$2')
-    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4')
 }
 
 function formatTelefone(value: string): string {
@@ -154,7 +138,7 @@ export function ClienteForm({ cliente, trigger, open: openProp, onOpenChange: on
     if (tipoPessoa !== 'pj') return
     if (isEdicao) return
 
-    const digits = cnpj.replace(/\D/g, '')
+    const digits = onlyDigits(cnpj)
     if (digits.length !== 14) {
       setCnpjStatus(null)
       return
@@ -186,7 +170,7 @@ export function ClienteForm({ cliente, trigger, open: openProp, onOpenChange: on
   }
 
   async function buscarCnpj() {
-    const digits = cnpj.replace(/\D/g, '')
+    const digits = onlyDigits(cnpj)
     if (digits.length !== 14) {
       toast.error('Digite um CNPJ completo (14 dígitos) antes de buscar.')
       return
@@ -316,7 +300,7 @@ export function ClienteForm({ cliente, trigger, open: openProp, onOpenChange: on
     manuallyEdited.current.clear()
   }
 
-  const cnpjDigits = cnpj.replace(/\D/g, '')
+  const cnpjDigits = onlyDigits(cnpj)
   const cnpjCompleto = cnpjDigits.length === 14
 
   // Definir se o submit é possível (bloqueio só se aplica a PJ)
@@ -379,7 +363,7 @@ export function ClienteForm({ cliente, trigger, open: openProp, onOpenChange: on
                   name="cnpj"
                   value={cnpj}
                   onChange={(e) => {
-                    const formatted = formatCnpj(e.target.value)
+                    const formatted = formatCNPJ(e.target.value)
                     setCnpj(formatted)
                     // Resetar status de verificação ao mudar o CNPJ
                     if (formatted !== cnpj) {
@@ -455,7 +439,7 @@ export function ClienteForm({ cliente, trigger, open: openProp, onOpenChange: on
                 id="cpf"
                 name="cpf"
                 value={cpf}
-                onChange={(e) => setCpf(formatCpf(e.target.value))}
+                onChange={(e) => setCpf(formatCPF(e.target.value))}
                 placeholder="000.000.000-00"
               />
             </div>

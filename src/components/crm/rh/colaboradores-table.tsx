@@ -40,6 +40,7 @@ import {
   COLABORADOR_STATUS_LABEL,
   TIPO_CONTRATO_LABEL,
 } from '@/types/rh'
+import { formatCPF } from '@/lib/masks'
 
 function formatarData(dataBR: string | null): string {
   if (!dataBR) return '—'
@@ -49,10 +50,7 @@ function formatarData(dataBR: string | null): string {
 }
 
 function formatarCpf(cpf: string | null): string {
-  if (!cpf) return '—'
-  const digits = cpf.replace(/\D/g, '')
-  if (digits.length !== 11) return cpf
-  return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
+  return cpf ? formatCPF(cpf) : '—'
 }
 
 function StatusBadge({ status }: { status: Colaborador['status'] }) {

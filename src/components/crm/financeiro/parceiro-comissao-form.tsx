@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import { createParceiroComissao, updateParceiroComissao } from '@/app/(crm)/financeiro/parceiros/actions'
 import type { ParceiroComissao } from '@/types'
+import { formatCNPJ, formatCPF } from '@/lib/masks'
 
 const PIX_TIPOS = [
   { value: 'cpf', label: 'CPF' },
@@ -42,12 +43,20 @@ interface ParceiroComissaoFormProps {
 export function ParceiroComissaoForm({ parceiro, trigger }: ParceiroComissaoFormProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [cnpj, setCnpj] = useState(parceiro?.cnpj ?? '')
   const [pixTipo, setPixTipo] = useState<string | null>(parceiro?.pix_tipo ?? null)
+  const [pixChave, setPixChave] = useState(parceiro?.pix_chave ?? '')
   const [pagamentoModo, setPagamentoModo] = useState<PagamentoModo>(() => {
     if (parceiro?.pix_tipo) return 'pix'
     if (parceiro?.banco_nome || parceiro?.banco_agencia || parceiro?.banco_conta) return 'banco'
     return null
   })
+
+  function handlePixChaveChange(value: string) {
+    if (pixTipo === 'cnpj') setPixChave(formatCNPJ(value))
+    else if (pixTipo === 'cpf') setPixChave(formatCPF(value))
+    else setPixChave(value)
+  }
 
   function handleOpenChange(nextOpen: boolean) {
     if (!isPending) setOpen(nextOpen)
@@ -86,7 +95,9 @@ export function ParceiroComissaoForm({ parceiro, trigger }: ParceiroComissaoForm
       setOpen(false)
       if (!parceiro) {
         form.reset()
+        setCnpj('')
         setPixTipo(null)
+        setPixChave('')
         setPagamentoModo(null)
       }
     })
@@ -126,7 +137,8 @@ export function ParceiroComissaoForm({ parceiro, trigger }: ParceiroComissaoForm
               <Input
                 id="cnpj"
                 name="cnpj"
-                defaultValue={parceiro?.cnpj ?? ''}
+                value={cnpj}
+                onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
                 placeholder="00.000.000/0001-00"
               />
             </div>
@@ -224,7 +236,8 @@ export function ParceiroComissaoForm({ parceiro, trigger }: ParceiroComissaoForm
                         id="pix_chave"
                         name="pix_chave"
                         required
-                        defaultValue={parceiro?.pix_chave ?? ''}
+                        value={pixChave}
+                        onChange={(e) => handlePixChaveChange(e.target.value)}
                         placeholder={
                           pixTipo === 'cpf'
                             ? '000.000.000-00'

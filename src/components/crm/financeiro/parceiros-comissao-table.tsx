@@ -18,6 +18,13 @@ import {
 import { ParceiroComissaoForm } from '@/components/crm/financeiro/parceiro-comissao-form'
 import { inativarParceiroComissao } from '@/app/(crm)/financeiro/parceiros/actions'
 import type { ParceiroComissao } from '@/types'
+import { formatCNPJ, formatCPF } from '@/lib/masks'
+
+function formatarChaveDocumento(tipo: string | null, chave: string): string {
+  if (tipo === 'cnpj') return formatCNPJ(chave)
+  if (tipo === 'cpf') return formatCPF(chave)
+  return chave
+}
 
 const PIX_TIPO_LABELS: Record<string, string> = {
   cpf: 'CPF',
@@ -104,7 +111,7 @@ export function ParceirosComissaoTable({ parceiros }: ParceirosComissaoTableProp
               <td className="px-4 py-3 font-medium text-foreground">{p.nome}</td>
               <td className="px-4 py-3 text-muted-foreground">
                 {p.cnpj ? (
-                  <span className="font-mono text-xs">{p.cnpj}</span>
+                  <span className="font-mono text-xs">{formatCNPJ(p.cnpj)}</span>
                 ) : (
                   <span className="text-muted-foreground/40">—</span>
                 )}
@@ -126,7 +133,9 @@ export function ParceirosComissaoTable({ parceiros }: ParceirosComissaoTableProp
                     <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                       {PIX_TIPO_LABELS[p.pix_tipo] ?? p.pix_tipo}
                     </span>
-                    <span className="font-mono text-xs text-foreground">{p.pix_chave}</span>
+                    <span className="font-mono text-xs text-foreground">
+                      {formatarChaveDocumento(p.pix_tipo, p.pix_chave)}
+                    </span>
                     <CopyButton value={p.pix_chave} />
                   </div>
                 ) : p.banco_nome ? (

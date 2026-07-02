@@ -29,6 +29,7 @@ import {
 import { ClienteForm } from './cliente-form'
 import { deleteCliente } from '@/app/(crm)/clientes/actions'
 import type { Cliente } from '@/types'
+import { formatCNPJ } from '@/lib/masks'
 
 interface ClientesTableProps {
   clientes: Cliente[]
@@ -100,7 +101,7 @@ export function ClientesTable({ clientes }: ClientesTableProps) {
                     {cliente.razao_social}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {cliente.cnpj ?? '—'}
+                    {cliente.cnpj ? formatCNPJ(cliente.cnpj) : '—'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {cliente.contato_nome ?? '—'}

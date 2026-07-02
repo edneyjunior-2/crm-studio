@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { salvarDadosEmpresa } from '@/app/(crm)/configuracoes/actions'
+import { formatCNPJ } from '@/lib/masks'
 
 interface DadosEmpresaSectionProps {
   nomeFantasia: string | null
@@ -80,7 +81,7 @@ export function DadosEmpresaSection({
               <Input
                 id="cnpj"
                 value={cnpjVal}
-                onChange={(e) => setCnpjVal(e.target.value)}
+                onChange={(e) => setCnpjVal(formatCNPJ(e.target.value))}
                 placeholder="00.000.000/0001-00"
                 disabled={isPending}
               />
