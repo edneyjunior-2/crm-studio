@@ -878,6 +878,7 @@
       <button class="btn btn-outline" id="btn-history" type="button">📋 Histórico</button>
       <button class="btn btn-outline" id="btn-clear" type="button">Limpar tudo</button>
       <button class="btn btn-outline" id="btn-editar-clausulas" type="button">✎ Editar Cláusulas</button>
+      <button class="btn btn-outline" id="btn-minuta" type="button" title="Baixa uma minuta genérica (sem dados do parceiro) para revisão prévia">📋 Minuta de Contrato</button>
       <button class="btn btn-primary" id="btn-pdf" type="button">📄 Exportar PDF</button>
       <button class="btn btn-accent" id="btn-email" type="button">✉ Enviar por E-mail</button>
       <button class="btn btn-disabled" id="btn-docusign" type="button" title="Em breve — fase 2">📝 DocuSign</button>
@@ -1232,33 +1233,52 @@
       return data;
     }
 
+    /* Dados da MINUTA genérica: mantém os dados fixos da AURUM e as condições
+       comerciais (comissão), mas zera tudo que identifica o parceiro — no PDF
+       esses campos viram linhas para preencher. */
+    function getMinutaData() {
+      const d = getFieldValues();
+      const camposParceiro = [
+        'PARCEIRO_RAZAO','PARCEIRO_CNPJ','PARCEIRO_ENDERECO',
+        'REP_CARGO','REP_NOME','REP_NACIONALIDADE','REP_CPF','REP_RG',
+        'PF_NOME','PF_NACIONALIDADE','PF_ESTADO_CIVIL','PF_PROFISSAO',
+        'PF_CPF','PF_RG','PF_ENDERECO',
+      ];
+      camposParceiro.forEach(k => { d[k] = ''; });
+      d.DATA_ASSINATURA = ''; d.DATA_ASSINATURA_EXT = '';
+      return d;
+    }
+
     /* =====================================================================
        SUBSTITUICAO com suporte a grupos condicionais [...]
        Um grupo eh REMOVIDO se algum {{X}} dentro dele estiver desativado.
        Se nenhum X esta desativado, o grupo permanece e os {{X}} viram
        valor (ou ficam como {{X}} no PDF se vazios — para o usuario notar).
        ===================================================================== */
-    function substitute(text, data) {
+    function substitute(text, data, minuta = false) {
       // 1) Resolver grupos condicionais
       // Grupos podem aninhar simples — assumimos sem aninhamento profundo
       text = text.replace(/\[([^\[\]]*)\]/g, (full, inner) => {
         // pegar todos os placeholders dentro desse grupo
         const matches = [...inner.matchAll(/\{\{([A-Z_0-9]+)\}\}/g)].map(m => m[1]);
         // se algum desses campos esta desativado → remove o grupo inteiro
+        // (na minuta genérica mantemos todos os grupos, com espaços p/ preencher)
         for (const key of matches) {
           // campos derivados → mapeiam pro pai
           let realKey = key;
           if (key === 'DATA_ASSINATURA_EXT') realKey = 'DATA_ASSINATURA';
           if (key === 'COMISSAO_EXT') realKey = 'COMISSAO_PCT';
-          if (disabledFields.has(realKey)) return '';
+          if (!minuta && disabledFields.has(realKey)) return '';
         }
         return inner;
       });
 
-      // 2) Substituir placeholders restantes
+      // 2) Substituir placeholders restantes. Na minuta, campo vazio vira uma
+      // linha para preencher; fora dela, mantém {{X}} para o usuário notar.
       text = text.replace(/\{\{([A-Z_0-9]+)\}\}/g, (m, key) => {
         const v = data[key];
-        return (v && v !== '') ? v : `{{${key}}}`;
+        if (v && v !== '') return v;
+        return minuta ? '__________' : `{{${key}}}`;
       });
 
       // 3) Limpeza de virgulas/espacos sobrando depois da remocao de grupos
@@ -1297,7 +1317,7 @@
        ===================================================================== */
     let lastBlobUrl = null;
 
-    async function gerarPdfContrato(data, autoSave) {
+    async function gerarPdfContrato(data, autoSave, minuta = false) {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'p' });
 
@@ -1328,7 +1348,7 @@
 
       // altura aproximada de cada bloco — usada para "keep-together"
       function blockHeight(block) {
-        const text = substitute(block.text, data);
+        const text = substitute(block.text, data, minuta);
         if (!text) return 0;
         if (block.type === 'h1') return 14;
         if (block.type === 'h2') {
@@ -1345,7 +1365,7 @@
       }
 
       function drawBlock(block, idx, all) {
-        const text = substitute(block.text, data);
+        const text = substitute(block.text, data, minuta);
         if (!text) return;
 
         if (block.type === 'h1') {
@@ -1416,7 +1436,9 @@
       blocks.forEach((b, i, all) => drawBlock(b, i, all));
 
       const nomeParceiro = currentMode === 'pf' ? data.PF_NOME : data.PARCEIRO_RAZAO;
-      const fileName = `Contrato_Parceria_Aurum_${(nomeParceiro || 'Parceiro').replace(/[^a-zA-Z0-9]+/g,'_')}.pdf`;
+      const fileName = minuta
+        ? 'Minuta_Contrato_Parceria_Aurum.pdf'
+        : `Contrato_Parceria_Aurum_${(nomeParceiro || 'Parceiro').replace(/[^a-zA-Z0-9]+/g,'_')}.pdf`;
       if (autoSave) doc.save(fileName);
       return doc;
     }
@@ -1592,6 +1614,18 @@
       } catch (e) {
         console.error(e);
         toast('Erro ao gerar PDF: ' + e.message);
+      }
+    });
+
+    // Minuta genérica: baixa direto, sem dados do parceiro, sem validar nem
+    // registrar no histórico (é só um rascunho para o parceiro revisar).
+    document.getElementById('btn-minuta').addEventListener('click', async () => {
+      try {
+        await gerarPdfContrato(getMinutaData(), true, true);
+        toast('✓ Minuta gerada (sem dados do parceiro).');
+      } catch (e) {
+        console.error(e);
+        toast('Erro ao gerar minuta: ' + e.message);
       }
     });
 
