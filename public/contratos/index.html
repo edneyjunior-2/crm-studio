@@ -858,8 +858,11 @@
 
     <!-- BARRA DE TIPOS DE CONTRATO -->
     <div class="contract-tabs">
-      <button type="button" class="tab active" data-contract="cpp">
-        Contrato de Parceria <span class="tab-code">CPP</span>
+      <button type="button" class="tab active" data-contract="nova">
+        Parceria <span class="tab-code">v. NOVA</span>
+      </button>
+      <button type="button" class="tab" data-contract="antiga">
+        Parceria <span class="tab-code">v. ANTIGA</span>
       </button>
       <!-- Adicione aqui novos contratos no futuro:
         <button type="button" class="tab" data-contract="prestacao">Prestação de Serviços <span class="tab-code">CPS</span></button>
@@ -1057,23 +1060,77 @@
       { type: 'sign', mode: 'pf', text: '[{{PF_NOME}} ](Parceiro)' }
     ];
 
+    const DEFAULT_CONTRACT_BLOCKS_ANTIGA = [
+      { type: 'h1', text: 'CONTRATO DE PARCERIA PROFISSIONAL' },
+
+      { type: 'p', text: 'SÓCIA: AURUM EFICIÊNCIA FISCAL LTDA (AURUM TAX ADVISORY), pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 53.322.759/0001-57, com sede na Av. Luís Viana Filho, 13223, Bloco 6, Sala 101, São Cristóvão, Salvador/BA, CEP: 41.500-300, neste ato representada por seu sócio-diretor, EDNEY VIANA PAIXÃO, inscrito no CPF sob o nº 489.837.215-53, doravante denominada simplesmente AURUM.' },
+
+      { type: 'p', mode: 'pj', text: 'PARCEIRO: {{PARCEIRO_RAZAO}}, pessoa jurídica de direito privado[, inscrita no CNPJ sob o nº {{PARCEIRO_CNPJ}}][, com sede na {{PARCEIRO_ENDERECO}}], neste ato representada por[ seu {{REP_CARGO}},] {{REP_NOME}}[, {{REP_NACIONALIDADE}}][, inscrito no CPF sob o nº {{REP_CPF}}][ e RG nº {{REP_RG}}], doravante denominado simplesmente PARCEIRO.' },
+
+      { type: 'p', mode: 'pf', text: 'PARCEIRO: {{PF_NOME}}[, {{PF_NACIONALIDADE}}][, {{PF_ESTADO_CIVIL}}][, {{PF_PROFISSAO}}], {{PF_INSCRITO}} no CPF sob o nº {{PF_CPF}}[ e RG nº {{PF_RG}}], residente e {{PF_DOMICILIADO}} na {{PF_ENDERECO}}, doravante {{PF_DENOMINADO}} simplesmente PARCEIRO.' },
+
+      { type: 'h2', text: 'CLÁUSULA PRIMEIRA – DO OBJETO E DA NATUREZA DA PARCERIA' },
+      { type: 'p', text: '1.1. O objeto deste contrato é o estabelecimento de parceria profissional para a prospecção, indicação e viabilização de negócios na área de consultoria tributária e recuperação de ativos fiscais.' },
+      { type: 'p', text: '1.2. Esta parceria se aplica especificamente às operações e clientes prospectados e trazidos pelo PARCEIRO para a estrutura técnica da AURUM.' },
+
+      { type: 'h2', text: 'CLÁUSULA SEGUNDA – DA REMUNERAÇÃO ({{COMISSAO_PCT}}% SOBRE OPERAÇÕES)' },
+      { type: 'p', text: '2.1. Como contraprestação pela prospecção e indicação de negócios, o PARCEIRO fará jus ao percentual de {{COMISSAO_PCT}}% ({{COMISSAO_EXT}} por cento) sobre o valor líquido dos honorários efetivamente recebidos pela AURUM em cada operação por ele originada.' },
+      { type: 'p', text: '2.2. Entende-se por valor líquido o montante recebido pela AURUM após a dedução dos impostos incidentes sobre a nota fiscal de prestação de serviços.' },
+      { type: 'p', text: '2.3. O pagamento da comissão de {{COMISSAO_PCT}}% será realizado em até 05 (cinco) dias úteis contados da data em que o cliente efetuar o pagamento dos honorários na conta bancária da AURUM.' },
+
+      { type: 'h2', text: 'CLÁUSULA TERCEIRA – DAS OBRIGAÇÕES DAS PARTES' },
+      { type: 'p', text: '3.1. Compete ao PARCEIRO identificar oportunidades e realizar o acompanhamento comercial inicial.' },
+      { type: 'p', text: '3.2. Compete à AURUM disponibilizar o suporte tecnológico, realizar a auditoria técnica, protocolar os pedidos administrativos ou judiciais e emitir o diagnóstico de conformidade.' },
+      { type: 'p', text: '3.3. A AURUM obriga-se a garantir ao PARCEIRO o direito de acesso, acompanhamento do desenvolvimento dos serviços e de toda a troca de comunicações relativas a cada cliente ou oportunidade por este indicada.' },
+
+      { type: 'h2', text: 'CLÁUSULA QUARTA – DO COMPLIANCE E ANTICORRUPÇÃO' },
+      { type: 'p', text: '4.1. As partes declaram total ciência e compromisso com a Lei nº 12.846/2013 (Lei Antissuborno).' },
+      { type: 'p', text: '4.2. O PARCEIRO obriga-se a não oferecer, prometer ou entregar qualquer tipo de vantagem indevida a agentes públicos ou terceiros para agilizar processos ou obter contratos em nome da AURUM, sob pena de rescisão imediata e responsabilização civil.' },
+
+      { type: 'h2', text: 'CLÁUSULA QUINTA – DA CONFIDENCIALIDADE E SIGILO' },
+      { type: 'p', text: '5.1. O PARCEIRO reconhece que as metodologias de análise e softwares da AURUM são segredos de negócio, sendo vedada sua reprodução ou compartilhamento com terceiros.' },
+      { type: 'p', text: '5.2. O sigilo sobre os dados dos clientes deve ser mantido mesmo após o término desta parceria.' },
+
+      { type: 'h2', text: 'CLÁUSULA SEXTA – DA NÃO CONCORRÊNCIA' },
+      { type: 'p', text: '6.1. O PARCEIRO não poderá atuar em concorrência direta com a AURUM, utilizando-se do conhecimento adquirido nesta parceria para desviar clientes ou projetos para outras empresas do mesmo ramo, pelo período de 24 (vinte e quatro) meses após a vigência deste contrato.' },
+
+      { type: 'h2', text: 'CLÁUSULA SÉTIMA – DA VIGÊNCIA E FORO' },
+      { type: 'p', text: '7.1. O contrato tem vigência por prazo indeterminado, podendo ser rescindido por qualquer das partes mediante aviso prévio de 30 (trinta) dias.' },
+      { type: 'p', text: '7.2. Fica eleito o foro da Comarca de Salvador/BA para dirimir quaisquer dúvidas oriundas deste instrumento.' },
+
+      { type: 'right', text: '[{{CIDADE_ASSINATURA}}, ][{{DATA_ASSINATURA_EXT}}.]' },
+
+      { type: 'sign', text: 'AURUM EFICIÊNCIA FISCAL LTDA (Edney Viana Paixão)' },
+      { type: 'sign', mode: 'pj', text: '[{{REP_NOME}} ](Parceiro)' },
+      { type: 'sign', mode: 'pf', text: '[{{PF_NOME}} ](Parceiro)' }
+    ];
+
     /* =====================================================================
        CONTRACT_BLOCKS dinâmico — carrega do localStorage se houver edição.
        ===================================================================== */
-    const STORAGE_KEY = 'aurum_clausulas_cpp_v1';
+    /* Modelos de contrato disponíveis (selecionáveis nas abas). Cada modelo tem
+       seu próprio texto padrão e sua própria chave de edição no localStorage —
+       editar/restaurar um NÃO afeta o outro. */
+    const CONTRACT_MODELS = {
+      nova:   { storageKey: 'aurum_clausulas_cpp_v1',        blocks: DEFAULT_CONTRACT_BLOCKS },
+      antiga: { storageKey: 'aurum_clausulas_cpp_antiga_v1', blocks: DEFAULT_CONTRACT_BLOCKS_ANTIGA },
+    };
+    let currentContract = 'nova';
+    function modeloAtual() { return CONTRACT_MODELS[currentContract] || CONTRACT_MODELS.nova; }
 
     function loadClauses() {
+      const m = modeloAtual();
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(m.storageKey);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       } catch (e) { console.warn('Não foi possível ler cláusulas salvas:', e); }
-      return JSON.parse(JSON.stringify(DEFAULT_CONTRACT_BLOCKS));
+      return JSON.parse(JSON.stringify(m.blocks));
     }
     function persistClauses() {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(CONTRACT_BLOCKS)); }
+      try { localStorage.setItem(modeloAtual().storageKey, JSON.stringify(CONTRACT_BLOCKS)); }
       catch (e) { toast('Falha ao salvar localmente.'); }
     }
     let CONTRACT_BLOCKS = loadClauses();
@@ -1664,8 +1721,9 @@
 
     function restaurarClausulasPadrao() {
       if (!confirm('Restaurar TODAS as cláusulas para o texto padrão da Aurum? Suas edições serão perdidas.')) return;
-      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-      CONTRACT_BLOCKS = JSON.parse(JSON.stringify(DEFAULT_CONTRACT_BLOCKS));
+      const m = modeloAtual();
+      try { localStorage.removeItem(m.storageKey); } catch (e) {}
+      CONTRACT_BLOCKS = JSON.parse(JSON.stringify(m.blocks));
       renderClausulasEditor();
       schedulePreview();
       toast('Padrão restaurado ✓');
@@ -1733,9 +1791,14 @@
           toast('Esse contrato ainda não foi cadastrado.');
           return;
         }
+        const alvo = tab.dataset.contract;
+        if (!CONTRACT_MODELS[alvo] || alvo === currentContract) return;
         document.querySelectorAll('.contract-tabs .tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        // No futuro: trocar CONTRACT_BLOCKS conforme tab.dataset.contract
+        currentContract = alvo;
+        CONTRACT_BLOCKS = loadClauses();
+        if (modal.classList.contains('show')) renderClausulasEditor();
+        schedulePreview();
       });
     });
 
