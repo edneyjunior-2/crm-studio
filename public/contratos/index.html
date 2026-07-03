@@ -1119,6 +1119,16 @@
     let currentContract = 'nova';
     function modeloAtual() { return CONTRACT_MODELS[currentContract] || CONTRACT_MODELS.nova; }
 
+    /* Cláusulas efetivas de um modelo específico (edições salvas ou padrão). */
+    function clausulasDoModelo(key) {
+      const m = CONTRACT_MODELS[key] || CONTRACT_MODELS.nova;
+      try {
+        const raw = localStorage.getItem(m.storageKey);
+        if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p; }
+      } catch (e) {}
+      return m.blocks;
+    }
+
     function loadClauses() {
       const m = modeloAtual();
       try {
@@ -1292,8 +1302,8 @@
     }
 
     /* filtra os blocos pelo modo PJ/PF atual */
-    function activeBlocks() {
-      return CONTRACT_BLOCKS.filter(b => !b.mode || b.mode === currentMode);
+    function activeBlocks(src = CONTRACT_BLOCKS) {
+      return src.filter(b => !b.mode || b.mode === currentMode);
     }
 
     function countPendentes(data) {
@@ -1334,6 +1344,13 @@
 
       function drawTimbrado() {
         doc.addImage(TIMBRADO_DATA_URI, 'JPEG', 0, 0, pageW, pageH);
+        if (minuta) {
+          doc.setFont('times', 'italic');
+          doc.setFontSize(8.5);
+          doc.setTextColor(150, 150, 150);
+          doc.text('MINUTA — SUJEITA A REVISÃO', pageW / 2, marginTop - 5, { align: 'center' });
+          doc.setTextColor(0, 0, 0);
+        }
       }
       let y = marginTop;
       drawTimbrado();
@@ -1432,7 +1449,7 @@
         }
       }
 
-      const blocks = activeBlocks();
+      const blocks = activeBlocks(minuta ? clausulasDoModelo('antiga') : CONTRACT_BLOCKS);
       blocks.forEach((b, i, all) => drawBlock(b, i, all));
 
       const nomeParceiro = currentMode === 'pf' ? data.PF_NOME : data.PARCEIRO_RAZAO;
