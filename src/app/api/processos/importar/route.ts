@@ -84,8 +84,11 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
 
   // empresaId efetivo (tenant ativo p/ platform admin; empresa_id p/ usuário comum)
-  const { empresaId } = await getAuthUser()
+  const { empresaId, role } = await getAuthUser()
   if (!empresaId) return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 403 })
+  // Escreve via admin client abaixo (bypassa RLS) — o gate de papel tem que
+  // ser explícito aqui. Parceiro (externo, read-only) nunca importa processos.
+  if (role === 'parceiro') return NextResponse.json({ error: 'Sem permissão.' }, { status: 403 })
 
   let rows: ProcessoImportRow[]
   try {

@@ -14,8 +14,9 @@ export async function assinarPlano(
   _prev: AssinarPlanoState,
   formData: FormData,
 ): Promise<AssinarPlanoState> {
-  const { user, empresaId, status } = await getAuthUser()
+  const { user, empresaId, status, role } = await getAuthUser()
 
+  if (role === 'parceiro') return { error: 'Acesso negado.' }
   if (!empresaId) return { error: 'Conta sem empresa vinculada.' }
 
   // Apenas empresas em trial, suspenso ou cancelado podem assinar aqui

@@ -116,8 +116,14 @@ export function InviteUserForm() {
                   <SelectItem value="admin">Administrador</SelectItem>
                   <SelectItem value="socio">Sócio</SelectItem>
                   <SelectItem value="comercial">Comercial</SelectItem>
+                  <SelectItem value="parceiro">Parceiro</SelectItem>
                 </SelectContent>
               </Select>
+              {role === 'parceiro' && (
+                <p className="text-xs text-muted-foreground">
+                  Usuário externo — vê somente os processos vinculados a ele, somente leitura.
+                </p>
+              )}
             </div>
 
             <DialogFooter>

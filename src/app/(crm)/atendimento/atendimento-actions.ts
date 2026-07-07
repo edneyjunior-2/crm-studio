@@ -15,7 +15,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 async function authEmpresa(): Promise<{ empresaId: string }> {
   // Tenant EFETIVO: para platform admin é empresa_ativa_id; p/ usuário comum é empresa_id.
   // (Não reler profiles.empresa_id direto: daria vazio/órfão p/ platform admin.)
-  const { empresaId } = await getAuthUser()
+  const { empresaId, role } = await getAuthUser()
+  if (role === 'parceiro') throw new Error('Acesso negado.')
   if (!empresaId) redirect('/login')
   return { empresaId }
 }

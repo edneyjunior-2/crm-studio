@@ -59,7 +59,11 @@ const navItems: NavItem[] = [
     label: 'Dashboard',
     icon: LayoutDashboard,
     tourSlug: 'dashboard',
-    // sem modulo → infra, sempre visível
+    // sem modulo → infra, sempre visível para papéis internos.
+    // Parceiro (externo) é a exceção: dashboard mostra pipeline/financeiro do
+    // escritório inteiro — fora do escopo dele. A página também redireciona
+    // parceiro pra /processos por segurança; isto só esconde o item do menu.
+    roles: ['admin', 'socio', 'comercial'],
   },
   {
     href: '/atendimento',
@@ -214,6 +218,7 @@ const roleLabel: Record<Profile['role'], string> = {
   admin: 'Administrador',
   socio: 'Sócio',
   comercial: 'Comercial',
+  parceiro: 'Parceiro',
 }
 
 interface SidebarProps {

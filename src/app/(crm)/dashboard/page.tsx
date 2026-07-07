@@ -66,6 +66,10 @@ export default async function DashboardPage() {
   const { supabase, user, role, empresaId } = await getAuthUser()
   if (!user) redirect('/login')
 
+  // Parceiro (externo) não tem dashboard — mostraria pipeline/financeiro do
+  // escritório inteiro, fora do escopo dele. Home dele é a lista de processos.
+  if (role === 'parceiro') redirect('/processos')
+
   const today = todayISO()
   const sevenDaysLater = plusDaysISO(7)
 

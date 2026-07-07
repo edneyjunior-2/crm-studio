@@ -8,7 +8,8 @@ export async function uploadContrato(
   parceiroId: string,
   formData: FormData
 ): Promise<{ error?: string }> {
-  const { supabase } = await getAuthUser()
+  const { supabase, role } = await getAuthUser()
+  if (role === 'parceiro') return { error: 'Acesso negado.' }
 
   const file = formData.get('contrato') as File | null
   if (!file || file.size === 0) return { error: 'Nenhum arquivo selecionado.' }
@@ -66,7 +67,8 @@ export async function uploadContrato(
 export async function removeContrato(
   parceiroId: string
 ): Promise<{ error?: string }> {
-  const { supabase } = await getAuthUser()
+  const { supabase, role } = await getAuthUser()
+  if (role === 'parceiro') return { error: 'Acesso negado.' }
 
   const { data: parceiro, error: fetchError } = await supabase
     .from('parceiros')
@@ -98,7 +100,8 @@ export async function removeContrato(
 export async function getContratoUrl(
   parceiroId: string
 ): Promise<{ url?: string; error?: string }> {
-  const { supabase } = await getAuthUser()
+  const { supabase, role } = await getAuthUser()
+  if (role === 'parceiro') return { error: 'Acesso negado.' }
 
   const { data: parceiro, error: fetchError } = await supabase
     .from('parceiros')

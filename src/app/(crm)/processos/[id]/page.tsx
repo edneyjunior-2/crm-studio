@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Scale, Building2, User, MapPin, BookOpen, AlertCircle, Pencil, ArrowUpRight,
-  ClipboardList, Tag, Users,
+  ClipboardList, Tag, Users, Handshake,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -31,6 +31,15 @@ const AREA_LABEL: Record<string, string> = {
   administrativo: 'Administrativo',
   familia:        'Família e Sucessões',
   outro:          'Outro',
+}
+
+// Status legível para a badge read-only do portal do parceiro (sem ProcessoAcoes).
+const STATUS_LABEL: Record<string, string> = {
+  ativo:     'Ativo',
+  encerrado: 'Encerrado',
+  suspenso:  'Suspenso',
+  arquivado: 'Arquivado',
+  concluido: 'Concluído',
 }
 
 // data_movimentacao é um `date` ('YYYY-MM-DD'): parse direto dos componentes,
@@ -69,7 +78,8 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     .select(`
       *,
       clientes(id, razao_social),
-      profiles!advogado_id(id, full_name)
+      profiles!advogado_id(id, full_name),
+      parceiro:profiles!parceiro_id(id, full_name)
     `)
     .eq('id', id)
     .single()
@@ -117,6 +127,10 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     console.error('[processos] erro ao carregar movimentações:', errMov.message)
   }
   const podeExcluir = perfil?.role === 'admin'
+  // Parceiro (externo) enxerga só o básico deste processo — sem abas de
+  // documentos/prazos/honorários/partes/andamentos internos, sem ações de
+  // escrita. A RLS já nega os dados nas tabelas-filhas; isto é só a UI.
+  const isParceiro   = perfil?.role === 'parceiro'
 
   // E-mails via view profiles_auth (service-role) — NÃO admin.auth.admin.listUsers()
   // (GoTrue), que falha/retorna vazio em produção neste projeto.
@@ -134,11 +148,16 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     .map((p) => ({ id: p.id, nome: profileMap[p.id] ?? emailMap.get(p.id)!.split('@')[0], email: emailMap.get(p.id)! }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
-  const clienteRaw = processo.clientes as unknown
-  const advRaw     = (processo as Record<string, unknown>)['profiles!advogado_id'] as unknown
+  const clienteRaw  = processo.clientes as unknown
+  const advRaw      = (processo as Record<string, unknown>)['profiles!advogado_id'] as unknown
+  // "Parceiro" aqui = usuário portal (profiles.role='parceiro'), NÃO confundir
+  // com public.parceiros (indicador comercial sem login, usado no bloco
+  // "Indicação → Parceiro" abaixo — são dois conceitos distintos no produto).
+  const parceiroPortalRaw  = (processo as Record<string, unknown>).parceiro as unknown
   const clienteNome = (clienteRaw as { razao_social?: string } | null)?.razao_social ?? null
   const clienteId   = (clienteRaw as { id?: string } | null)?.id ?? null
   const advNome     = (advRaw as { full_name?: string } | null)?.full_name ?? null
+  const parceiroPortalNome = (parceiroPortalRaw as { full_name?: string } | null)?.full_name ?? null
 
   const partes = (processo.partes_raw as { polo: string; nome: string }[] | null) ?? []
 
@@ -223,16 +242,18 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           <ArrowLeft className="size-4" />
           Processos
         </Link>
-        <div className="flex items-center gap-2">
-          <SolicitarGuiaDialog processoId={id} numeroProcesso={processo.numero_processo} />
-          <Link
-            href={`/processos/${id}/editar`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            <Pencil className="size-3.5" />
-            Editar
-          </Link>
-        </div>
+        {!isParceiro && (
+          <div className="flex items-center gap-2">
+            <SolicitarGuiaDialog processoId={id} numeroProcesso={processo.numero_processo} />
+            <Link
+              href={`/processos/${id}/editar`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              <Pencil className="size-3.5" />
+              Editar
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Cabeçalho do processo */}
@@ -251,19 +272,26 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
               </p>
             </div>
           </div>
-          <ProcessoAcoes
-            processoId={id}
-            statusAtual={processo.status}
-            podeExcluir={podeExcluir}
-          />
+          {isParceiro ? (
+            <span className="inline-flex items-center rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm font-medium text-foreground">
+              {STATUS_LABEL[processo.status] ?? processo.status}
+            </span>
+          ) : (
+            <ProcessoAcoes
+              processoId={id}
+              statusAtual={processo.status}
+              podeExcluir={podeExcluir}
+            />
+          )}
         </div>
 
-        {/* Faixa de resumo (KPIs) */}
+        {/* Faixa de resumo (KPIs) — honorário e contagem de movimentações são
+            dados internos/de tabela-filha fechada pra parceiro (RLS); omitidos. */}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <Kpi label="Honorário" value={honorarioFmt} sub={honorarioSub} accent />
+          {!isParceiro && <Kpi label="Honorário" value={honorarioFmt} sub={honorarioSub} accent />}
           <Kpi label="Valor da causa" value={valorCausaFmt} />
           <Kpi label="Área" value={areaLabel} />
-          <Kpi label="Movimentações" value={String(movCount)} />
+          {!isParceiro && <Kpi label="Movimentações" value={String(movCount)} />}
           <Kpi label="Atualizado (DataJud)" value={ultimaAtt} />
         </div>
 
@@ -278,7 +306,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           {processo.comarca && (
             <InfoItem icon={MapPin} label="Comarca" value={processo.comarca} />
           )}
-          {clienteNome && clienteId ? (
+          {clienteNome && clienteId && !isParceiro ? (
             <Link
               href={`/clientes/${clienteId}`}
               className="group -m-1 flex items-start gap-2 rounded-lg p-1 transition-colors hover:bg-accent"
@@ -299,13 +327,16 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           {advNome && (
             <InfoItem icon={User} label="Advogado responsável" value={advNome} />
           )}
-          {!!(processo as Record<string, unknown>).indicacao && (
+          {!isParceiro && !!(processo as Record<string, unknown>).indicacao && (
             <InfoItem icon={Users} label="Indicação" value={String((processo as Record<string, unknown>).indicacao)} />
           )}
-          {!!(processo as Record<string, unknown>).polo_passivo_nome && (
+          {!isParceiro && parceiroPortalNome && (
+            <InfoItem icon={Handshake} label="Parceiro" value={parceiroPortalNome} />
+          )}
+          {!isParceiro && !!(processo as Record<string, unknown>).polo_passivo_nome && (
             <InfoItem icon={Users} label="Polo passivo" value={String((processo as Record<string, unknown>).polo_passivo_nome)} />
           )}
-          {!!(processo as Record<string, unknown>).advogado_adversario_nome && (
+          {!isParceiro && !!(processo as Record<string, unknown>).advogado_adversario_nome && (
             <InfoItem
               icon={User}
               label="Adv. adversário"
@@ -314,8 +345,8 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           )}
         </div>
 
-        {/* Dados do escritório (importados da planilha) */}
-        {(!!(processo as Record<string, unknown>).providencia || !!(processo as Record<string, unknown>).status_interno) && (
+        {/* Dados do escritório (importados da planilha) — nunca pra parceiro */}
+        {!isParceiro && (!!(processo as Record<string, unknown>).providencia || !!(processo as Record<string, unknown>).status_interno) && (
           <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Acompanhamento interno
@@ -343,8 +374,8 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Indicação → Parceiro */}
-        {indicacao && (
+        {/* Indicação → Parceiro (indicador comercial) — só pra time interno */}
+        {!isParceiro && indicacao && (
           <IndicacaoParceiroPrompt
             indicacao={indicacao}
             clienteId={clienteId}
@@ -353,8 +384,8 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           />
         )}
 
-        {/* Partes */}
-        {partes.length > 0 && (
+        {/* Partes — nunca pra parceiro */}
+        {!isParceiro && partes.length > 0 && (
           <div className="mt-5 border-t border-border pt-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Partes
@@ -373,8 +404,9 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      {/* Próximas Audiências */}
-      {audiencias.length > 0 && (
+      {/* Próximas Audiências — vêm de movimentacoes_processo, tabela-filha
+          fechada pra parceiro (RLS); a lista já chega vazia pra ele. */}
+      {!isParceiro && audiencias.length > 0 && (
         <div className="flex flex-col gap-3">
           <h3 className="text-base font-semibold text-foreground">Audiências</h3>
           <div className="flex flex-col gap-2">
@@ -407,44 +439,52 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Abas: Movimentações | Histórico Interno | Prazos | Documentos */}
-      <ProcessoDetalheTabs
-        processoId={id}
-        gruposTimeline={gruposTimeline}
-        recenteId={recenteId}
-        totalMov={movimentacoes?.length ?? 0}
-        movInternas={(movInternas ?? []).map((m) => {
-          const autorRaw = (m as Record<string, unknown>)['profiles!autor_id'] as { full_name?: string } | null
-          return {
-            id:         m.id,
-            assunto:    m.assunto as string,
-            descricao:  m.descricao as string | null,
-            created_at: m.created_at as string,
-            autor_nome: autorRaw?.full_name ?? null,
-          }
-        })}
-        prazos={(prazosRaw ?? []).map((p) => ({
-          id:               p.id,
-          descricao:        p.descricao as string,
-          data_prazo:       p.data_prazo as string,
-          cumprido:         p.cumprido as boolean,
-          responsavel_id:   p.responsavel_id as string | null,
-          responsavel_nome: ((p as Record<string, unknown>)['profiles!responsavel_id'] as { full_name?: string } | null)?.full_name ?? null,
-        }))}
-        documentos={(documentosRaw ?? []).map((d) => {
-          const autorRaw = (d as Record<string, unknown>)['profiles!autor_id'] as { full_name?: string } | null
-          return {
-            id:           d.id,
-            nome:         d.nome as string,
-            storage_path: d.storage_path as string,
-            mime_type:    d.mime_type as string | null,
-            tamanho:      d.tamanho as number | null,
-            created_at:   d.created_at as string,
-            autor_nome:   autorRaw?.full_name ?? null,
-          } satisfies DocItem
-        })}
-        membros={membros}
-      />
+      {/* Abas: Movimentações | Histórico Interno | Prazos | Documentos — todas
+          apoiadas em tabelas-filhas que a RLS fecha pra parceiro. Nem renderiza. */}
+      {isParceiro ? (
+        <div className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          Portal do parceiro: você vê os dados básicos deste processo. Documentos, prazos,
+          honorários e andamentos internos são de uso exclusivo do escritório.
+        </div>
+      ) : (
+        <ProcessoDetalheTabs
+          processoId={id}
+          gruposTimeline={gruposTimeline}
+          recenteId={recenteId}
+          totalMov={movimentacoes?.length ?? 0}
+          movInternas={(movInternas ?? []).map((m) => {
+            const autorRaw = (m as Record<string, unknown>)['profiles!autor_id'] as { full_name?: string } | null
+            return {
+              id:         m.id,
+              assunto:    m.assunto as string,
+              descricao:  m.descricao as string | null,
+              created_at: m.created_at as string,
+              autor_nome: autorRaw?.full_name ?? null,
+            }
+          })}
+          prazos={(prazosRaw ?? []).map((p) => ({
+            id:               p.id,
+            descricao:        p.descricao as string,
+            data_prazo:       p.data_prazo as string,
+            cumprido:         p.cumprido as boolean,
+            responsavel_id:   p.responsavel_id as string | null,
+            responsavel_nome: ((p as Record<string, unknown>)['profiles!responsavel_id'] as { full_name?: string } | null)?.full_name ?? null,
+          }))}
+          documentos={(documentosRaw ?? []).map((d) => {
+            const autorRaw = (d as Record<string, unknown>)['profiles!autor_id'] as { full_name?: string } | null
+            return {
+              id:           d.id,
+              nome:         d.nome as string,
+              storage_path: d.storage_path as string,
+              mime_type:    d.mime_type as string | null,
+              tamanho:      d.tamanho as number | null,
+              created_at:   d.created_at as string,
+              autor_nome:   autorRaw?.full_name ?? null,
+            } satisfies DocItem
+          })}
+          membros={membros}
+        />
+      )}
     </div>
   )
 }

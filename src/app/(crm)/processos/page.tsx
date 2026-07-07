@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Scale, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { ImportarExcelDialog } from './importar-excel-dialog'
 import { ProcessosPageContent } from './processos-page-content'
@@ -104,6 +105,11 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // Parceiro (externo) é read-only: sem criar/importar/sincronizar. A RLS já
+  // escopa a query abaixo só aos processos dele (processos_juridicos.parceiro_id).
+  const { role } = await getAuthUser()
+  const isParceiro = role === 'parceiro'
 
   const { tab } = await searchParams
   const isArquivadosTab = tab === 'arquivados'
@@ -303,20 +309,24 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
             Processos Jurídicos
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Acompanhe todos os processos e receba atualizações automáticas via DataJud.
+            {isParceiro
+              ? 'Acompanhe os processos vinculados a você.'
+              : 'Acompanhe todos os processos e receba atualizações automáticas via DataJud.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <SincronizarDataJudButton />
-          <ImportarExcelDialog />
-          <Link
-            href="/processos/novo"
-            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-foreground/90"
-          >
-            <Plus className="size-4" />
-            Novo processo
-          </Link>
-        </div>
+        {!isParceiro && (
+          <div className="flex items-center gap-2">
+            <SincronizarDataJudButton />
+            <ImportarExcelDialog />
+            <Link
+              href="/processos/novo"
+              className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-foreground/90"
+            >
+              <Plus className="size-4" />
+              Novo processo
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Tabs: Ativos | Arquivados / Concluídos */}
@@ -358,15 +368,19 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
           <Scale className="size-10 text-muted-foreground/40" />
           <div>
             <p className="text-sm font-medium text-foreground">Nenhum processo ativo</p>
-            <p className="mt-1 text-sm text-muted-foreground">Cadastre o primeiro processo do escritório.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isParceiro ? 'Nenhum processo vinculado a você até o momento.' : 'Cadastre o primeiro processo do escritório.'}
+            </p>
           </div>
-          <Link
-            href="/processos/novo"
-            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background"
-          >
-            <Plus className="size-4" />
-            Cadastrar processo
-          </Link>
+          {!isParceiro && (
+            <Link
+              href="/processos/novo"
+              className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background"
+            >
+              <Plus className="size-4" />
+              Cadastrar processo
+            </Link>
+          )}
         </div>
       )}
 

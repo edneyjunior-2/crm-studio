@@ -16,6 +16,7 @@ const ROLE_LABEL: Record<string, string> = {
   admin:     'Admin',
   socio:     'Sócio',
   comercial: 'Comercial',
+  parceiro:  'Parceiro',
 }
 
 export function UsuariosSection({ usuarios, empresaId }: { usuarios: Usuario[]; empresaId: string }) {

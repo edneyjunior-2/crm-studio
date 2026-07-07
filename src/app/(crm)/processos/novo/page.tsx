@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/auth'
 import { NovoProcessoForm } from './novo-processo-form'
 
 export default async function NovoProcessoPage() {
@@ -7,7 +8,11 @@ export default async function NovoProcessoPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: clientes }, { data: advogados }] = await Promise.all([
+  // Parceiro é read-only — RLS já bloqueia o insert, mas nem mostramos o form.
+  const { role } = await getAuthUser()
+  if (role === 'parceiro') redirect('/processos')
+
+  const [{ data: clientes }, { data: advogados }, { data: parceiros }] = await Promise.all([
     supabase
       .from('clientes')
       .select('id, razao_social')
@@ -15,6 +20,11 @@ export default async function NovoProcessoPage() {
     supabase
       .from('profiles')
       .select('id, full_name')
+      .order('full_name'),
+    supabase
+      .from('profiles')
+      .select('id, full_name')
+      .eq('role', 'parceiro')
       .order('full_name'),
   ])
 
@@ -32,6 +42,7 @@ export default async function NovoProcessoPage() {
       <NovoProcessoForm
         clientes={(clientes ?? []).map((c) => ({ id: c.id, razao_social: c.razao_social }))}
         advogados={(advogados ?? []).map((a) => ({ id: a.id, full_name: a.full_name }))}
+        parceiros={(parceiros ?? []).map((p) => ({ id: p.id, full_name: p.full_name }))}
       />
     </div>
   )

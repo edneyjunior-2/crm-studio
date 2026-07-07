@@ -7,7 +7,8 @@ import { getAuthUser } from '@/lib/auth'
 import { createEvent, deleteEvent, updateEvent, CALENDAR_ID } from '@/lib/google-calendar'
 
 export async function criarEvento(formData: FormData) {
-  const { user, empresaId } = await getAuthUser()
+  const { user, empresaId, role } = await getAuthUser()
+  if (role === 'parceiro') return { error: 'Acesso negado.' }
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const title = formData.get('title') as string
@@ -97,7 +98,8 @@ export async function editarEvento(
   eventId: string,
   formData: FormData,
 ): Promise<{ error?: string; success?: boolean }> {
-  const { user, empresaId } = await getAuthUser()
+  const { user, empresaId, role } = await getAuthUser()
+  if (role === 'parceiro') return { error: 'Acesso negado.' }
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const title = (formData.get('title') as string)?.trim()
@@ -291,6 +293,9 @@ export async function excluirEvento(eventId: string) {
   if (!user) return { error: 'Não autorizado' }
 
   const admin = createAdminClient()
+
+  const { data: perfil } = await admin.from('profiles').select('role').eq('id', user.id).single()
+  if (perfil?.role === 'parceiro') return { error: 'Acesso negado.' }
 
   const { data: eventoRegistrado } = await admin
     .from('calendario_eventos')

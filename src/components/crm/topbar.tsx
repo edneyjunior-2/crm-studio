@@ -106,7 +106,7 @@ export function Topbar({ profile, onMenuClick, isPlatformAdmin = false, empresaN
             {profile.full_name}
           </span>
           <span className="text-xs text-muted-foreground leading-tight">
-            {{ admin: 'Administrador', socio: 'Sócio', comercial: 'Comercial' }[profile.role] ?? profile.role}
+            {{ admin: 'Administrador', socio: 'Sócio', comercial: 'Comercial', parceiro: 'Parceiro' }[profile.role] ?? profile.role}
           </span>
         </div>
         <div className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground ring-2 ring-primary/20">

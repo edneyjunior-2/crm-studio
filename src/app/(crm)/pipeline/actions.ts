@@ -15,7 +15,7 @@ import {
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 type TipoEstagio = 'aberto' | 'ganho' | 'perdido'
-type AuthRole = 'admin' | 'socio' | 'comercial'
+type AuthRole = 'admin' | 'socio' | 'comercial' | 'parceiro'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

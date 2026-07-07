@@ -12,8 +12,11 @@ export async function DELETE(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-  const { empresaId } = await getAuthUser()
+  const { empresaId, role } = await getAuthUser()
   if (!empresaId) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 403 })
+  // Escreve via admin client abaixo (bypassa RLS) — o gate de papel tem que
+  // ser explícito aqui. Parceiro (externo, read-only) nunca exclui movimentação.
+  if (role === 'parceiro') return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 
   const admin = createAdminClient()
 

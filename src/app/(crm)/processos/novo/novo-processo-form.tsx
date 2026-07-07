@@ -13,6 +13,7 @@ interface Cliente { id: string; razao_social: string }
 interface Props {
   clientes:  Cliente[]
   advogados: { id: string; full_name: string }[]
+  parceiros: { id: string; full_name: string }[]
 }
 
 const AREAS = [
@@ -30,7 +31,7 @@ const inputClass =
   'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10'
 const labelClass = 'text-sm font-medium text-foreground'
 
-export function NovoProcessoForm({ clientes, advogados }: Props) {
+export function NovoProcessoForm({ clientes, advogados, parceiros }: Props) {
   const [state, action, isPending] = useActionState(criarProcesso, null)
 
   const [numeroInput, setNumeroInput] = useState('')
@@ -307,6 +308,22 @@ export function NovoProcessoForm({ clientes, advogados }: Props) {
             ))}
           </select>
         </div>
+
+        {/* Parceiro — quem trouxe o processo (opcional) */}
+        {parceiros.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass} htmlFor="parceiro_id">Parceiro (indicação)</label>
+            <select id="parceiro_id" name="parceiro_id" className={inputClass}>
+              <option value="">Nenhum</option>
+              {parceiros.map((p) => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Quem trouxe este processo. Ele passa a ver este processo no portal dele (só leitura).
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3 pt-2">

@@ -54,6 +54,7 @@ export default async function MinhaContaPage({
     admin: 'Administrador',
     socio: 'Sócio',
     comercial: 'Comercial',
+    parceiro: 'Parceiro',
   }
 
   return (

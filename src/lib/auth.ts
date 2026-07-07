@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-type Role = 'admin' | 'socio' | 'comercial'
+type Role = 'admin' | 'socio' | 'comercial' | 'parceiro'
 export type PlanoEmpresa = 'free' | 'trial' | 'interno' | 'starter' | 'pro' | 'business'
 export type StatusEmpresa = 'trial' | 'ativo' | 'pendente' | 'atrasado' | 'suspenso' | 'cancelado'
 

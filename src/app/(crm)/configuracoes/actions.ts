@@ -207,7 +207,7 @@ export async function excluirConta(
   redirect('/login?conta=excluida')
 }
 
-const roleSchema = z.enum(['admin', 'socio', 'comercial'])
+const roleSchema = z.enum(['admin', 'socio', 'comercial', 'parceiro'])
 
 export async function createUser(
   email: string,
@@ -220,6 +220,12 @@ export async function createUser(
   const roleResult = roleSchema.safeParse(role)
   if (!roleResult.success) return { error: 'Role inválido' }
   role = roleResult.data
+
+  // Parceiro é um usuário EXTERNO — a RBAC por usuário (modulos_permitidos)
+  // restringe o menu a Processos. A fronteira real é a RLS (parceiro_id =
+  // auth.uid() em processos_juridicos + zero acesso às tabelas-filhas), mas
+  // travar o menu aqui evita a UI confusa de mostrar módulos inacessíveis.
+  const modulosPermitidosConvite = role === 'parceiro' ? ['processos'] : undefined
 
   // Limite de plano: conta usuários (profiles) da empresa. -1 = ilimitado.
   const limiteUsuarios = LIMITES_POR_PLANO[plano].usuarios
@@ -273,7 +279,13 @@ export async function createUser(
 
   const { error: profileError } = await admin
     .from('profiles')
-    .upsert({ id: userId, full_name: fullName, role, empresa_id: empresaId })
+    .upsert({
+      id: userId,
+      full_name: fullName,
+      role,
+      empresa_id: empresaId,
+      ...(modulosPermitidosConvite ? { modulos_permitidos: modulosPermitidosConvite } : {}),
+    })
 
   if (profileError) {
     await admin.auth.admin.deleteUser(userId)
@@ -463,9 +475,15 @@ export async function updateUserRole(
     .single()
   if (!target || target.empresa_id !== empresaId) return { error: 'Usuário não encontrado.' }
 
+  // Virou parceiro (externo): trava o menu em Processos mesmo que antes tivesse
+  // acesso mais amplo (ou nenhuma restrição). Mesma lógica do convite direto —
+  // ver createUser. A RLS é quem garante o isolamento de dado; isto é só o menu.
+  const updatePayload: { role: string; modulos_permitidos?: string[] } = { role }
+  if (role === 'parceiro') updatePayload.modulos_permitidos = ['processos']
+
   const { error } = await supabase
     .from('profiles')
-    .update({ role })
+    .update(updatePayload)
     .eq('id', userId)
 
   if (error) return { error: error.message }

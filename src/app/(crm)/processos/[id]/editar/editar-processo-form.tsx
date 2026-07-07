@@ -16,6 +16,7 @@ interface ProcessoEdit {
   honorarios_valor: number | null
   cliente_id: string | null
   advogado_id: string | null
+  parceiro_id: string | null
   polo_passivo_nome:        string | null
   polo_passivo_cpf_cnpj:    string | null
   advogado_adversario_nome: string | null
@@ -26,6 +27,7 @@ interface Props {
   processo:  ProcessoEdit
   clientes:  { id: string; razao_social: string }[]
   advogados: { id: string; full_name: string }[]
+  parceiros: { id: string; full_name: string }[]
 }
 
 const AREAS = [
@@ -45,7 +47,7 @@ const labelClass = 'text-sm font-medium text-foreground'
 const brl = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
-export function EditarProcessoForm({ processo, clientes, advogados }: Props) {
+export function EditarProcessoForm({ processo, clientes, advogados, parceiros }: Props) {
   const [state, action, isPending] = useActionState(atualizarProcesso, null)
 
   const [valorCausa, setValorCausa] = useState(valorParaMascara(processo.valor_causa))
@@ -153,6 +155,20 @@ export function EditarProcessoForm({ processo, clientes, advogados }: Props) {
             {advogados.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
           </select>
         </div>
+
+        {/* Parceiro — quem trouxe o processo (opcional) */}
+        {parceiros.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <label className={labelClass} htmlFor="parceiro_id">Parceiro (indicação)</label>
+            <select id="parceiro_id" name="parceiro_id" defaultValue={processo.parceiro_id ?? ''} className={inputClass}>
+              <option value="">Nenhum</option>
+              {parceiros.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Quem trouxe este processo. Ele passa a ver este processo no portal dele (só leitura).
+            </p>
+          </div>
+        )}
 
         {/* Polo passivo */}
         <div className="flex flex-col gap-3 border-t border-border pt-4 sm:col-span-2">

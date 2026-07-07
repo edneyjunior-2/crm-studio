@@ -87,6 +87,10 @@ const roleBadge: Record<Role, { label: string; className: string }> = {
     label: 'Comercial',
     className: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300',
   },
+  parceiro: {
+    label: 'Parceiro',
+    className: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300',
+  },
 }
 
 function UserAvatar({ name }: { name: string }) {
@@ -188,6 +192,7 @@ function RoleSelect({
         <SelectItem value="admin">Administrador</SelectItem>
         <SelectItem value="socio">Sócio</SelectItem>
         <SelectItem value="comercial">Comercial</SelectItem>
+        <SelectItem value="parceiro">Parceiro</SelectItem>
       </SelectContent>
     </Select>
   )
