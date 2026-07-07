@@ -7,6 +7,7 @@ import { getAuthUser } from '@/lib/auth'
 import type { EstagioNegocio } from '@/types'
 import { negocioSchema } from '@/lib/schemas'
 import { deleteCalendarEvent } from '@/lib/google/calendar'
+import { getPipelineConfig } from '@/lib/pipeline-config'
 import {
   estornarFinanceiroDoNegocio,
   sincronizarFinanceiroDoNegocio,
@@ -14,6 +15,66 @@ import {
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 type TipoEstagio = 'aberto' | 'ganho' | 'perdido'
+type AuthRole = 'admin' | 'socio' | 'comercial'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Resolve o responsável de um negócio novo (create): aceita o escolhido no
+ * form, com fallback no criador. `comercial` nunca pode escolher outra pessoa
+ * — a RLS de `negocios` já trava isso (WITH CHECK responsavel_id = auth.uid()),
+ * então nem tentamos: evita um erro cru de RLS chegando na UI.
+ */
+async function resolverResponsavelCriacao(
+  supabase: SupabaseServerClient,
+  responsavelRaw: string,
+  criadorId: string,
+  role: AuthRole,
+): Promise<string> {
+  if (role === 'comercial') return criadorId
+  if (!responsavelRaw || !UUID_RE.test(responsavelRaw)) return criadorId
+  if (responsavelRaw === criadorId) return criadorId
+
+  const { data: alvo } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', responsavelRaw)
+    .maybeSingle()
+  return alvo ? responsavelRaw : criadorId
+}
+
+/**
+ * Resolve o responsável numa edição (update): mesmas regras da criação, mas
+ * quando o campo não vem no form (ex.: dialog de edição do kanban card, que
+ * ainda não tem o seletor) preserva o responsável ATUAL — nunca reatribui
+ * silenciosamente para quem está editando.
+ */
+async function resolverResponsavelEdicao(
+  supabase: SupabaseServerClient,
+  negocioId: string,
+  responsavelRaw: string,
+  editorId: string,
+  role: AuthRole,
+): Promise<string> {
+  if (role === 'comercial') return editorId
+  if (!responsavelRaw) {
+    const { data: atual } = await supabase
+      .from('negocios')
+      .select('responsavel_id')
+      .eq('id', negocioId)
+      .maybeSingle()
+    return (atual?.responsavel_id as string | undefined) ?? editorId
+  }
+  if (!UUID_RE.test(responsavelRaw)) return editorId
+  if (responsavelRaw === editorId) return editorId
+
+  const { data: alvo } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', responsavelRaw)
+    .maybeSingle()
+  return alvo ? responsavelRaw : editorId
+}
 
 /**
  * Resolve o tipo (aberto/ganho/perdido) de uma etapa do funil da empresa
@@ -77,17 +138,33 @@ export async function createNegocio(formData: FormData): Promise<{ error?: strin
   if (!auth.user) redirect('/login')
   const user = auth.user
 
+  const config = await getPipelineConfig(supabase, auth.empresaId)
+
+  const responsavelRaw = (formData.get('responsavel_id') as string) || ''
+  const responsavelId = await resolverResponsavelCriacao(supabase, responsavelRaw, user.id, auth.role)
+
   const rawData = Object.fromEntries(formData)
-  // responsavel_id é sempre o usuário autenticado — injetamos antes de validar
-  rawData.responsavel_id = user.id
+  rawData.responsavel_id = responsavelId
   const parsed = negocioSchema.safeParse(rawData)
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos' }
   }
 
+  if (config.exige_cliente && !parsed.data.cliente_id) {
+    return { error: 'Selecione um cliente para este negócio (ou desative essa exigência em Configurações → Pipeline / Negócios).' }
+  }
+
   const produtos = parseProdutos(formData)
-  const somaValor = produtos.reduce((acc, p) => acc + p.valor, 0)
-  const primeiraSolucaoId = produtos[0]?.solucao_id ?? (formData.get('solucao_id') as string)
+  // Só conta como "produto real" quem tem solução escolhida ou valor > 0 — evita
+  // gravar a linha vazia que o form sempre semeia quando o modo lead-rápido está ativo.
+  const produtosValidos = produtos.filter((p) => p.solucao_id || p.valor > 0)
+
+  if (config.exige_produto && produtosValidos.length === 0) {
+    return { error: 'Adicione ao menos um produto/solução (ou desative essa exigência em Configurações → Pipeline / Negócios).' }
+  }
+
+  const somaValor = produtosValidos.reduce((acc, p) => acc + p.valor, 0)
+  const primeiraSolucaoId = produtosValidos[0]?.solucao_id ?? null
 
   const probRaw = formData.get('probabilidade') as string
   const dataRaw = formData.get('data_previsao_fechamento') as string
@@ -100,9 +177,9 @@ export async function createNegocio(formData: FormData): Promise<{ error?: strin
     .from('negocios')
     .insert({
       titulo: formData.get('titulo') as string,
-      cliente_id: formData.get('cliente_id') as string,
+      cliente_id: parsed.data.cliente_id,
       solucao_id: primeiraSolucaoId,
-      responsavel_id: user.id,
+      responsavel_id: responsavelId,
       estagio: formData.get('estagio') as EstagioNegocio,
       valor_estimado: somaValor > 0 ? somaValor : null,
       probabilidade: probRaw ? Number(probRaw) : null,
@@ -118,8 +195,8 @@ export async function createNegocio(formData: FormData): Promise<{ error?: strin
   if (error) return { error: error.message }
 
   // Salva produtos se houver
-  if (negocioData?.id && produtos.length > 0 && auth.empresaId) {
-    const rows = produtos.map((p) => ({
+  if (negocioData?.id && produtosValidos.length > 0 && auth.empresaId) {
+    const rows = produtosValidos.map((p) => ({
       negocio_id: negocioData.id,
       empresa_id: auth.empresaId!,
       solucao_id: p.solucao_id,
@@ -143,17 +220,31 @@ export async function updateNegocio(
   if (!auth.user) redirect('/login')
   const user = auth.user
 
+  const config = await getPipelineConfig(supabase, auth.empresaId)
+
+  const responsavelRaw = (formData.get('responsavel_id') as string) || ''
+  const responsavelId = await resolverResponsavelEdicao(supabase, id, responsavelRaw, user.id, auth.role)
+
   const rawData = Object.fromEntries(formData)
-  // responsavel_id pode não estar no formData no update — injetamos para satisfazer o schema
-  if (!rawData.responsavel_id) rawData.responsavel_id = user.id
+  rawData.responsavel_id = responsavelId
   const parsed = negocioSchema.safeParse(rawData)
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos' }
   }
 
+  if (config.exige_cliente && !parsed.data.cliente_id) {
+    return { error: 'Selecione um cliente para este negócio (ou desative essa exigência em Configurações → Pipeline / Negócios).' }
+  }
+
   const produtos = parseProdutos(formData)
-  const somaValor = produtos.reduce((acc, p) => acc + p.valor, 0)
-  const primeiraSolucaoId = produtos[0]?.solucao_id ?? (formData.get('solucao_id') as string)
+  const produtosValidos = produtos.filter((p) => p.solucao_id || p.valor > 0)
+
+  if (config.exige_produto && produtosValidos.length === 0) {
+    return { error: 'Adicione ao menos um produto/solução (ou desative essa exigência em Configurações → Pipeline / Negócios).' }
+  }
+
+  const somaValor = produtosValidos.reduce((acc, p) => acc + p.valor, 0)
+  const primeiraSolucaoId = produtosValidos[0]?.solucao_id ?? null
 
   const probRaw = formData.get('probabilidade') as string
   const dataRaw = formData.get('data_previsao_fechamento') as string
@@ -180,7 +271,8 @@ export async function updateNegocio(
     .from('negocios')
     .update({
       titulo: formData.get('titulo') as string,
-      cliente_id: formData.get('cliente_id') as string,
+      cliente_id: parsed.data.cliente_id,
+      responsavel_id: responsavelId,
       estagio: estagioNovo,
       probabilidade: probRaw ? Number(probRaw) : null,
       data_previsao_fechamento: dataRaw || null,
@@ -204,44 +296,55 @@ export async function updateNegocio(
 
   // Substitui produtos: insert-primeiro, delete-depois — nunca deixa janela com zero produtos.
   // valor_estimado e solucao_id só são atualizados após o insert bem-sucedido.
-  if (auth.empresaId && produtos.length > 0) {
-    // 1) Captura IDs dos produtos actuais antes de qualquer alteração
-    const { data: produtosAtuais, error: selErr } = await supabase
-      .from('negocio_produtos')
-      .select('id')
-      .eq('negocio_id', id)
-    if (selErr) return { error: selErr.message }
-    const idsAntigos = (produtosAtuais ?? []).map((r) => r.id as string)
+  if (auth.empresaId) {
+    if (produtosValidos.length > 0) {
+      // 1) Captura IDs dos produtos actuais antes de qualquer alteração
+      const { data: produtosAtuais, error: selErr } = await supabase
+        .from('negocio_produtos')
+        .select('id')
+        .eq('negocio_id', id)
+      if (selErr) return { error: selErr.message }
+      const idsAntigos = (produtosAtuais ?? []).map((r) => r.id as string)
 
-    // 2) Insere os novos produtos
-    const rows = produtos.map((p) => ({
-      negocio_id: id,
-      empresa_id: auth.empresaId!,
-      solucao_id: p.solucao_id,
-      valor: p.valor,
-      ordem: p.ordem,
-    }))
-    const { data: novosInseridos, error: insErr } = await supabase
-      .from('negocio_produtos')
-      .insert(rows)
-      .select('id')
-    if (insErr) {
-      // Insert falhou: antigos ainda intactos; desfaz o que porventura inseriu.
-      // valor_estimado/solucao_id NÃO foram tocados — negócio permanece consistente.
-      const inseridos = novosInseridos as { id: string }[] | null
-      if (inseridos && inseridos.length > 0) {
-        const idsNovos = inseridos.map((r) => r.id)
-        await supabase.from('negocio_produtos').delete().in('id', idsNovos)
+      // 2) Insere os novos produtos
+      const rows = produtosValidos.map((p) => ({
+        negocio_id: id,
+        empresa_id: auth.empresaId!,
+        solucao_id: p.solucao_id,
+        valor: p.valor,
+        ordem: p.ordem,
+      }))
+      const { data: novosInseridos, error: insErr } = await supabase
+        .from('negocio_produtos')
+        .insert(rows)
+        .select('id')
+      if (insErr) {
+        // Insert falhou: antigos ainda intactos; desfaz o que porventura inseriu.
+        // valor_estimado/solucao_id NÃO foram tocados — negócio permanece consistente.
+        const inseridos = novosInseridos as { id: string }[] | null
+        if (inseridos && inseridos.length > 0) {
+          const idsNovos = inseridos.map((r) => r.id)
+          await supabase.from('negocio_produtos').delete().in('id', idsNovos)
+        }
+        return { error: insErr.message }
       }
-      return { error: insErr.message }
-    }
 
-    // 3) Insert bem-sucedido: remove os antigos (se havia algum)
-    if (idsAntigos.length > 0) {
+      // 3) Insert bem-sucedido: remove os antigos (se havia algum)
+      if (idsAntigos.length > 0) {
+        const { error: delErr } = await supabase
+          .from('negocio_produtos')
+          .delete()
+          .in('id', idsAntigos)
+        if (delErr) return { error: delErr.message }
+      }
+    } else {
+      // Lead-rápido (exige_produto=false e nenhum produto real informado): remove
+      // qualquer produto pré-existente — só chega aqui quando exige_produto=false,
+      // já validado acima.
       const { error: delErr } = await supabase
         .from('negocio_produtos')
         .delete()
-        .in('id', idsAntigos)
+        .eq('negocio_id', id)
       if (delErr) return { error: delErr.message }
     }
 

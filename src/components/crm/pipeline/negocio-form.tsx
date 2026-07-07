@@ -23,8 +23,10 @@ import {
 } from '@/components/ui/select'
 import { createNegocio, updateNegocio } from '@/app/(crm)/pipeline/actions'
 import { getNegocioProdutos } from '@/app/(crm)/pipeline/produtos-actions'
-import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao, Parceiro, Profile } from '@/types'
+import { ClienteCombobox } from '@/components/crm/pipeline/cliente-combobox'
+import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao, Parceiro, Profile, Role } from '@/types'
 import type { EstagioPipeline } from '@/lib/pipeline-estagios'
+import { PIPELINE_CONFIG_DEFAULT, type PipelineConfig } from '@/lib/pipeline-config'
 
 // ── Utilidades de formatação BR ──────────────────────────────────────────────
 
@@ -97,6 +99,12 @@ interface NegocioFormProps {
   defaultEstagio?: EstagioNegocio
   parceiros?: Pick<Parceiro, 'id' | 'nome'>[]
   membrosTime?: Pick<Profile, 'id' | 'full_name'>[]
+  /** Obrigatórios configuráveis (empresas.config.pipeline). Default preserva o comportamento atual. */
+  pipelineConfig?: PipelineConfig
+  /** Usuário autenticado — default do seletor de responsável (fallback = criador). */
+  currentUserId: string
+  /** Role do usuário autenticado — comercial nunca pode reatribuir (RLS trava; UI nem oferece). */
+  currentUserRole: Role
 }
 
 // ── Componente ───────────────────────────────────────────────────────────────
@@ -110,6 +118,9 @@ export function NegocioForm({
   defaultEstagio,
   parceiros = [],
   membrosTime = [],
+  pipelineConfig = PIPELINE_CONFIG_DEFAULT,
+  currentUserId,
+  currentUserRole,
 }: NegocioFormProps) {
   const uid = useId()
   const [open, setOpen] = useState(false)
@@ -121,6 +132,10 @@ export function NegocioForm({
     negocio?.estagio ?? defaultEstagio ?? (estagios.find((e) => e.tipo === 'aberto')?.slug ?? estagios[0]?.slug ?? '') as EstagioNegocio
   )
   const [clienteId, setClienteId] = useState<string | null>(negocio?.cliente_id ?? null)
+  const [responsavelId, setResponsavelId] = useState<string | null>(
+    negocio?.responsavel_id ?? currentUserId ?? null
+  )
+  const podeEscolherResponsavel = currentUserRole !== 'comercial' && membrosTime.length > 0
 
   // ── Produtos (linha repetível) ────────────────────────────────────────────
   const [produtos, setProdutos] = useState<ProdutoLinha[]>([
@@ -225,7 +240,8 @@ export function NegocioForm({
 
     formData.set('estagio', estagio)
     formData.set('cliente_id', clienteId ?? '')
-    // solucao_id = primeira solução (NOT NULL no banco)
+    formData.set('responsavel_id', responsavelId ?? '')
+    // solucao_id = primeira solução escolhida (opcional — respeita exige_produto)
     formData.set('solucao_id', primeiraSolucaoId)
 
     // Serializa produtos
@@ -260,6 +276,7 @@ export function NegocioForm({
         const primeiroAberto = estagios.find((e) => e.tipo === 'aberto')?.slug ?? estagios[0]?.slug ?? ''
         setEstagio((defaultEstagio ?? primeiroAberto) as EstagioNegocio)
         setClienteId(null)
+        setResponsavelId(currentUserId ?? null)
         setProdutos([novaProdutoLinha()])
         setProdutosCarregados(false)
         setIndicadorValue('')
@@ -298,32 +315,26 @@ export function NegocioForm({
               />
             </div>
 
-            {/* Cliente + Estágio */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label>
-                  Cliente <span className="text-destructive">*</span>
-                </Label>
-                <Select value={clienteId} onValueChange={setClienteId}>
-                  <SelectTrigger className="w-full">
-                    {clienteId ? (
-                      <span className="flex flex-1 truncate text-left">
-                        {clientes.find((c) => c.id === clienteId)?.razao_social ?? '—'}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Selecione...</span>
-                    )}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.razao_social}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Cliente — seletor com busca + cadastro inline */}
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                Cliente {pipelineConfig.exige_cliente && <span className="text-destructive">*</span>}
+              </Label>
+              <ClienteCombobox
+                clientes={clientes}
+                value={clienteId}
+                onChange={setClienteId}
+                required={pipelineConfig.exige_cliente}
+              />
+              {!pipelineConfig.exige_cliente && (
+                <p className="text-xs text-muted-foreground">
+                  Opcional — deixe em branco para um cadastro rápido (ex.: lead do WhatsApp).
+                </p>
+              )}
+            </div>
 
+            {/* Estágio + Responsável */}
+            <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label>
                   Estágio <span className="text-destructive">*</span>
@@ -346,12 +357,45 @@ export function NegocioForm({
                   </SelectContent>
                 </Select>
               </div>
+
+              {podeEscolherResponsavel && (
+                <div className="flex flex-col gap-1.5">
+                  <Label>
+                    Responsável {pipelineConfig.exige_responsavel && <span className="text-destructive">*</span>}
+                  </Label>
+                  <Select value={responsavelId} onValueChange={setResponsavelId}>
+                    <SelectTrigger className="w-full">
+                      {responsavelId ? (
+                        <span className="flex flex-1 truncate text-left">
+                          {membrosTime.find((m) => m.id === responsavelId)?.full_name ?? '—'}
+                          {responsavelId === currentUserId ? ' (você)' : ''}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Selecione...</span>
+                      )}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {membrosTime.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.full_name}
+                          {m.id === currentUserId ? ' (você)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {/* ── PRODUTOS ─────────────────────────────────────────────────── */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <Label>Produtos / Soluções</Label>
+                <Label>
+                  Produtos / Soluções {pipelineConfig.exige_produto && <span className="text-destructive">*</span>}
+                  {!pipelineConfig.exige_produto && (
+                    <span className="font-normal text-muted-foreground">(opcional)</span>
+                  )}
+                </Label>
                 {isLoadingProdutos && (
                   <span className="text-xs text-muted-foreground">Carregando...</span>
                 )}
@@ -528,7 +572,13 @@ export function NegocioForm({
               </DialogClose>
               <Button
                 type="submit"
-                disabled={isPending || isLoadingProdutos || erroProdutos || !clienteId || !primeiraSolucaoId}
+                disabled={
+                  isPending ||
+                  isLoadingProdutos ||
+                  erroProdutos ||
+                  (pipelineConfig.exige_cliente && !clienteId) ||
+                  (pipelineConfig.exige_produto && !primeiraSolucaoId)
+                }
               >
                 {isPending
                   ? 'Salvando...'

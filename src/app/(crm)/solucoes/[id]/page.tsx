@@ -3,19 +3,23 @@ import Link from 'next/link'
 import {
   ArrowLeft,
   Building2,
+  Download,
   FileText,
   Percent,
   Pencil,
   TrendingUp,
+  Users,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SolucaoForm } from '@/components/crm/solucoes/solucao-form'
 import { SolucaoDeleteButton } from '@/components/crm/solucoes/solucao-delete-button'
+import { ClientesDaSolucao } from '@/components/crm/solucoes/clientes-da-solucao'
 import type { Solucao, Negocio } from '@/types'
 import { listarEstagios } from '@/lib/pipeline-estagios'
 import { mapaEstagios, corPorTipo } from '@/lib/estagios-ui'
+import { listarClientesDaSolucao } from '@/lib/solucao-clientes'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -36,7 +40,7 @@ export default async function SolucaoDetailPage({ params }: PageProps) {
 
   const isAdmin = profile?.role === 'admin'
 
-  const [solucaoResult, negociosResult, estagios] = await Promise.all([
+  const [solucaoResult, negociosResult, estagios, clientes] = await Promise.all([
     supabase.from('solucoes').select('*').eq('id', id).single(),
     supabase
       .from('negocios')
@@ -44,6 +48,7 @@ export default async function SolucaoDetailPage({ params }: PageProps) {
       .eq('solucao_id', id)
       .order('created_at', { ascending: false }),
     listarEstagios(),
+    listarClientesDaSolucao(id),
   ])
 
   const mapa = mapaEstagios(estagios)
@@ -84,6 +89,10 @@ export default async function SolucaoDetailPage({ params }: PageProps) {
               <Badge variant={solucao.ativo ? 'default' : 'outline'}>
                 {solucao.ativo ? 'Ativa' : 'Inativa'}
               </Badge>
+              <Badge variant="outline" className="gap-1">
+                <Users className="size-3" />
+                {clientes.length} {clientes.length === 1 ? 'cliente' : 'clientes'}
+              </Badge>
             </div>
             {solucao.empresa_representada && (
               <p className="text-sm text-muted-foreground">
@@ -93,20 +102,30 @@ export default async function SolucaoDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <SolucaoForm
-              solucao={solucao}
-              trigger={
-                <Button variant="outline">
-                  <Pencil className="size-4" />
-                  Editar
-                </Button>
-              }
-            />
-            <SolucaoDeleteButton id={solucao.id} nome={solucao.nome} />
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={`/solucoes/${solucao.id}/pdf`} target="_blank" />}
+          >
+            <Download className="size-4" />
+            Exportar PDF
+          </Button>
+          {isAdmin && (
+            <>
+              <SolucaoForm
+                solucao={solucao}
+                trigger={
+                  <Button variant="outline">
+                    <Pencil className="size-4" />
+                    Editar
+                  </Button>
+                }
+              />
+              <SolucaoDeleteButton id={solucao.id} nome={solucao.nome} />
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -145,6 +164,8 @@ export default async function SolucaoDetailPage({ params }: PageProps) {
         </div>
 
         <div className="col-span-1 flex flex-col gap-4">
+          <ClientesDaSolucao clientes={clientes} />
+
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">

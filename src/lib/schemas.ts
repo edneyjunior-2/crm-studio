@@ -90,8 +90,23 @@ export const contaReceberSchema = z.object({
 
 export const negocioSchema = z.object({
   titulo: z.string().min(1, 'Título obrigatório').max(255),
-  cliente_id: z.string().uuid('Cliente obrigatório'),
-  solucao_id: z.string().uuid('Solução obrigatória'),
+  // Opcionais no schema: o Zod não sabe o tenant. A exigência de fato (quando
+  // configurada em empresas.config.pipeline) é validada dinamicamente em
+  // createNegocio/updateNegocio (src/app/(crm)/pipeline/actions.ts).
+  cliente_id: z
+    .string()
+    .uuid('Cliente inválido')
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .transform((v) => v || null),
+  solucao_id: z
+    .string()
+    .uuid('Solução inválida')
+    .optional()
+    .nullable()
+    .or(z.literal(''))
+    .transform((v) => v || null),
   responsavel_id: z.string().uuid('Responsável obrigatório'),
   estagio: z.string().min(1, 'Selecione a etapa'),
   valor_estimado: z.coerce.number().min(0).optional().nullable(),

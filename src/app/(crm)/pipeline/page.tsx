@@ -3,28 +3,35 @@ import { Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { listarEstagios } from '@/lib/pipeline-estagios'
+import { getAuthUser } from '@/lib/auth'
+import { getPipelineConfig } from '@/lib/pipeline-config'
 import { Button } from '@/components/ui/button'
 import { KanbanBoard } from '@/components/crm/pipeline/kanban-board'
 import { NegocioForm } from '@/components/crm/pipeline/negocio-form'
-import type { NegocioComRelacoes, Cliente, Solucao, Parceiro, Profile } from '@/types'
+import type { NegocioComRelacoes, Cliente, Solucao, Parceiro, Profile, Role } from '@/types'
 
 export default async function PipelinePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // empresaId EFETIVO (empresa_ativa_id p/ platform admin) — nunca ler
+  // profiles.empresa_id direto aqui (ver studio-padroes-multitenant-rls).
+  const auth = await getAuthUser()
+
   // Carrega etapas dinâmicas do tenant junto com o restante em paralelo
   const now = new Date()
   // Primeiro dia do mês corrente em formato YYYY-MM-DD (sem toISOString, para evitar virada de UTC)
   const primeiroDiaMes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [estagios, solucoesResult, profileResult, profileGoogleResult, parceirosResult, profilesResult] = await Promise.all([
+  const [estagios, solucoesResult, profileResult, profileGoogleResult, parceirosResult, profilesResult, pipelineConfig] = await Promise.all([
     listarEstagios(),
     supabase.from('solucoes').select('id, nome').eq('ativo', true).order('nome'),
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     supabase.from('profiles').select('google_refresh_token').eq('id', user.id).single(),
     supabase.from('parceiros').select('id, nome').order('nome'),
     supabase.from('profiles').select('id, full_name').order('full_name'),
+    getPipelineConfig(supabase, auth.empresaId),
   ])
 
   // Slugs das etapas de fechamento (ganho ou perdido) — para filtro dinâmico
@@ -83,7 +90,7 @@ export default async function PipelinePage() {
     )
   }
 
-  const role = profileResult.data?.role
+  const role = (profileResult.data?.role ?? 'comercial') as Role
 
   // comercial vê apenas os próprios negócios — RLS garante no banco,
   // mas filtramos em JS também para caso RLS não esteja habilitada
@@ -112,6 +119,9 @@ export default async function PipelinePage() {
           estagios={estagios}
           parceiros={parceiros}
           membrosTime={membrosTime}
+          pipelineConfig={pipelineConfig}
+          currentUserId={user.id}
+          currentUserRole={role}
           trigger={
             <Button>
               <Plus className="size-4" />
@@ -129,6 +139,7 @@ export default async function PipelinePage() {
         googleConnected={googleConnected}
         parceiros={parceiros}
         membrosTime={membrosTime}
+        pipelineConfig={pipelineConfig}
       />
     </div>
   )

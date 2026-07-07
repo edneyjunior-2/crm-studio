@@ -41,6 +41,7 @@ import { RegistrarReuniaoDialog } from './registrar-reuniao-dialog'
 import { BotaoLembrete } from './botao-lembrete'
 import type { NegocioComRelacoes, EstagioNegocio, Cliente, Solucao, Periodicidade, Parceiro, Profile } from '@/types'
 import type { EstagioPipeline } from '@/lib/pipeline-estagios'
+import { PIPELINE_CONFIG_DEFAULT, type PipelineConfig } from '@/lib/pipeline-config'
 
 // ── Helpers de valor BR ───────────────────────────────────────────────────────
 
@@ -187,9 +188,10 @@ interface NegocioCardProps {
   onMoverPara?: (slug: string) => void
   parceiros?: Pick<Parceiro, 'id' | 'nome'>[]
   membrosTime?: Pick<Profile, 'id' | 'full_name'>[]
+  pipelineConfig?: PipelineConfig
 }
 
-export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart, googleConnected, onMoverPara, parceiros = [], membrosTime = [] }: NegocioCardProps) {
+export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart, googleConnected, onMoverPara, parceiros = [], membrosTime = [], pipelineConfig = PIPELINE_CONFIG_DEFAULT }: NegocioCardProps) {
   const [deleteIsPending, startDeleteTransition] = useTransition()
   const [editIsPending, startEditTransition] = useTransition()
   const [emailIsPending, startEmailTransition] = useTransition()
@@ -682,9 +684,9 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
             {/* Cliente */}
             <div className="flex flex-col gap-1.5">
               <Label>
-                Cliente <span className="text-destructive">*</span>
+                Cliente {pipelineConfig.exige_cliente && <span className="text-destructive">*</span>}
               </Label>
-              <Select value={clienteId} onValueChange={setClienteId}>
+              <Select value={clienteId ?? ''} onValueChange={(v) => setClienteId(v || null)}>
                 <SelectTrigger className="w-full">
                   {clienteId ? (
                     <span className="flex flex-1 truncate text-left">
@@ -695,6 +697,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
                   )}
                 </SelectTrigger>
                 <SelectContent>
+                  {!pipelineConfig.exige_cliente && <SelectItem value="">Nenhum</SelectItem>}
                   {clientes.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.razao_social}
@@ -729,7 +732,12 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
             {/* ── PRODUTOS ────────────────────────────────────────────────── */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <Label>Produtos / Soluções</Label>
+                <Label>
+                  Produtos / Soluções {pipelineConfig.exige_produto && <span className="text-destructive">*</span>}
+                  {!pipelineConfig.exige_produto && (
+                    <span className="font-normal text-muted-foreground">(opcional)</span>
+                  )}
+                </Label>
                 {isLoadingProdutos && (
                   <span className="text-xs text-muted-foreground">Carregando...</span>
                 )}
@@ -893,7 +901,16 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
               <DialogClose render={<Button variant="outline" type="button" />}>
                 Cancelar
               </DialogClose>
-              <Button type="submit" disabled={editIsPending || isLoadingProdutos || erroProdutos || !clienteId || !primeiraSolucaoId}>
+              <Button
+                type="submit"
+                disabled={
+                  editIsPending ||
+                  isLoadingProdutos ||
+                  erroProdutos ||
+                  (pipelineConfig.exige_cliente && !clienteId) ||
+                  (pipelineConfig.exige_produto && !primeiraSolucaoId)
+                }
+              >
                 {editIsPending ? 'Salvando...' : 'Salvar alterações'}
               </Button>
             </DialogFooter>

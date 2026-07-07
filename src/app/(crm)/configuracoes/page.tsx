@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { Settings, LayoutDashboard, GitMerge } from 'lucide-react'
+import { Settings, LayoutDashboard, GitMerge, Briefcase } from 'lucide-react'
 import { CodigoAcesso } from '@/components/crm/configuracoes/codigo-acesso'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -18,6 +18,8 @@ import type { PlanoEmpresa } from '@/lib/auth'
 import type { Profile, Role } from '@/types'
 import { listarEstagios } from '@/lib/pipeline-estagios'
 import { EtapasConfig } from '@/components/crm/configuracoes/etapas-config'
+import { getPipelineConfig } from '@/lib/pipeline-config'
+import { PipelineConfigSection } from '@/components/crm/configuracoes/pipeline-config-section'
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient()
@@ -77,6 +79,9 @@ export default async function ConfiguracoesPage() {
 
   // Etapas do funil — só as ativas (false = sem inativos)
   const estagios = await listarEstagios(false)
+
+  // Obrigatórios do form de negócio (empresas.config.pipeline) — defaults quando não configurado
+  const pipelineConfig = await getPipelineConfig(supabase, empresaId)
 
   const profiles: Profile[] = (profilesResult.data ?? []) as Profile[]
   const authInfo = (authUsersResult.data ?? []) as { id: string; email: string | null; last_sign_in_at: string | null }[]
@@ -234,6 +239,26 @@ export default async function ConfiguracoesPage() {
               Toda etapa deve ter pelo menos um tipo <strong>Ganho</strong> e um tipo <strong>Perdido</strong>.
             </p>
             <EtapasConfig estagios={estagios} />
+          </div>
+        </details>
+      </section>
+
+      <section>
+        <details className="group rounded-xl border border-border">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 marker:hidden">
+            <div className="flex items-center gap-2">
+              <Briefcase className="size-4 text-muted-foreground" />
+              <span className="text-base font-medium text-foreground">Pipeline / Negócios</span>
+            </div>
+            <svg
+              className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+              xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </summary>
+          <div className="flex flex-col gap-4 border-t border-border px-5 pb-5 pt-4">
+            <PipelineConfigSection config={pipelineConfig} />
           </div>
         </details>
       </section>
