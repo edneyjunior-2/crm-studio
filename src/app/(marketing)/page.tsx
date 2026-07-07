@@ -4,13 +4,14 @@ import { ShowcaseWrapper } from '@/components/marketing/showcase-wrapper'
 import { FeaturesGrid } from '@/components/marketing/features-grid'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { FinancialSpotlight } from '@/components/marketing/financial-spotlight'
+import { Objecoes } from '@/components/marketing/objecoes'
 import { SocialProof } from '@/components/marketing/social-proof'
 import { FinalCta } from '@/components/marketing/final-cta'
 
 export const metadata = {
-  title: 'CRM Studio · Vendas, financeiro e equipe em um só lugar',
+  title: 'CRM Studio · Saia das planilhas e organize todo o seu negócio',
   description:
-    'CRM brasileiro para PMEs: pipeline de vendas, financeiro nativo e calendário integrado ao Google. A venda que fecha vira dinheiro no caixa.',
+    'CRM brasileiro para PMEs: tire vendas, financeiro, contratos e equipe do Excel e coloque num sistema só. Preço fixo por empresa, versões prontas pra advocacia e engenharia. Teste grátis 14 dias, sem cartão.',
 }
 
 export default function HomePage() {
@@ -34,10 +35,13 @@ export default function HomePage() {
       {/* 6. Spotlight financeiro — a história venda → caixa */}
       <FinancialSpotlight />
 
-      {/* 7. Prova social com contadores animados */}
+      {/* 7. Quebra de objeções — antes de largar a planilha */}
+      <Objecoes />
+
+      {/* 8. Prova social com contadores animados */}
       <SocialProof />
 
-      {/* 8. CTA final impactante */}
+      {/* 9. CTA final impactante */}
       <FinalCta />
     </>
   )

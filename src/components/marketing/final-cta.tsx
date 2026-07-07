@@ -37,12 +37,12 @@ export function FinalCta() {
           transition={{ duration: 0.65, ease: EASE_OUT }}
         >
           <h2 className="mx-auto max-w-3xl text-[clamp(2.2rem,5vw,4rem)] font-bold leading-[1.01] tracking-[-0.035em]">
-            Comece a organizar seu negócio{' '}
-            <span className="text-accent">hoje.</span>
+            Feche a planilha.{' '}
+            <span className="text-accent">Abra o CRM Studio.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-md text-[17px] leading-relaxed text-primary-foreground/70">
-            Ative os módulos que você precisa. Configuração em menos de 30 minutos.
-            Sem cartão para começar.
+            14 dias grátis pra colocar toda a operação no lugar. Sem cartão, sem
+            instalação, sem consultor. Preço fixo por empresa quando você continuar.
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -63,7 +63,7 @@ export function FinalCta() {
 
           {/* Sub-garantia */}
           <p className="mt-6 text-sm text-primary-foreground/50">
-            7 dias grátis - sem cartão - suporte em PT-BR
+            14 dias grátis · sem cartão · suporte em português
           </p>
         </motion.div>
       </div>

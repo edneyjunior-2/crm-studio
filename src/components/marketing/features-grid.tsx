@@ -31,50 +31,50 @@ const GRUPOS: Grupo[] = [
     features: [
       {
         icon: TrendingUp,
-        title: 'Pipeline de vendas',
-        desc: 'Funil visual com arrastar e soltar, probabilidade de fechamento e histórico de cada oportunidade. Do lead ao contrato.',
+        title: 'Nenhuma venda esquecida numa aba',
+        desc: 'Funil visual de arrastar e soltar no lugar da planilha de follow-up: cada oportunidade com etapa, valor e histórico. Você vê o que vai fechar sem abrir dez arquivos.',
       },
       {
         icon: Landmark,
-        title: 'Financeiro integrado',
-        desc: 'Contas a pagar e a receber conectadas às operações. Fluxo de caixa em tempo real, sem dupla entrada em lugar nenhum.',
+        title: 'O caixa fecha sozinho',
+        desc: 'Contas a pagar e a receber conectadas à venda. A negociação que fecha já vira dinheiro previsto no caixa — sem redigitar nada em outra planilha.',
         accent: true,
       },
       {
         icon: MessageSquare,
-        title: 'Chat Inbox · WhatsApp',
-        desc: 'Atendimento centralizado com histórico por cliente. A equipe inteira responde num só lugar, sem misturar com o celular pessoal.',
+        title: 'O atendimento não some no WhatsApp pessoal',
+        desc: 'Toda conversa por cliente, num só lugar, com histórico. A equipe inteira responde sem misturar com o celular de ninguém — e nada se perde quando alguém sai.',
       },
       {
         icon: Users,
-        title: 'Clientes e relacionamentos',
-        desc: 'Histórico completo, contatos e atividades por cliente. Busca automática de CNPJ e controle de toda a carteira.',
+        title: 'A carteira inteira num só lugar',
+        desc: 'Histórico, contatos e atividades por cliente, com busca automática de CNPJ. Fim da lista de contatos espalhada em três planilhas diferentes.',
       },
       {
         icon: CalendarDays,
-        title: 'Agenda e atividades',
-        desc: 'Reuniões, tarefas e lembretes sincronizados com o Google Calendar de cada usuário. Nunca perca um compromisso.',
+        title: 'Nenhum compromisso perdido',
+        desc: 'Tarefas, reuniões e lembretes sincronizados com o Google Calendar de cada pessoa. O que era anotação solta vira agenda que cobra você.',
       },
       {
         icon: FileSignature,
-        title: 'Contratos',
-        desc: 'Gerador de contratos white-label, com a sua marca e os seus modelos. O parceiro entra no cadastro automaticamente, sem retrabalho.',
+        title: 'Contrato pronto, com a sua marca',
+        desc: 'Gera contratos white-label a partir dos seus modelos e já cadastra o cliente. O que levava uma tarde de copiar-e-colar sai em minutos.',
       },
       {
         icon: Package,
-        title: 'Estoque e operações',
-        desc: 'Controle de produtos, saldo e movimentações conectados às operações. Add-on no Pro, incluso no Business.',
+        title: 'Estoque que bate com a realidade',
+        desc: 'Produtos, saldo e movimentações ligados às operações. Chega de contar no olho e conferir numa planilha desatualizada. Add-on no Pro, incluso no Business.',
       },
       {
         icon: Bot,
-        title: 'SDR WhatsApp · IA',
-        desc: 'Agente de IA que prospecta, qualifica leads e os lança direto no pipeline automaticamente. Add-on disponível em qualquer plano.',
+        title: 'Um vendedor de IA trabalhando 24h',
+        desc: 'Agente de IA que prospecta, qualifica e joga o lead direto no seu funil — sem você mexer numa planilha de leads. Add-on disponível em qualquer plano.',
       },
     ],
   },
   {
     label: 'Para advocacia',
-    sub: 'Escritórios e departamentos jurídicos.',
+    sub: 'Escritórios e departamentos jurídicos. Plano vertical a partir de R$ 247/mês.',
     features: [
       {
         icon: Scale,
@@ -101,7 +101,7 @@ const GRUPOS: Grupo[] = [
   },
   {
     label: 'Para engenharia e obras',
-    sub: 'Construção civil e gestão de obras.',
+    sub: 'Construção civil e gestão de obras. Plano vertical a partir de R$ 347/mês.',
     features: [
       {
         icon: HardHat,
@@ -189,13 +189,14 @@ export function FeaturesGrid() {
           transition={{ duration: 0.6, ease: EASE_OUT }}
         >
           <h2 className="text-[clamp(1.9rem,4vw,3rem)] font-bold leading-[1.04] tracking-[-0.03em]">
-            Módulos que se adaptam{' '}
-            <span className="text-muted-foreground">ao seu negócio.</span>
+            Tudo o que hoje vive em dez abas de Excel —{' '}
+            <span className="text-muted-foreground">num sistema só.</span>
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            Ative o que faz sentido para o seu setor. Advocacia, engenharia,
-            comercial — cada empresa monta a combinação certa, sem pagar pelo
-            que não usa.
+            Cada funcionalidade resolve uma dor da planilha: dado que se perde,
+            conta que ninguém lançou, informação que só existe na cabeça de uma
+            pessoa. Ative o que faz sentido pro seu setor e pague por empresa,
+            não por usuário.
           </p>
         </motion.div>
 

@@ -1,7 +1,14 @@
+import { Ga } from '@/components/analytics/ga'
+
 export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <>{children}</>
+  return (
+    <>
+      <Ga />
+      {children}
+    </>
+  )
 }

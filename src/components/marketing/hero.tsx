@@ -38,7 +38,7 @@ export function Hero() {
                 }
               />
               <TextShimmer className="text-[13px] font-medium text-accent">
-                Plataforma modular para PMEs brasileiras
+                Saia das planilhas — sem virar refém de sistema caro
               </TextShimmer>
             </div>
           </Enter>
@@ -46,15 +46,15 @@ export function Hero() {
           {/* Headline animada palavra por palavra */}
           <h1 className="text-[clamp(2.6rem,6vw,5rem)] font-bold leading-[0.97] tracking-[-0.04em] text-balance">
             <StaggerText
-              text="Organize toda a operação,"
+              text="Sua empresa não cabe mais"
               delay={0.08}
               staggerDelay={0.055}
             />
             <br className="hidden sm:block" />
             <StaggerText
-              text="do seu jeito."
+              text="na planilha."
               wordClassName="text-accent"
-              delay={0.08 + 4 * 0.055}
+              delay={0.08 + 5 * 0.055}
               staggerDelay={0.055}
             />
           </h1>
@@ -62,9 +62,9 @@ export function Hero() {
           {/* Subtexto */}
           <Enter delay={0.44}>
             <p className="mt-7 max-w-[36rem] text-lg leading-relaxed text-muted-foreground sm:text-xl">
-              Módulos para cada área do seu negócio — comercial, financeiro,
-              contratos, RH e mais. Ative só o que você precisa, tudo integrado,
-              sem duplicar dados entre sistemas.
+              Tire vendas, financeiro, contratos e equipe da planilha e coloque
+              num só lugar — pra qualquer tipo de negócio. Preço fixo por
+              empresa: seu time cresce, a mensalidade não.
             </p>
           </Enter>
 
@@ -75,7 +75,7 @@ export function Hero() {
                 href="/cadastro"
                 className="group inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-8 py-4 text-[15px] font-semibold text-background shadow-[0_4px_24px_rgba(22,24,29,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(22,24,29,0.22)] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                Começar grátis
+                Começar grátis — 14 dias, sem cartão
                 <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
               <Link
@@ -90,7 +90,7 @@ export function Hero() {
           {/* Stat strip */}
           <Enter delay={0.64}>
             <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2">
-              {['7 dias grátis', 'Sem cartão de crédito', 'Setup em 30 min'].map(
+              {['14 dias grátis', 'Sem cartão de crédito', 'Preço fixo por empresa'].map(
                 (item, i) => (
                   <span
                     key={item}

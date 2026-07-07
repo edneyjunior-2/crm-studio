@@ -26,7 +26,8 @@ const nextConfig: NextConfig = {
       "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-      "frame-src 'self'",
+      // lookerstudio.google.com: embed do painel de Ads em /admin/ads (platform-admin).
+      "frame-src 'self' https://lookerstudio.google.com",
       "worker-src 'self' blob:",
       "manifest-src 'self'",
     ].join('; ')

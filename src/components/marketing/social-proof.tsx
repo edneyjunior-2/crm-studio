@@ -8,8 +8,8 @@ const STATS = [
     prefix: '',
     value: 100,
     suffix: '%',
-    label: 'das áreas integradas',
-    sub: 'financeiro, comercial e contratos no mesmo sistema',
+    label: 'da operação num lugar',
+    sub: 'vendas, financeiro e contratos sem planilha paralela',
   },
   {
     prefix: 'R$ ',
@@ -27,9 +27,9 @@ const STATS = [
   },
   {
     prefix: '',
-    value: 7,
+    value: 14,
     suffix: ' dias',
-    label: 'de trial gratuito',
+    label: 'de teste grátis',
     sub: 'sem cartão de crédito para começar',
   },
 ]
@@ -49,11 +49,11 @@ export function SocialProof() {
           transition={{ duration: 0.6, ease: EASE_OUT }}
         >
           <p className="text-[clamp(1.3rem,2.8vw,2rem)] font-semibold leading-[1.2] tracking-[-0.02em] text-balance">
-            &ldquo;Toda a operação da empresa num só lugar. Sem planilha, sem sistema
-            separado para cada área — financeiro sempre em dia e equipe alinhada.&rdquo;
+            &ldquo;Construímos o CRM Studio pra tirar a PME brasileira da planilha —
+            toda a operação num lugar só, com preço que não pune o crescimento.&rdquo;
           </p>
           <footer className="mt-5 text-sm text-muted-foreground">
-            Equipe de gestão — CRM Studio
+            CRM Studio
           </footer>
         </motion.blockquote>
 

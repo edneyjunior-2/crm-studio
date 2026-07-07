@@ -10,7 +10,7 @@ const STEPS = [
     n: '01',
     icon: UserPlus,
     title: 'Configure sua empresa',
-    desc: 'Cadastre sua equipe, defina perfis de acesso e permissões por área. Sem planilha de onboarding, sem configuração complexa.',
+    desc: 'Cadastre sua equipe e defina o acesso de cada área. Sem planilha de onboarding, sem consultor, sem configuração complexa.',
   },
   {
     n: '02',
@@ -22,7 +22,7 @@ const STEPS = [
     n: '03',
     icon: Zap,
     title: 'Gerencie tudo junto',
-    desc: 'Todas as áreas conectadas num só lugar. O que acontece em vendas já aparece no financeiro. Zero dupla entrada.',
+    desc: 'Todas as áreas conectadas. O que acontece em vendas já aparece no financeiro — zero dupla digitação, zero planilha paralela.',
   },
 ]
 
@@ -60,7 +60,7 @@ export function HowItWorks() {
             Três passos para estar no ar
           </h2>
           <p className="mx-auto mt-4 max-w-md text-lg leading-relaxed text-muted-foreground">
-            Da conta criada à operação rodando, menos de 30 minutos.
+            Da planilha ao sistema rodando em menos de 30 minutos.
           </p>
         </motion.div>
 

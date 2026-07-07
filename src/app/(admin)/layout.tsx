@@ -1,6 +1,6 @@
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import Link from 'next/link'
-import { Building2, LayoutDashboard, Bug, Calculator } from 'lucide-react'
+import { Building2, LayoutDashboard, Bug, Calculator, Megaphone } from 'lucide-react'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await getAuthPlatformAdmin()
@@ -43,6 +43,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           >
             <Calculator className="size-4 text-muted-foreground" />
             Catálogo SINAPI
+          </Link>
+          <Link
+            href="/admin/ads"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+          >
+            <Megaphone className="size-4 text-muted-foreground" />
+            Ads
           </Link>
         </nav>
       </aside>

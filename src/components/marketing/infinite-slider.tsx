@@ -3,14 +3,14 @@
 import { useReducedMotion } from 'motion/react'
 
 const ITEMS = [
-  'Módulos para cada área do negócio',
-  'Sem duplicar dados entre sistemas',
+  'Saia das planilhas de vez',
+  'Tudo num só lugar, sem duplicar dado',
   'CRM para qualquer tipo de empresa',
   'Ative só o que a sua operação precisa',
   'Comercial · Financeiro · Contratos · RH',
-  'Integração nativa com Google Calendar',
-  'Multi-empresa, multi-usuário',
-  '7 dias grátis · Setup em 30 min',
+  'Preço fixo por empresa — não por usuário',
+  'Versões prontas: advocacia e engenharia',
+  '14 dias grátis · Setup em 30 min',
 ]
 
 export function InfiniteSlider({ className }: { className?: string }) {

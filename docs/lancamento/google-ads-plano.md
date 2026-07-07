@@ -9,10 +9,17 @@
 | **Posicionamento** | Anti-planilha + horizontal ("qualquer negócio") + preço fixo por empresa |
 | **Conversão a otimizar** | `trial_iniciado` (evento já especificado em `tracking-plano.md`) |
 | **Valor de conversão sugerido** | R$ 297 (ticket do plano Pro — mesmo valor já usado no GA4) |
-| **Campanha de lançamento** | 1 campanha Search, não-marca, 7 grupos temáticos, match frase/exata |
+| **Campanha de lançamento** | 1 campanha Search, não-marca, match frase/exata |
 | **CPA-alvo recomendado (partida)** | **R$ 150–190 por trial** (ver conta completa na Seção 6) |
-| **Verba inicial recomendada** | **R$ 100/dia (~R$ 3.000/mês)** |
-| **Meta mês 1** | 15–25 trials, fase de aprendizado — não travar tCPA ainda |
+| **Verba (TETO CONFIRMADO PELO DONO)** | **R$ 500/mês (~R$ 16/dia)** — ver ajuste obrigatório abaixo |
+| **Meta mês 1 (com R$500)** | ~2–5 trials/mês; fase de validação, sinal mais lento (~8–10 semanas) |
+
+> ### ⚠️ AJUSTE PARA R$ 500/MÊS (verba real confirmada — substitui a recomendação de R$3k acima)
+> Com ~R$ 16/dia **não dá pra rodar 7 grupos** — a verba se dilui e nenhum grupo junta sinal. Escopo enxuto obrigatório:
+> - **1 campanha, 1 grupo só** (no máx. 2): o de **maior intenção de compra**. Priorize `crm para pequena empresa` + `sistema de gestão de clientes` (frase/exata). Deixe os outros grupos (whatsapp, preço, financeiro, pipeline, "sair da planilha") **pausados** no roadmap — ligue um de cada vez só quando o CPA do primeiro validar.
+> - **Lances:** Maximize Conversions (ou Manual CPC ~R$ 3–5 de teto) — NÃO tCPA (não vai juntar as ~15–30 conversões que o tCPA exige nesse orçamento).
+> - **Expectativa honesta:** ~15–30 cliques/dia? Não. Com R$16/dia e CPC de CRM (~R$ 3–6 estimado), são **~3–5 cliques/dia** → poucas visitas → sinal lento. R$500 **valida** (a landing converte? o CPA é viável?), não escala. Se validar, aumentar a verba é o próximo passo — não adianta espalhar em muitas keywords antes disso.
+> - **Negativas e message-match seguem iguais** (Seções abaixo). Use só as **2 melhores RSAs** do grupo escolhido.
 
 ---
 
