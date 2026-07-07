@@ -26,8 +26,10 @@ const nextConfig: NextConfig = {
       "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-      // lookerstudio.google.com: embed do painel de Ads em /admin/ads (platform-admin).
-      "frame-src 'self' https://lookerstudio.google.com",
+      // lookerstudio/datastudio.google.com: embed do painel de Ads em /admin/ads
+      // (platform-admin). Os dois domínios servem o mesmo relatório (datastudio
+      // redireciona pra lookerstudio) — libero ambos pra o iframe não bloquear.
+      "frame-src 'self' https://lookerstudio.google.com https://datastudio.google.com",
       "worker-src 'self' blob:",
       "manifest-src 'self'",
     ].join('; ')

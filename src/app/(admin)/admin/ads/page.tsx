@@ -5,7 +5,13 @@ import { AdsDashboard } from '@/components/admin/ads-dashboard'
 export default async function AdsAdminPage() {
   await getAuthPlatformAdmin()
 
-  const lookerUrl = process.env.NEXT_PUBLIC_LOOKER_ADS_URL
+  // URL de embed do relatório Looker Studio (Google Ads da conta 415-374-1078).
+  // Não é segredo (é um embed restrito à conta Google do platform-admin); fica
+  // cravada como padrão pra funcionar sem env na Vercel. NEXT_PUBLIC_LOOKER_ADS_URL
+  // sobrepõe se trocar de relatório.
+  const lookerUrl =
+    process.env.NEXT_PUBLIC_LOOKER_ADS_URL ??
+    'https://lookerstudio.google.com/embed/reporting/3c681c36-07d0-4ada-b0dd-fa44029a4b11/page/qRI3F'
 
   return (
     <div className="flex flex-col gap-6">
