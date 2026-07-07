@@ -16,7 +16,10 @@ import { Suspense, useEffect, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { trackEvent } from '@/lib/analytics'
 
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID
+// ID de métricas do fluxo Web (www.crmstudio.com.br). É público (fica visível no
+// HTML), então fica cravado como padrão pra funcionar sem depender de env na
+// Vercel; NEXT_PUBLIC_GA_ID sobrepõe se precisar trocar de propriedade.
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-B9J589682L'
 
 // Evita duplicar a conversão principal se '/login?cadastro=ok' for recarregada
 // (F5) na mesma aba/sessão do navegador.
