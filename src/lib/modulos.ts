@@ -101,7 +101,7 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
   free: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
   ],
-  // trial = acesso total por 7 dias, mas verticais exigem área definida no admin
+  // trial = acesso total por 14 dias, mas verticais exigem área definida no admin
   trial: [
     'pipeline', 'clientes', 'solucoes', 'calendario',
     'parceiros', 'fluxos', 'contratos',

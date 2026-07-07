@@ -95,7 +95,6 @@ const VERTICAIS = [
     setor: 'Engenharia e Obras',
     plano: 'R$ 347/mês',
     modulos: ['CRM + Pipeline', 'Financeiro de obras', 'Estoque e materiais', 'Gestão de contratos'],
-    badge: 'Em breve',
   },
   {
     icon: Zap,
@@ -250,11 +249,6 @@ export default function PrecosPage() {
                       <div className="inline-flex size-10 items-center justify-center rounded-xl bg-secondary text-foreground">
                         <Icon className="size-5" strokeWidth={1.7} />
                       </div>
-                      {v.badge && (
-                        <span className="rounded-full border border-border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                          {v.badge}
-                        </span>
-                      )}
                     </div>
                     <h3 className="font-heading text-lg font-semibold">{v.setor}</h3>
                     <p className="mt-1 text-sm font-semibold text-accent">{v.plano}</p>

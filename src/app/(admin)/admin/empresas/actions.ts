@@ -135,10 +135,10 @@ export async function criarEmpresa(
     redirect(`/admin/empresas/${empresaId}`)
   }
 
-  // ── Path 2: Trial 7 dias — sem Asaas ───────────────────────────────────────
+  // ── Path 2: Trial 14 dias — sem Asaas ──────────────────────────────────────
   if (plano === 'trial') {
     const trialEnd = new Date()
-    trialEnd.setDate(trialEnd.getDate() + 7)
+    trialEnd.setDate(trialEnd.getDate() + 14)
     const trialEndAt = `${trialEnd.getFullYear()}-${String(trialEnd.getMonth() + 1).padStart(2, '0')}-${String(trialEnd.getDate()).padStart(2, '0')}T23:59:59Z`
 
     await db

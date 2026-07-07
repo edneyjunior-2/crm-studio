@@ -167,7 +167,7 @@ export function NovaEmpresaForm() {
         >
           <optgroup label="Sem cobrança">
             <option value="interno">Interno (sem cobrança)</option>
-            <option value="trial">Trial — 7 dias grátis</option>
+            <option value="trial">Trial — 14 dias grátis</option>
           </optgroup>
           <optgroup label="Planos pagos (cobra via Asaas)">
             <option value="starter">Starter — R$ 149/mês</option>
