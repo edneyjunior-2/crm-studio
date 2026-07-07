@@ -11,6 +11,10 @@ export async function createSolucao(formData: FormData): Promise<{ error?: strin
   const erroModulo = await assertModulo('solucoes')
   if (erroModulo) return { error: erroModulo }
 
+  // empresa_id obrigatório: a RLS multi-tenant rejeita insert sem ele, e sem
+  // ele a solução fica órfã (ou visível fora do tenant). Fail-closed.
+  if (!empresaId) return { error: 'Empresa não identificada.' }
+
   // Limite de plano: conta soluções ATIVAS da empresa. -1 = ilimitado.
   const limiteSolucoes = LIMITES_POR_PLANO[plano].solucoes
   if (limiteSolucoes !== -1 && empresaId) {
@@ -37,6 +41,7 @@ export async function createSolucao(formData: FormData): Promise<{ error?: strin
     comissao_percentual: comissao,
     ativo: formData.get('ativo') === 'true',
     created_by: user.id,
+    empresa_id: empresaId,
   })
 
   if (error) return { error: error.message }

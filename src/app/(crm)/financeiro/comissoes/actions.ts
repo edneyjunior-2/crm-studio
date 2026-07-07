@@ -67,12 +67,32 @@ export async function marcarComissaoPaga(
     return { error: 'Sem permissão.' }
   }
 
-  const { error } = await supabase
+  // TRAVA ATÔMICA: UPDATE condicional (status na própria mutação) — só afeta a
+  // linha se ela ainda estiver 'previsto'. Elimina a race de duplo clique e
+  // impede cancelado→pago (transição inválida) e re-pagamento (sobrescrever
+  // data_pagamento de uma comissão já paga). Mesmo padrão de marcarPago/
+  // marcarRecebido em financeiro/actions.ts.
+  const { data: updated, error } = await supabase
     .from('comissoes_comercial')
     .update({ status: 'pago', data_pagamento: dataPagamento })
     .eq('id', id)
+    .eq('status', 'previsto')
+    .select('id')
 
   if (error) return { error: error.message }
+
+  if (!updated || updated.length === 0) {
+    // 0 linhas: já não estava 'previsto'. Descobre o motivo p/ mensagem amigável.
+    const { data: atual } = await supabase
+      .from('comissoes_comercial')
+      .select('status')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!atual) return { error: 'Comissão não encontrada.' }
+    if (atual.status === 'pago') return {} // já paga → idempotente
+    return { error: 'Comissão não está prevista para pagamento.' }
+  }
 
   revalidatePath('/financeiro')
   revalidatePath('/financeiro/comissoes')
@@ -93,12 +113,30 @@ export async function cancelarComissao(id: string): Promise<{ error?: string }> 
     return { error: 'Sem permissão.' }
   }
 
-  const { error } = await supabase
+  // TRAVA ATÔMICA: só cancela comissão 'previsto'. Sem essa condição, cancelar
+  // uma comissão já 'pago' mudava o status mas mantinha data_pagamento — o
+  // dinheiro pago sumia dos relatórios (status='cancelado' é filtrado fora).
+  const { data: updated, error } = await supabase
     .from('comissoes_comercial')
     .update({ status: 'cancelado' })
     .eq('id', id)
+    .eq('status', 'previsto')
+    .select('id')
 
   if (error) return { error: error.message }
+
+  if (!updated || updated.length === 0) {
+    // 0 linhas: já não estava 'previsto'. Descobre o motivo p/ mensagem amigável.
+    const { data: atual } = await supabase
+      .from('comissoes_comercial')
+      .select('status')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!atual) return { error: 'Comissão não encontrada.' }
+    if (atual.status === 'cancelado') return {} // já cancelada → idempotente
+    return { error: 'Não é possível cancelar uma comissão já paga.' }
+  }
 
   revalidatePath('/financeiro')
   revalidatePath('/financeiro/comissoes')

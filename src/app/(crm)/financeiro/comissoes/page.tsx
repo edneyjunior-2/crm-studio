@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { TrendingUp, Clock, CheckCircle2, Wallet } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { Badge } from '@/components/ui/badge'
 import type { ComissaoComercial } from '@/types'
 
@@ -34,13 +35,22 @@ export default async function MinhasComissoesPage() {
   if (!profile) redirect('/login')
   if (profile.role !== 'comercial') redirect('/financeiro')
 
-  const { data: comissoes, error } = await supabase
-    .from('comissoes_comercial')
-    .select('*, negocios(titulo)')
-    .eq('comercial_id', user.id)
-    .order('data_previsao', { ascending: false })
-
-  if (error) {
+  // totalPrevisto/totalPago somam TODAS as linhas do comercial — um cap
+  // silencioso do PostgREST (~1000 linhas) subestimaria os KPIs, por isso
+  // fetchAllRows em vez de um .select() cru.
+  type ComissaoComNegocio = ComissaoComercial & { negocios: { titulo: string } | null }
+  let comissoes: ComissaoComNegocio[]
+  try {
+    comissoes = await fetchAllRows<ComissaoComNegocio>((from, to) =>
+      supabase
+        .from('comissoes_comercial')
+        .select('*, negocios(titulo)')
+        .eq('comercial_id', user.id)
+        .order('data_previsao', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
+  } catch {
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -53,7 +63,7 @@ export default async function MinhasComissoesPage() {
     )
   }
 
-  const lista = (comissoes ?? []) as (ComissaoComercial & { negocios: { titulo: string } | null })[]
+  const lista = comissoes
 
   const totalPrevisto = lista
     .filter((c) => c.status === 'previsto')

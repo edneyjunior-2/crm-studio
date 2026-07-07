@@ -55,34 +55,45 @@ interface ContaReceberComRelacoes extends ContaReceber {
 async function FinanceiroContent() {
   const supabase = await createClient()
 
-  // contas_receber e contas_pagar são somadas para KPIs monetários — precisamos
-  // do conjunto COMPLETO, sem o cap de ~1000 linhas do PostgREST.
-  // As 3 buscas paginadas (receber, pagar, movimentações) são independentes →
-  // em PARALELO, cada uma degradando sozinha (preserva o comportamento anterior).
+  // contas_receber, contas_pagar e comissoes_comercial são somadas para KPIs
+  // monetários — precisamos do conjunto COMPLETO, sem o cap de ~1000 linhas do
+  // PostgREST. As buscas paginadas (receber, pagar, movimentações, comissões)
+  // são independentes → em PARALELO, cada uma degradando sozinha (preserva o
+  // comportamento anterior).
   // movimentacoes: saldo de cada banco = saldo_inicial + TODAS entradas - TODAS saídas;
   // qualquer cap truncaria o saldo, por isso fetchAllRows.
+  // comissoes: totalComissoesPrevistos soma TODAS as linhas 'previsto' — um cap
+  // silencioso subestimaria o KPI acima de ~1000 comissões.
   type MovLite = Pick<Movimentacao, 'banco_id' | 'tipo' | 'valor'>
-  const [receberRes, pagarRes, movRes] = await Promise.all([
+  type ComissaoRaw = Omit<ComissaoComRelacoes, 'profiles'>
+  const [receberRes, pagarRes, movRes, comissoesRes] = await Promise.all([
     fetchAllRows<ContaReceberComRelacoes>((from, to) =>
-      supabase.from('contas_receber').select('*, clientes(razao_social)').order('data_vencimento', { ascending: true }).range(from, to)
+      supabase.from('contas_receber').select('*, clientes(razao_social)').order('data_vencimento', { ascending: true }).order('id', { ascending: true }).range(from, to)
     ).then((d) => ({ data: d, err: false })).catch(() => ({ data: [] as ContaReceberComRelacoes[], err: true })),
     fetchAllRows<ContaPagar>((from, to) =>
-      supabase.from('contas_pagar').select('*').order('data_vencimento', { ascending: true }).range(from, to)
+      supabase.from('contas_pagar').select('*').order('data_vencimento', { ascending: true }).order('id', { ascending: true }).range(from, to)
     ).then((d) => ({ data: d, err: false })).catch(() => ({ data: [] as ContaPagar[], err: true })),
     fetchAllRows<MovLite>((from, to) =>
-      supabase.from('movimentacoes').select('banco_id, tipo, valor').range(from, to)
+      supabase.from('movimentacoes').select('banco_id, tipo, valor').order('id', { ascending: true }).range(from, to)
     ).then((d) => ({ data: d, err: false })).catch(() => ({ data: [] as MovLite[], err: true })),
+    // O embed `profiles!comercial_id(full_name)` falha com PGRST200 porque
+    // comissoes_comercial.comercial_id tem FK para auth.users, não para profiles.
+    // Buscamos o nome do comercial numa 2ª query (ver abaixo).
+    fetchAllRows<ComissaoRaw>((from, to) =>
+      supabase.from('comissoes_comercial').select('*, negocios(titulo), parceiros_comissao(nome)').order('data_previsao', { ascending: false }).order('id', { ascending: true }).range(from, to)
+    ).then((d) => ({ data: d, err: false })).catch(() => ({ data: [] as ComissaoRaw[], err: true })),
   ])
   const receberList: ContaReceberComRelacoes[] = receberRes.data
   const pagarList: ContaPagar[] = pagarRes.data
   const movimentacoes: MovLite[] = movRes.data
   const errReceber = receberRes.err
   const errPagar = pagarRes.err
+  const comissoes: ComissaoRaw[] = comissoesRes.data
+  const errComissoes = comissoesRes.err
 
   const [
     { data: clientes },
     { data: negocios },
-    { data: comissoes, error: errComissoes },
     { data: comerciais },
     { data: bancosData },
     { data: fornecedoresData },
@@ -96,13 +107,6 @@ async function FinanceiroContent() {
       .from('negocios')
       .select('id, titulo')
       .order('titulo', { ascending: true }),
-    // O embed `profiles!comercial_id(full_name)` falha com PGRST200 porque
-    // comissoes_comercial.comercial_id tem FK para auth.users, não para profiles.
-    // Buscamos o nome do comercial numa 2ª query (ver abaixo).
-    supabase
-      .from('comissoes_comercial')
-      .select('*, negocios(titulo), parceiros_comissao(nome)')
-      .order('data_previsao', { ascending: false }),
     supabase
       .from('profiles')
       .select('id, full_name')
@@ -136,14 +140,13 @@ async function FinanceiroContent() {
   const clientesList = (clientes ?? []) as Pick<Cliente, 'id' | 'razao_social'>[]
   const negociosList = (negocios ?? []) as Pick<Negocio, 'id' | 'titulo'>[]
   if (errComissoes) {
-    console.error('Erro ao carregar comissões:', errComissoes)
+    console.error('Erro ao carregar comissões (fetchAllRows falhou)')
   }
-
 
   // O nome do comercial não pode vir por embed (comercial_id → auth.users, não
   // profiles). Buscamos os profiles dos comerciais referenciados numa 2ª query e
   // montamos um Map id→full_name para exibir o nome em cada comissão.
-  const comissoesRaw = (comissoes ?? []) as Omit<ComissaoComRelacoes, 'profiles'>[]
+  const comissoesRaw = comissoes
   const comerciaisIds = [...new Set(comissoesRaw.map((c) => c.comercial_id).filter(Boolean))]
 
   const nomesComerciais = new Map<string, string>()
