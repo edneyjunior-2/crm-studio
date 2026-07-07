@@ -21,6 +21,14 @@ import { trackEvent } from '@/lib/analytics'
 // Vercel; NEXT_PUBLIC_GA_ID sobrepõe se precisar trocar de propriedade.
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-B9J589682L'
 
+// ID base da conta do Google Ads (sem o /label — o label só entra no evento de
+// conversão, ver src/lib/analytics.ts). Precisa de um gtag('config', 'AW-...')
+// carregado na página para o Google Ads reconhecer a tag e rotear o evento de
+// conversão com confiabilidade (sem isso, o Ads mostra "Nenhuma tag encontrada
+// para esta conta" e a conversão pode não ser roteada). Deriva do mesmo valor
+// usado em analytics.ts para não duplicar a fonte da verdade.
+const ADS_ID = (process.env.NEXT_PUBLIC_ADS_CONVERSION ?? 'AW-11038250248/4FZPCPGns8wcEIiquY8p').split('/')[0]
+
 // Evita duplicar a conversão principal se '/login?cadastro=ok' for recarregada
 // (F5) na mesma aba/sessão do navegador.
 const TRIAL_STARTED_KEY = 'ga_trial_iniciado_disparado'
@@ -99,6 +107,7 @@ export function Ga() {
           // docs/lancamento/tracking-plano.md Seção 4. Deixado como TODO pra não
           // travar o lançamento: priorizando o tracking funcionar primeiro.
           gtag('config', '${GA_ID}');
+          gtag('config', '${ADS_ID}');
         `}
       </Script>
       <Suspense fallback={null}>
