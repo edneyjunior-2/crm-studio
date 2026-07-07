@@ -27,9 +27,12 @@ async function handler(req: NextRequest) {
 
   const db = createAdminClient()
 
-  // Processa os 30 mais desatualizados por rodada (NULLS FIRST = nunca sincronizados antes).
-  // Com cron a cada 30 min: 262 processos ÷ 30 por rodada = 9 rodadas → todos atualizados em ~4.5h.
-  const LOTE_CRON = 30
+  // Processa os 18 mais desatualizados por rodada (NULLS FIRST = nunca sincronizados antes).
+  // Reduzido de 30 (2026-07-07): DATAJUD_TIMEOUT_MS subiu 8s→15s (API do CNJ mede
+  // 4-15s de latência real) — 18 × (15s timeout + 600ms throttle) ≈ 281s, com
+  // folga sob o teto de 300s (maxDuration). Com cron a cada 30 min: 262 processos
+  // ÷ 18 por rodada ≈ 15 rodadas → todos atualizados em ~7.5h (cabe na janela de 11h/dia).
+  const LOTE_CRON = 18
   const { data: processos, error } = await db
     .from('processos_juridicos')
     .select('id, numero_processo, tribunal_slug, empresa_id, advogado_id, assunto')

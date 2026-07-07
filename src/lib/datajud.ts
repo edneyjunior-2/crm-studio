@@ -21,7 +21,11 @@ const DATAJUD_PUBLIC_KEY =
   'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
 const DATAJUD_KEY = process.env.DATAJUD_API_KEY ?? DATAJUD_PUBLIC_KEY
 
-const DATAJUD_TIMEOUT_MS = 8_000
+// 15s: medido em 2026-07-07 contra a API pública real (tjba, tjgo, tjsp) —
+// respostas variaram de 4s a 15s no mesmo request repetido. 8s causava aborts
+// em massa específicos de tribunais mais lentos (523 timeouts/24h só no tjba),
+// deixando processos desses tribunais permanentemente sem sincronizar.
+const DATAJUD_TIMEOUT_MS = 15_000
 
 // ---------------------------------------------------------------------------
 // Mapeamento J.TT → slug do tribunal (URL DataJud)
