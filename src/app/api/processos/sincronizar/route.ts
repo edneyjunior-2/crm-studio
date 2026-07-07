@@ -8,7 +8,10 @@ import { getAuthUser } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 
 const THROTTLE_MS = 300
-const LOTE        = 5    // DataJud tem timeout de 8s/req → 5 × (8 + 0.3) = 41s worst case, seguro em 60s
+// DataJud tem timeout de 15s/req (ver DATAJUD_TIMEOUT_MS) → 3 × (15 + 0.3) = 46s
+// worst case, seguro sob o maxDuration de 60s. Reduzido de 5→3 em 2026-07-07
+// junto com a subida do timeout 8s→15s (senão 5 × 15.3 = 76s estouraria os 60s).
+const LOTE        = 3
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 export async function POST(req: NextRequest) {
