@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Scale, Calendar, User, Building2 } from 'lucide-react'
+import { PROCESSO_STATUS_UI, labelStatusProcesso, type ProcessoStatus } from '@/lib/processos-status'
 
 interface ProcessoCardProps {
   id:             string
@@ -16,12 +17,8 @@ interface ProcessoCardProps {
   qtdNaoLidos:    number
 }
 
-const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  ativo:     { label: 'Ativo',     className: 'bg-green-500/10 text-green-700 dark:text-green-400' },
-  encerrado: { label: 'Encerrado', className: 'bg-muted text-muted-foreground' },
-  suspenso:  { label: 'Suspenso',  className: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
-  arquivado: { label: 'Arquivado', className: 'bg-muted text-muted-foreground' },
-}
+// Fallback neutro para status legado/desconhecido (não quebra em dado antigo).
+const STATUS_PILL_FALLBACK = 'bg-muted text-muted-foreground'
 
 function formatarData(iso: string | null): string {
   if (!iso) return '—'
@@ -50,7 +47,8 @@ export function ProcessoCard({
   vara,
   qtdNaoLidos,
 }: ProcessoCardProps) {
-  const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.ativo
+  const pillClass = PROCESSO_STATUS_UI[status as ProcessoStatus]?.pill ?? STATUS_PILL_FALLBACK
+  const statusLabel = labelStatusProcesso(status)
 
   return (
     <Link
@@ -64,8 +62,8 @@ export function ProcessoCard({
             <Scale className="size-3" />
             {formatarTribunal(tribunalSlug)}
           </span>
-          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${statusCfg.className}`}>
-            {statusCfg.label}
+          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${pillClass}`}>
+            {statusLabel}
           </span>
         </div>
         {qtdNaoLidos > 0 && (

@@ -15,6 +15,7 @@ import { IndicacaoParceiroPrompt } from './indicacao-parceiro-prompt'
 import { ProcessoDetalheTabs } from './processo-detalhe-tabs'
 import { SolicitarGuiaDialog } from './solicitar-guia-dialog'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { labelStatusProcesso } from '@/lib/processos-status'
 import type { DocItem } from './doc-actions'
 
 
@@ -31,15 +32,6 @@ const AREA_LABEL: Record<string, string> = {
   administrativo: 'Administrativo',
   familia:        'Família e Sucessões',
   outro:          'Outro',
-}
-
-// Status legível para a badge read-only do portal do parceiro (sem ProcessoAcoes).
-const STATUS_LABEL: Record<string, string> = {
-  ativo:     'Ativo',
-  encerrado: 'Encerrado',
-  suspenso:  'Suspenso',
-  arquivado: 'Arquivado',
-  concluido: 'Concluído',
 }
 
 // data_movimentacao é um `date` ('YYYY-MM-DD'): parse direto dos componentes,
@@ -286,7 +278,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           </div>
           {isParceiro ? (
             <span className="inline-flex items-center rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm font-medium text-foreground">
-              {STATUS_LABEL[processo.status] ?? processo.status}
+              {labelStatusProcesso(processo.status)}
             </span>
           ) : (
             <ProcessoAcoes

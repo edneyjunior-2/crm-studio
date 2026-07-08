@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     .from('processos_juridicos')
     .select('id, numero_processo, tribunal_slug, empresa_id')
     .eq('empresa_id', empresaId)
-    .eq('status', 'ativo')
+    .eq('status', 'em_transito')
     .order('ultimo_datajud_update', { ascending: true, nullsFirst: true })
     .range(offset, offset + LOTE - 1)
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       .from('processos_juridicos')
       .select('id', { count: 'exact', head: true })
       .eq('empresa_id', empresaId)
-      .eq('status', 'ativo')
+      .eq('status', 'em_transito')
     total = count ?? 0
   }
 

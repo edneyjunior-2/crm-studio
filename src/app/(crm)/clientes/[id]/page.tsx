@@ -15,6 +15,7 @@ import {
 import { createClient } from '@/lib/supabase/server'
 import { calcularHonorarios, formatarBRL } from '@/lib/honorarios'
 import { formatCPF, formatCNPJ } from '@/lib/masks'
+import { labelStatusProcesso } from '@/lib/processos-status'
 import { Button } from '@/components/ui/button'
 import { ClienteForm } from '@/components/crm/clientes/cliente-form'
 import { ClienteDeleteButton } from '@/components/crm/clientes/cliente-delete-button'
@@ -42,12 +43,12 @@ export default async function ClienteDetailPage({ params }: PageProps) {
       .select('id, titulo, estagio, valor_estimado, data_previsao_fechamento, created_at, updated_at, cliente_id, solucao_id, responsavel_id, probabilidade, observacoes')
       .eq('cliente_id', id)
       .order('created_at', { ascending: false }),
-    // Processos jurídicos do cliente (módulo advocacia) — apenas ATIVOS (exclui encerrado/arquivado).
+    // Processos jurídicos do cliente (módulo advocacia) — apenas EM ANDAMENTO (exclui concluído).
     supabase
       .from('processos_juridicos')
       .select('id, numero_processo, assunto, status, valor_causa, honorarios_tipo, honorarios_valor')
       .eq('cliente_id', id)
-      .not('status', 'in', '("encerrado","arquivado")')
+      .in('status', ['em_transito', 'suspenso'])
       .order('created_at', { ascending: false }),
     listarEstagios(),
   ])
@@ -72,7 +73,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   const cliente = clienteResult.data as Cliente
   const negocios = (negociosResult.data ?? []) as Negocio[]
 
-  // Previsão de ganho dos processos EM ANDAMENTO (ativos):
+  // Previsão de ganho dos processos EM ANDAMENTO (em_transito + suspenso):
   //  - "ganho" do escritório = HONORÁRIO (o que de fato é do advogado), potencial
   //    que só se realiza no encerramento — nunca entra no caixa.
   //  - "valor em causas" = soma dos valores das causas, mantido para RELATÓRIO
@@ -81,7 +82,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     id: string; numero_processo: string; assunto: string | null; status: string; valor_causa: number | null
     honorarios_tipo: string | null; honorarios_valor: number | null
   }
-  // Resultado já filtrado: apenas processos ativos (encerrado/arquivado excluídos na query)
+  // Resultado já filtrado: apenas processos em andamento (concluído excluído na query)
   const processos = (processosResult.data ?? []) as ProcessoLite[]
   const previsaoHonorarios = processos.reduce(
     (soma, p) => soma + (calcularHonorarios(p.honorarios_tipo, p.honorarios_valor, p.valor_causa) ?? 0),
@@ -91,9 +92,6 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     .filter((p) => p.valor_causa != null)
     .reduce((soma, p) => soma + Number(p.valor_causa), 0)
   const brl = formatarBRL
-  const statusLabel: Record<string, string> = {
-    ativo: 'Ativo', encerrado: 'Encerrado', suspenso: 'Suspenso', arquivado: 'Arquivado',
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -214,17 +212,17 @@ export default async function ClienteDetailPage({ params }: PageProps) {
               {/* Previsão de ganho (HONORÁRIOS) — potencial, NÃO é caixa realizado */}
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
                 <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                  Previsão de ganho — honorários (processos ativos)
+                  Previsão de ganho — honorários (processos em andamento)
                 </p>
                 <p className="mt-0.5 text-lg font-bold text-emerald-800 dark:text-emerald-300">
                   {brl(previsaoHonorarios)}
                 </p>
                 <p className="mt-1 text-[11px] leading-snug text-emerald-700/80 dark:text-emerald-400/70">
-                  Soma dos honorários do advogado nas causas ativas. Potencial — só
+                  Soma dos honorários do advogado nas causas em andamento. Potencial — só
                   se realiza no encerramento; não entra no fluxo de caixa.
                 </p>
                 <div className="mt-2 flex items-center justify-between border-t border-emerald-200/60 pt-2 dark:border-emerald-900/40">
-                  <span className="text-[11px] text-muted-foreground">Valor em causas (ativas)</span>
+                  <span className="text-[11px] text-muted-foreground">Valor em causas (em andamento)</span>
                   <span className="text-xs font-semibold text-foreground">{brl(valorEmCausas)}</span>
                 </div>
               </div>
@@ -246,7 +244,7 @@ export default async function ClienteDetailPage({ params }: PageProps) {
                           {p.numero_processo}
                         </span>
                         <span className="text-[11px] text-muted-foreground">
-                          {statusLabel[p.status] ?? p.status}
+                          {labelStatusProcesso(p.status)}
                           {p.valor_causa != null && ` · ${brl(Number(p.valor_causa))}`}
                         </span>
                       </div>

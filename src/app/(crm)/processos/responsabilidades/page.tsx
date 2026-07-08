@@ -5,28 +5,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { ReatribuirSelect } from './reatribuir-select'
-import { StatusBadge, type StatusBadgeVariant } from '@/components/ui/status-badge'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { variantStatusProcesso, labelStatusProcesso } from '@/lib/processos-status'
 import { areaToSlug } from '../page'
-
-function statusVariant(s: string): StatusBadgeVariant {
-  const map: Record<string, StatusBadgeVariant> = {
-    ativo:     'ativo',
-    encerrado: 'encerrado',
-    arquivado: 'arquivado',
-    suspenso:  'aguardando',
-  }
-  return map[s] ?? 'pendente'
-}
-
-function statusLabel(s: string) {
-  const labels: Record<string, string> = {
-    ativo:     'Ativo',
-    encerrado: 'Encerrado',
-    arquivado: 'Arquivado',
-    suspenso:  'Suspenso',
-  }
-  return labels[s] ?? s
-}
 
 const AREA_LABELS: Record<string, string> = {
   tributario:      'Tributário',
@@ -200,8 +181,8 @@ export default async function ResponsabilidadesPage() {
                       : <span className="italic text-xs text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge variant={statusVariant(p.status)}>
-                      {statusLabel(p.status)}
+                    <StatusBadge variant={variantStatusProcesso(p.status)}>
+                      {labelStatusProcesso(p.status)}
                     </StatusBadge>
                   </td>
                   <td className="px-4 py-3">

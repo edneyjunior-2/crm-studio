@@ -15,10 +15,10 @@ const VARIANTS = {
   negociacao:  'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
   fechado_ganho: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
   fechado_perdido: 'bg-muted text-muted-foreground',
-  // processos
-  ativo:       'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
-  encerrado:   'bg-muted text-muted-foreground',
-  arquivado:   'bg-muted text-muted-foreground',
+  // processos (situação simplificada — 3 valores, ver src/lib/processos-status.ts)
+  em_transito: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
+  suspenso:    'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  concluido:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
   aguardando:  'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
   // atendimento
   bot:         'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',

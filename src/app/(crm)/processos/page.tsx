@@ -115,7 +115,7 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
   const isArquivadosTab = tab === 'arquivados'
 
   // Queries independentes: lista completa (fetchAllRows), contagens e advogados
-  const statusFiltro = isArquivadosTab ? ['arquivado', 'concluido'] : ['ativo', 'encerrado', 'suspenso']
+  const statusFiltro = isArquivadosTab ? ['concluido'] : ['em_transito', 'suspenso']
 
   type ProcessoRow = {
     id: string
@@ -228,11 +228,11 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
       .select('id, full_name')
       .order('full_name'),
 
-    // Contagem de arquivados/concluídos para o badge da tab
+    // Contagem de concluídos para o badge da tab
     supabase
       .from('processos_juridicos')
       .select('*', { count: 'exact', head: true })
-      .in('status', ['arquivado', 'concluido']),
+      .eq('status', 'concluido'),
   ])
 
   // Badge por processo (quantas não lidas cada um tem)
@@ -298,7 +298,7 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
 
   const totalAtivos = isArquivadosTab
     ? 0
-    : processosNorm.filter((p) => p.status === 'ativo').length
+    : processosNorm.filter((p) => p.status === 'em_transito').length
 
   return (
     <div className="flex flex-col gap-6">

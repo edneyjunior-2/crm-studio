@@ -2,6 +2,7 @@
 
 import { Scale, Bell, RefreshCw, FolderOpen } from 'lucide-react'
 import type { QuickFilter } from './processos-filter'
+import { PROCESSO_STATUS_UI, PROCESSO_STATUS_LABEL, type ProcessoStatus } from '@/lib/processos-status'
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -30,11 +31,12 @@ const AREA_CONFIG: Record<string, { label: string; color: string; bg: string }> 
   outro:           { label: 'Outro',              color: 'bg-zinc-400',    bg: 'bg-zinc-50 dark:bg-zinc-950/30' },
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; text: string }> = {
-  ativo:      { label: 'Ativo',      color: 'bg-green-500',  text: 'text-green-700 dark:text-green-400' },
-  encerrado:  { label: 'Encerrado',  color: 'bg-slate-400',  text: 'text-slate-600 dark:text-slate-400' },
-  suspenso:   { label: 'Suspenso',   color: 'bg-yellow-500', text: 'text-yellow-700 dark:text-yellow-400' },
-  arquivado:  { label: 'Arquivado',  color: 'bg-zinc-400',   text: 'text-zinc-600 dark:text-zinc-400' },
+// Config visual por status derivada do módulo único (label + dot + text).
+function statusConfig(status: string): { label: string; color: string; text: string } {
+  const s = status as ProcessoStatus
+  const ui = PROCESSO_STATUS_UI[s]
+  if (!ui) return { label: status, color: 'bg-secondary', text: 'text-muted-foreground' }
+  return { label: PROCESSO_STATUS_LABEL[s], color: ui.dot, text: ui.text }
 }
 
 // ---------------------------------------------------------------------------
@@ -80,8 +82,8 @@ export function ProcessosDashboard({ stats, quickFilter, onFilter }: DashboardPr
         />
         <StatCard
           icon={<RefreshCw className="size-5 text-blue-500" />}
-          label="Ativos no DataJud"
-          value={stats.porStatus.find((s) => s.status === 'ativo')?.count ?? 0}
+          label="Em trânsito no DataJud"
+          value={stats.porStatus.find((s) => s.status === 'em_transito')?.count ?? 0}
           bg="bg-blue-50 dark:bg-blue-950/30"
           active={quickFilter === 'ativos'}
           onClick={() => toggle('ativos')}
@@ -137,7 +139,7 @@ export function ProcessosDashboard({ stats, quickFilter, onFilter }: DashboardPr
                 {stats.porStatus
                   .sort((a, b) => b.count - a.count)
                   .map(({ status, count }) => {
-                    const cfg = STATUS_CONFIG[status] ?? { label: status, color: 'bg-secondary', text: 'text-muted-foreground' }
+                    const cfg = statusConfig(status)
                     const pct = Math.round((count / maxStatus) * 100)
                     return (
                       <div key={status} className="flex items-center gap-3">
@@ -157,8 +159,7 @@ export function ProcessosDashboard({ stats, quickFilter, onFilter }: DashboardPr
               {/* Mini legenda de status em pill */}
               <div className="mt-4 flex flex-wrap gap-2">
                 {stats.porStatus.map(({ status, count }) => {
-                  const cfg = STATUS_CONFIG[status]
-                  if (!cfg) return null
+                  const cfg = statusConfig(status)
                   return (
                     <span key={status} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${cfg.text} bg-secondary`}>
                       <span className={`size-1.5 rounded-full ${cfg.color}`} />

@@ -6,8 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth'
 import { createEvent } from '@/lib/google-calendar'
 import { parseValorBR } from '@/lib/honorarios'
-
-const STATUS_VALIDOS = ['ativo', 'encerrado', 'suspenso', 'arquivado', 'concluido']
+import { PROCESSO_STATUS_VALIDOS } from '@/lib/processos-status'
 
 export async function atualizarStatusProcesso(
   processoId: string,
@@ -16,7 +15,7 @@ export async function atualizarStatusProcesso(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
-  if (!STATUS_VALIDOS.includes(status)) return { error: 'Status inválido.' }
+  if (!PROCESSO_STATUS_VALIDOS.includes(status)) return { error: 'Status inválido.' }
 
   const { data, error } = await supabase
     .from('processos_juridicos')
@@ -155,40 +154,8 @@ export async function criarMovimentacaoInterna(
 }
 
 // ---------------------------------------------------------------------------
-// Arquivar / Concluir / Reativar (sempre geram movimentação interna)
+// Concluir / Reativar (sempre geram movimentação interna)
 // ---------------------------------------------------------------------------
-
-export async function arquivarProcesso(
-  processoId: string,
-  motivo: string,
-  descricao?: string,
-): Promise<{ error?: string }> {
-  const { supabase, user, empresaId } = await getAuthUser()
-  if (!user) return { error: 'Não autenticado.' }
-
-  if (!empresaId) return { error: 'Empresa não encontrada.' }
-  const { data: proc } = await supabase.from('processos_juridicos').select('id').eq('id', processoId).eq('empresa_id', empresaId).single()
-  if (!proc) return { error: 'Processo não encontrado ou sem permissão.' }
-
-  const { error } = await supabase
-    .from('processos_juridicos')
-    .update({ status: 'arquivado' })
-    .eq('id', processoId)
-
-  if (error) return { error: error.message }
-
-  const { error: errTimeline } = await supabase.from('movimentacoes_internas_processo').insert({
-    processo_id: processoId,
-    autor_id:    user.id,
-    assunto:     `Processo arquivado — ${motivo.trim()}`,
-    descricao:   descricao?.trim() || null,
-  })
-  if (errTimeline) console.error('falha ao registrar timeline:', errTimeline)
-
-  revalidatePath(`/processos/${processoId}`)
-  revalidatePath('/processos')
-  return {}
-}
 
 export async function concluirProcesso(
   processoId: string,
@@ -236,7 +203,7 @@ export async function reativarProcesso(
 
   const { error } = await supabase
     .from('processos_juridicos')
-    .update({ status: 'ativo' })
+    .update({ status: 'em_transito' })
     .eq('id', processoId)
 
   if (error) return { error: error.message }

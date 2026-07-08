@@ -32,7 +32,7 @@ export function ProcessosTabs({ totalAtivos, totalArquivados }: Props) {
         }`}
       >
         <Scale className="size-4" />
-        Ativos
+        Em andamento
         {totalAtivos > 0 && (
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
             tab === 'ativos' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
@@ -52,7 +52,7 @@ export function ProcessosTabs({ totalAtivos, totalArquivados }: Props) {
         }`}
       >
         <Archive className="size-4" />
-        Arquivados / Concluídos
+        Concluídos
         {totalArquivados > 0 && (
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
             tab === 'arquivados' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' : 'bg-muted text-muted-foreground'

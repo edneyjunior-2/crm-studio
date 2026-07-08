@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { X } from 'lucide-react'
 import { ProcessoCard } from './processo-card'
+import { PROCESSO_STATUS, PROCESSO_STATUS_LABEL } from '@/lib/processos-status'
 
 interface Processo {
   id:             string
@@ -21,18 +22,13 @@ interface Processo {
   semDataJud:     boolean
 }
 
+// Chave interna 'ativos' mantida para não espalhar renomeação pelo estado/URL —
+// o predicado por trás dela agora é 'em_transito' (ver uso abaixo).
 export type QuickFilter = 'novas_movimentacoes' | 'ativos' | 'sem_datajud' | null
 
 interface Advogado  { id: string; full_name: string }
 interface Tribunal  { slug: string; label: string }
 interface AreaOpcao { slug: string; label: string }
-
-const STATUS_LABEL: Record<string, string> = {
-  ativo:     'Ativo',
-  encerrado: 'Encerrado',
-  suspenso:  'Suspenso',
-  arquivado: 'Arquivado',
-}
 
 const inputClass =
   'h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-foreground/40'
@@ -48,7 +44,7 @@ interface Props {
 
 const QUICK_LABEL: Record<NonNullable<QuickFilter>, string> = {
   novas_movimentacoes: 'Com movimentações novas',
-  ativos:              'Ativos',
+  ativos:              'Em trânsito',
   sem_datajud:         'Sem dados DataJud',
 }
 
@@ -63,7 +59,7 @@ export function ProcessosFilter({ processos, advogados, tribunais, areaOpcoes, q
     // Aplica quick filter primeiro
     let base = processos
     if (quickFilter === 'novas_movimentacoes') base = base.filter((p) => p.qtdNaoLidos > 0)
-    if (quickFilter === 'ativos')              base = base.filter((p) => p.status === 'ativo')
+    if (quickFilter === 'ativos')              base = base.filter((p) => p.status === 'em_transito')
     if (quickFilter === 'sem_datajud')         base = base.filter((p) => p.semDataJud)
 
     const qLow = q.toLowerCase()
@@ -132,8 +128,8 @@ export function ProcessosFilter({ processos, advogados, tribunais, areaOpcoes, q
           <label className="text-xs font-medium text-muted-foreground">Status</label>
           <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass}>
             <option value="">Todos</option>
-            {Object.entries(STATUS_LABEL).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
+            {PROCESSO_STATUS.map((v) => (
+              <option key={v} value={v}>{PROCESSO_STATUS_LABEL[v]}</option>
             ))}
           </select>
         </div>

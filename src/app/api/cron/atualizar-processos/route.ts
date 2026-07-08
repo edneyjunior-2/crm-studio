@@ -44,7 +44,7 @@ async function handler(req: NextRequest) {
   const { data: processos, error } = await db
     .from('processos_juridicos')
     .select('id, numero_processo, tribunal_slug, empresa_id, advogado_id, assunto')
-    .eq('status', 'ativo')
+    .eq('status', 'em_transito')
     .order('ultimo_datajud_update', { ascending: true, nullsFirst: true })
     .limit(LOTE_CRON)
 
