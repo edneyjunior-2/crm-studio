@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, CalendarDays, LayoutGrid } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarDays, LayoutGrid, ListChecks } from 'lucide-react'
 import { GoogleCalendarConnect } from '@/components/crm/google/google-calendar-connect'
 import { getAuthUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
@@ -11,12 +11,14 @@ import { getAniversariosDoMes } from '@/lib/aniversarios'
 import type { Aniversario } from '@/lib/aniversarios'
 import { SemanaView } from '@/components/crm/calendario/semana-view'
 import { MesView } from '@/components/crm/calendario/mes-view'
+import { PrazosView } from '@/components/crm/calendario/prazos-view'
 import { NovoEventoDialog } from '@/components/crm/calendario/novo-evento-dialog'
 import { NovoBloqueioDialog } from '@/components/crm/calendario/novo-bloqueio-dialog'
 import { ExportarSemanaBtn } from '@/components/crm/calendario/exportar-semana-btn'
 import { Relogio } from '@/components/crm/calendario/relogio'
 import { NotificacoesDialog } from '@/components/crm/calendario/notificacoes-dialog'
 import type { CalendarioNotificacao } from '@/components/crm/calendario/notificacoes-dialog'
+import { listarPrazosEmpresa, listarAudienciasEmpresa } from '@/lib/processos-prazos-calendario'
 import { cn } from '@/lib/utils'
 import type { AgendaBloqueio } from '@/types'
 
@@ -70,7 +72,79 @@ export default async function CalendarioPage({
   if (!user) redirect('/login')
 
   const params = await searchParams
-  const visao = params.visao === 'mes' ? 'mes' : 'semana'
+  const visao: 'semana' | 'mes' | 'prazos' =
+    params.visao === 'mes' ? 'mes' : params.visao === 'prazos' ? 'prazos' : 'semana'
+
+  // empresaId EFETIVO (empresa_ativa_id p/ platform admin; empresa_id p/ usuário comum)
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) redirect('/login')
+
+  // Visão "Prazos": ramo isolado e mais barato — pula toda a busca do Google
+  // Calendar (evita chamadas caras à API) e o cálculo de semana/mês/feriados/
+  // aniversários/bloqueios, que não são usados aqui. Fontes próprias (prazos
+  // processuais + audiências inferidas), cross-processo, escopadas por empresa.
+  if (visao === 'prazos') {
+    const admin = createAdminClient()
+    const [{ data: authUsers }, { data: profiles }, prazos, audiencias] = await Promise.all([
+      // E-mail vem da view profiles_auth (banco, via service_role) — mesmo
+      // padrão do restante da page (auth.admin.listUsers() falha em prod).
+      admin.from('profiles_auth').select('id, email'),
+      admin.from('profiles').select('id, full_name').eq('empresa_id', empresaId),
+      listarPrazosEmpresa(supabase, empresaId),
+      listarAudienciasEmpresa(supabase, empresaId),
+    ])
+
+    const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name as string]))
+    const membrosInternos: MembroInterno[] = (authUsers ?? [])
+      .filter((u) => u.email && profileMap[u.id])
+      .map((u) => ({ id: u.id, nome: profileMap[u.id] ?? u.email!.split('@')[0], email: u.email! }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Calendário</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">Prazos e audiências</p>
+          </div>
+        </div>
+
+        {/* Toggle semana / mês / prazos — sem barra anterior/hoje/próximo (não se aplica aqui) */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex rounded-lg border border-border bg-muted/40 p-1">
+            <Link
+              href="/calendario"
+              className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <CalendarDays className="size-4" />
+              Semana
+            </Link>
+            <Link
+              href="/calendario?visao=mes"
+              className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <LayoutGrid className="size-4" />
+              Mês
+            </Link>
+            <Link
+              href="/calendario?visao=prazos"
+              className="inline-flex items-center gap-2 rounded-md bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm"
+            >
+              <ListChecks className="size-4" />
+              Prazos
+            </Link>
+          </div>
+        </div>
+
+        <PrazosView
+          prazos={prazos}
+          audiencias={audiencias}
+          membrosInternos={membrosInternos}
+          currentUserEmail={user.email ?? ''}
+        />
+      </div>
+    )
+  }
 
   // Datas de referência
   const referencia = parseParamDate(params.semana ?? params.mes)
@@ -102,9 +176,7 @@ export default async function CalendarioPage({
         )
 
   const configured = isConfigured()
-  // empresaId EFETIVO (empresa_ativa_id p/ platform admin; empresa_id p/ usuário comum)
-  const { empresaId } = await getAuthUser()
-  if (!empresaId) redirect('/login')
+  // empresaId já resolvido acima (ramo "prazos" retorna antes de chegar aqui)
   const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token').eq('id', user.id).maybeSingle()
   const isGoogleConnected = !!myProfile?.google_refresh_token
   let events: Awaited<ReturnType<typeof listEvents>> = []
@@ -329,6 +401,13 @@ export default async function CalendarioPage({
           >
             <LayoutGrid className="size-4" />
             Mês
+          </Link>
+          <Link
+            href="/calendario?visao=prazos"
+            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ListChecks className="size-4" />
+            Prazos
           </Link>
         </div>
 
