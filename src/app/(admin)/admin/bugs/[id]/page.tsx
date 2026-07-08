@@ -4,6 +4,7 @@ import { ArrowLeft, Bug, Clock, Monitor, User, Building2, ExternalLink } from 'l
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import { AcceptButton } from './accept-button'
+import { ReanalisarButton } from './reanalisar-button'
 
 const SEV_COLORS: Record<string, string> = {
   critica: 'bg-red-100 text-red-700 border-red-300',
@@ -160,10 +161,12 @@ export default async function BugDetailPage({ params }: { params: Promise<{ id: 
                 {promptCorrecao}
               </pre>
             ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Prompt ainda não gerado — o bug foi registrado antes da análise completar.
-                Reenvie para reanalisar ou escreva o prompt manualmente.
-              </p>
+              <>
+                <p className="text-sm text-muted-foreground italic">
+                  Prompt ainda não gerado — o bug foi registrado antes da análise completar.
+                </p>
+                <ReanalisarButton bugId={id} />
+              </>
             )}
 
             {/* Botões de ação */}
