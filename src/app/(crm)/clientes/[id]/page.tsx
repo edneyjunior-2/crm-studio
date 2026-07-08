@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { calcularHonorarios, formatarBRL } from '@/lib/honorarios'
+import { formatCPF, formatCNPJ } from '@/lib/masks'
 import { Button } from '@/components/ui/button'
 import { ClienteForm } from '@/components/crm/clientes/cliente-form'
 import { ClienteDeleteButton } from '@/components/crm/clientes/cliente-delete-button'
@@ -137,18 +138,22 @@ export default async function ClienteDetailPage({ params }: PageProps) {
         <div className="col-span-1 lg:col-span-2 flex flex-col gap-4">
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="mb-4 text-sm font-semibold text-foreground">
-              Informações da empresa
+              {cliente.tipo_pessoa === 'pf' ? 'Dados pessoais' : 'Informações da empresa'}
             </h3>
             <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <InfoField
                 icon={<Building2 className="size-4" />}
-                label="Razão Social"
+                label={cliente.tipo_pessoa === 'pf' ? 'Nome' : 'Razão Social'}
                 value={cliente.razao_social}
               />
               <InfoField
                 icon={<FileText className="size-4" />}
-                label="CNPJ"
-                value={cliente.cnpj}
+                label={cliente.tipo_pessoa === 'pf' ? 'CPF' : 'CNPJ'}
+                value={
+                  cliente.tipo_pessoa === 'pf'
+                    ? (cliente.cpf ? formatCPF(cliente.cpf) : null)
+                    : (cliente.cnpj ? formatCNPJ(cliente.cnpj) : null)
+                }
               />
               <InfoField
                 icon={<Tag className="size-4" />}
