@@ -236,7 +236,12 @@ function buildWelcomeHtml({
   nome: string
   empresaNome: string
 }): string {
-  const dashboardUrl = `${getAppUrl()}/dashboard`
+  // Trial com cartão obrigatório (ver .claude/specs/trial-com-cartao.md): o
+  // trial só COMEÇA quando o webhook do Asaas confirma o cartão em
+  // /cadastro/pagamento — este e-mail dispara ANTES disso, então não pode
+  // prometer "sem cartão" nem mandar direto pro /dashboard (o gate de acesso
+  // devolveria a pessoa pra cá mesmo assim, mas o texto ficaria enganoso).
+  const pagamentoUrl = `${getAppUrl()}/cadastro/pagamento`
   const safeName = escapeHtml(nome)
   const safeEmpresa = escapeHtml(empresaNome)
 
@@ -247,13 +252,14 @@ function buildWelcomeHtml({
       Sua conta para <strong style="color:${NAVY};">${safeEmpresa}</strong> foi criada com sucesso.
     </p>
     <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
-      Você tem <strong style="color:${NAVY};">14 dias de trial gratuito</strong> para explorar tudo sem precisar de cartão.
+      Falta só confirmar o cartão pra começar seus <strong style="color:${NAVY};">14 dias de trial gratuito</strong> — você não é cobrado agora, só no 15º dia, se não cancelar antes.
     </p>
-    ${ctaButton(dashboardUrl, 'Acessar meu CRM →')}
+    ${ctaButton(pagamentoUrl, 'Confirmar cartão e começar →')}
     <div style="border-top:1px solid #e5e2da;padding-top:20px;">
-      <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:${NAVY};">Próximos passos:</p>
+      <p style="margin:0 0 10px;font-size:14px;font-weight:700;color:${NAVY};">Depois de confirmar, seus próximos passos:</p>
       <ul style="margin:0;padding-left:18px;color:#64748b;font-size:14px;line-height:2.2;">
         <li>Convide sua equipe em <strong style="color:${NAVY};">Configurações → Usuários</strong></li>
+        <li>Cadastre uma Solução (o que sua empresa vende)</li>
         <li>Cadastre seu primeiro cliente</li>
         <li>Crie uma oportunidade no Pipeline</li>
       </ul>
