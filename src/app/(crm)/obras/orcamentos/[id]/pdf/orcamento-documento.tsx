@@ -1,5 +1,7 @@
 'use client'
 
+import { TimbradoHeader } from '@/lib/timbrado'
+
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export interface OrcamentoDocItem {
@@ -19,8 +21,9 @@ export interface OrcamentoDocEmpresa { nome: string; razao_social: string | null
  * Mantém a classe `doc-print` e o <style> de print: ao chamar window.print() o navegador
  * imprime apenas este container (o resto da página fica com visibility:hidden).
  */
-export function OrcamentoDocumento({ orcamento, itens, empresa, usuarioNome }: {
+export function OrcamentoDocumento({ orcamento, itens, empresa, usuarioNome, timbradoUrl }: {
   orcamento: OrcamentoDoc; itens: OrcamentoDocItem[]; empresa: OrcamentoDocEmpresa | null; usuarioNome?: string | null
+  timbradoUrl?: string | null
 }) {
   const grupos = new Map<string, OrcamentoDocItem[]>()
   for (const i of itens) { const e = i.etapa || 'Geral'; grupos.set(e, [...(grupos.get(e) ?? []), i]) }
@@ -32,6 +35,8 @@ export function OrcamentoDocumento({ orcamento, itens, empresa, usuarioNome }: {
   return (
     <div className="mx-auto max-w-4xl bg-white p-8 text-[13px] text-zinc-800 doc-print">
       <style>{`@media print { body * { visibility: hidden } .doc-print, .doc-print * { visibility: visible } .doc-print { position: absolute; left: 0; top: 0; width: 100% } .no-print { display: none !important } }`}</style>
+
+      <TimbradoHeader url={timbradoUrl ?? null} />
 
       {/* Cabeçalho institucional */}
       <div className="flex items-start justify-between border-b-2 border-zinc-900 pb-4">

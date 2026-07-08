@@ -13,11 +13,13 @@ export function SolucaoPdfView({
   clientes,
   empresa,
   usuarioNome,
+  timbradoUrl,
 }: {
   solucao: SolucaoDoc
   clientes: SolucaoDocCliente[]
   empresa: SolucaoDocEmpresa | null
   usuarioNome?: string | null
+  timbradoUrl?: string | null
 }) {
   return (
     <div className="mx-auto max-w-4xl">
@@ -31,7 +33,13 @@ export function SolucaoPdfView({
         </button>
       </div>
       <div className="overflow-x-auto">
-        <SolucaoDocumento solucao={solucao} clientes={clientes} empresa={empresa} usuarioNome={usuarioNome} />
+        <SolucaoDocumento
+          solucao={solucao}
+          clientes={clientes}
+          empresa={empresa}
+          usuarioNome={usuarioNome}
+          timbradoUrl={timbradoUrl ?? null}
+        />
       </div>
     </div>
   )

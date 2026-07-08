@@ -599,6 +599,91 @@ export async function salvarDadosEmpresa(dados: {
   return {}
 }
 
+// ---------------------------------------------------------------------------
+// Timbrado (cabeçalho institucional) — bucket privado + path em empresas.config
+// ---------------------------------------------------------------------------
+const TIMBRADO_BUCKET = 'timbrados'
+const TIMBRADO_MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+const TIMBRADO_TIPOS = ['image/png', 'image/jpeg']
+
+/**
+ * Sobe o timbrado (PNG/JPG) da empresa do admin autenticado e grava o path em
+ * `empresas.config.timbrado_path` (merge, sem apagar outras chaves).
+ *
+ * GOTCHA billing: `UPDATE` em `empresas` foi revogado de `authenticated`
+ * (20260703130000_protege_billing_empresas.sql) — por isso grava via
+ * `createAdminClient()` (service-role), nunca via client do usuário. O escopo
+ * multi-tenant vem de `getAuthAdmin().empresaId` (tenant efetivo).
+ */
+export async function salvarTimbrado(formData: FormData): Promise<{ error?: string }> {
+  const { empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const file = formData.get('timbrado') as File | null
+  if (!file || file.size === 0) return { error: 'Nenhum arquivo enviado.' }
+  if (file.size > TIMBRADO_MAX_BYTES) return { error: 'Imagem muito grande. Limite: 2 MB.' }
+  if (!TIMBRADO_TIPOS.includes(file.type)) return { error: 'Formato inválido. Use PNG ou JPG.' }
+
+  const db = createAdminClient()
+  const ext = file.type === 'image/png' ? 'png' : 'jpg'
+  const path = `${empresaId}/timbrado.${ext}`
+
+  // Remove a variante de extensão antiga (evita órfão ao trocar png<->jpg).
+  // Best-effort: erro de "não existe" é esperado e ignorado.
+  await db.storage
+    .from(TIMBRADO_BUCKET)
+    .remove([`${empresaId}/timbrado.png`, `${empresaId}/timbrado.jpg`])
+
+  const { error: upErr } = await db.storage
+    .from(TIMBRADO_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type })
+  if (upErr) return { error: upErr.message }
+
+  const { data: emp } = await db.from('empresas').select('config').eq('id', empresaId).single()
+  const configAtual = (emp?.config as Record<string, unknown> | null) ?? {}
+  const novoConfig = { ...configAtual, timbrado_path: path }
+
+  const { error: dbErr } = await db.from('empresas').update({ config: novoConfig }).eq('id', empresaId)
+  if (dbErr) return { error: dbErr.message }
+
+  revalidatePath('/configuracoes')
+  return {}
+}
+
+/** Remove o timbrado atual (storage + chave `timbrado_path` do config). */
+export async function removerTimbrado(): Promise<{ error?: string }> {
+  const { empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const db = createAdminClient()
+
+  // Best-effort: remove qualquer extensão presente.
+  await db.storage
+    .from(TIMBRADO_BUCKET)
+    .remove([`${empresaId}/timbrado.png`, `${empresaId}/timbrado.jpg`])
+
+  const { data: emp } = await db.from('empresas').select('config').eq('id', empresaId).single()
+  const novoConfig = { ...((emp?.config as Record<string, unknown> | null) ?? {}) }
+  delete novoConfig.timbrado_path
+
+  const { error: dbErr } = await db.from('empresas').update({ config: novoConfig }).eq('id', empresaId)
+  if (dbErr) return { error: dbErr.message }
+
+  revalidatePath('/configuracoes')
+  return {}
+}
+
+/**
+ * Busca a signed URL do timbrado atual da empresa do admin autenticado.
+ * Existe para a seção de config em Configurações se auto-buscar (a página
+ * `configuracoes/page.tsx` não é tocada por esta spec).
+ */
+export async function obterTimbradoAtual(): Promise<{ url: string | null }> {
+  const { empresaId } = await getAuthAdmin()
+  const { resolverTimbradoUrl } = await import('@/lib/timbrado')
+  return { url: await resolverTimbradoUrl(empresaId) }
+}
+
 export async function salvarEncarregado(
   data: unknown
 ): Promise<{ error?: string }> {

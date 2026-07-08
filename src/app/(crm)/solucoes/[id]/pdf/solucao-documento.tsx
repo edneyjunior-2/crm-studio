@@ -1,5 +1,7 @@
 'use client'
 
+import { TimbradoHeader } from '@/lib/timbrado'
+
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const PERCENTUAL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
@@ -42,11 +44,13 @@ export function SolucaoDocumento({
   clientes,
   empresa,
   usuarioNome,
+  timbradoUrl,
 }: {
   solucao: SolucaoDoc
   clientes: SolucaoDocCliente[]
   empresa: SolucaoDocEmpresa | null
   usuarioNome?: string | null
+  timbradoUrl?: string | null
 }) {
   const totalNegocios = clientes.reduce((s, c) => s + c.numero_negocios, 0)
   const totalValor = clientes.reduce((s, c) => s + c.valor_total, 0)
@@ -58,6 +62,8 @@ export function SolucaoDocumento({
   return (
     <div className="mx-auto max-w-4xl bg-white p-8 text-[13px] text-zinc-800 doc-print">
       <style>{`@media print { body * { visibility: hidden } .doc-print, .doc-print * { visibility: visible } .doc-print { position: absolute; left: 0; top: 0; width: 100% } .no-print { display: none !important } }`}</style>
+
+      <TimbradoHeader url={timbradoUrl ?? null} />
 
       {/* Cabeçalho institucional */}
       <div className="flex items-start justify-between border-b-2 border-zinc-900 pb-4">

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getAuthUser } from '@/lib/auth'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { resolverTimbradoUrl } from '@/lib/timbrado'
 import { OrcamentoPdfView } from './pdf-view'
 
 export const dynamic = 'force-dynamic'
@@ -9,7 +10,7 @@ export default async function OrcamentoPdfPage({ params }: { params: Promise<{ i
   const { id } = await params
   const { supabase, empresaId, user } = await getAuthUser()
 
-  const [{ data: orcamento }, itens, { data: empresa }, { data: perfil }] = await Promise.all([
+  const [{ data: orcamento }, itens, { data: empresa }, { data: perfil }, timbradoUrl] = await Promise.all([
     supabase.from('orcamentos').select('*, cliente:clientes(razao_social, cnpj), obra:obras(nome, endereco)').eq('id', id).single(),
     // fetchAllRows contorna o cap de 1000 linhas do PostgREST
     fetchAllRows((from, to) =>
@@ -25,6 +26,7 @@ export default async function OrcamentoPdfPage({ params }: { params: Promise<{ i
       ? supabase.from('empresas').select('nome, razao_social, nome_fantasia, cnpj').eq('id', empresaId).single()
       : Promise.resolve({ data: null }),
     supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+    resolverTimbradoUrl(empresaId),
   ])
 
   if (!orcamento) notFound()
@@ -35,6 +37,7 @@ export default async function OrcamentoPdfPage({ params }: { params: Promise<{ i
       itens={itens}
       empresa={empresa ?? null}
       usuarioNome={perfil?.full_name ?? null}
+      timbradoUrl={timbradoUrl}
     />
   )
 }

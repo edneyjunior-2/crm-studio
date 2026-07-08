@@ -3,8 +3,9 @@
 import { Printer } from 'lucide-react'
 import { OrcamentoDocumento, type OrcamentoDoc, type OrcamentoDocItem, type OrcamentoDocEmpresa } from './orcamento-documento'
 
-export function OrcamentoPdfView({ orcamento, itens, empresa, usuarioNome }: {
+export function OrcamentoPdfView({ orcamento, itens, empresa, usuarioNome, timbradoUrl }: {
   orcamento: OrcamentoDoc; itens: OrcamentoDocItem[]; empresa: OrcamentoDocEmpresa | null; usuarioNome?: string | null
+  timbradoUrl?: string | null
 }) {
   return (
     <div className="mx-auto max-w-4xl">
@@ -15,7 +16,13 @@ export function OrcamentoPdfView({ orcamento, itens, empresa, usuarioNome }: {
         </button>
       </div>
       <div className="overflow-x-auto">
-        <OrcamentoDocumento orcamento={orcamento} itens={itens} empresa={empresa} usuarioNome={usuarioNome} />
+        <OrcamentoDocumento
+          orcamento={orcamento}
+          itens={itens}
+          empresa={empresa}
+          usuarioNome={usuarioNome}
+          timbradoUrl={timbradoUrl ?? null}
+        />
       </div>
     </div>
   )
