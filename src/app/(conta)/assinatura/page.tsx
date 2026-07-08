@@ -49,6 +49,14 @@ type StatusConfig = {
 }
 
 const STATUS_CONFIG: Record<StatusEmpresa, StatusConfig> = {
+  pendente_cartao: {
+    label: 'Cadastro do cartão pendente',
+    icon: CreditCard,
+    containerClass: 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40',
+    iconClass: 'text-amber-600 dark:text-amber-400',
+    textClass: 'text-amber-900 dark:text-amber-200',
+    mensagem: 'Falta confirmar seu cartão para liberar o período de teste. Finalize o cadastro para continuar.',
+  },
   trial: {
     label: 'Período de teste',
     icon: Clock,
@@ -275,6 +283,20 @@ export default async function AssinaturaPage() {
             )
           })}
         </div>
+
+        {/* pendente_cartao: ainda não tem o que assinar aqui — precisa voltar
+            e confirmar o cartão no checkout do cadastro primeiro. */}
+        {status === 'pendente_cartao' && (
+          <div className="text-center">
+            <Link
+              href="/cadastro/pagamento"
+              className="inline-flex items-center gap-2 rounded-xl bg-sidebar-primary px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <CreditCard className="size-4" aria-hidden />
+              Finalizar cadastro do cartão
+            </Link>
+          </div>
+        )}
 
         {/* Form de assinatura — trial, suspenso, cancelado */}
         {(['trial', 'suspenso', 'cancelado'] as StatusEmpresa[]).includes(status) && (

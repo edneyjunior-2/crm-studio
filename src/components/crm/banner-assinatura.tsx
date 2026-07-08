@@ -49,7 +49,10 @@ const bannerConfig: Record<
 }
 
 export function BannerAssinatura({ status, diasRestantes }: BannerAssinaturaProps) {
-  if (status === 'ativo' || status === 'suspenso' || status === 'cancelado') {
+  // 'pendente_cartao' nunca chega até aqui de verdade — (crm)/layout.tsx
+  // redireciona pra /cadastro/pagamento antes de renderizar o shell do CRM.
+  // Guard aqui é só defensivo (evita indexação inválida em bannerConfig).
+  if (status === 'ativo' || status === 'suspenso' || status === 'cancelado' || status === 'pendente_cartao') {
     return null
   }
 

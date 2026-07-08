@@ -11,7 +11,7 @@ import { ConfigSdrSection } from './config-sdr-section'
 import { ModeloContratoSection } from './modelo-contrato-section'
 
 const PLANOS   = ['interno', 'trial', 'free', 'starter', 'pro', 'business']
-const STATUSES = ['trial', 'ativo', 'pendente', 'atrasado', 'suspenso', 'cancelado']
+const STATUSES = ['pendente_cartao', 'trial', 'ativo', 'pendente', 'atrasado', 'suspenso', 'cancelado']
 
 const PLANO_LABEL: Record<string, string> = {
   interno:  'Interno (sem cobrança)',
@@ -23,6 +23,7 @@ const PLANO_LABEL: Record<string, string> = {
 }
 
 const STATUS_LABEL: Record<string, string> = {
+  pendente_cartao: 'Aguardando cartão',
   trial:    'Trial',
   ativo:    'Ativo',
   pendente: 'Pendente',

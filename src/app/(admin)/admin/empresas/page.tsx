@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Plus } from 'lucide-react'
 
 const STATUS_BADGE: Record<string, string> = {
+  pendente_cartao: 'bg-amber-50 text-amber-700',
   trial:     'bg-blue-50 text-blue-700',
   ativo:     'bg-green-50 text-green-700',
   pendente:  'bg-yellow-50 text-yellow-700',
@@ -62,7 +63,7 @@ export default async function EmpresasPage({
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
-        {['', 'trial', 'ativo', 'suspenso', 'cancelado'].map((s) => (
+        {['', 'pendente_cartao', 'trial', 'ativo', 'suspenso', 'cancelado'].map((s) => (
           <Link
             key={s || 'todos'}
             href={s ? `/admin/empresas?status=${s}` : '/admin/empresas'}

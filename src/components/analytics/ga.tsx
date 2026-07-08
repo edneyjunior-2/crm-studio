@@ -1,15 +1,23 @@
 'use client'
 
 // Injeta o Google Analytics 4 (gtag.js) e observa a rota atual para disparar
-// os eventos-chave do funil de marketing (view_pricing, iniciar_cadastro,
-// trial_iniciado) — sem precisar tocar no conteúdo das páginas (essa lane não
-// mexe em copy/produto/preços). Sem NEXT_PUBLIC_GA_ID configurada, o
-// componente não renderiza nada (no-op seguro em dev/preview sem GA).
+// os eventos-chave do funil de marketing (view_pricing, iniciar_cadastro) —
+// sem precisar tocar no conteúdo das páginas (essa lane não mexe em
+// copy/produto/preços). Sem NEXT_PUBLIC_GA_ID configurada, o componente não
+// renderiza nada (no-op seguro em dev/preview sem GA).
 //
 // Montado em dois layouts (docs/lancamento/tracking-plano.md):
-//   - src/app/(marketing)/layout.tsx → cobre / , /precos, /cadastro etc.
-//   - src/app/(auth)/layout.tsx      → cobre /login, onde cai o redirect de
-//     sucesso do cadastro ('/login?cadastro=ok'), fora do layout de marketing.
+//   - src/app/(marketing)/layout.tsx → cobre / , /precos, /cadastro,
+//     /cadastro/pagamento, /cadastro/pagamento/sucesso etc.
+//   - src/app/(auth)/layout.tsx      → cobre /login.
+//
+// A conversão 'trial_iniciado' NÃO é disparada por pathname aqui (era o caso
+// antigo de '/login?cadastro=ok'). Desde o trial-com-cartão-obrigatório, o
+// cadastro só conta como convertido depois que o webhook do Asaas confirma o
+// cartão — chegar em /cadastro/pagamento/sucesso não é garantia disso (ver
+// invariante de segurança na spec). Por isso o disparo mora na própria página
+// de sucesso (trial-iniciado-tracker.tsx), condicionado ao status real da
+// empresa, usando trackTrialIniciadoOnce() de src/lib/analytics.ts.
 
 import Script from 'next/script'
 import { Suspense, useEffect, useRef } from 'react'
@@ -28,26 +36,6 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-B9J589682L'
 // para esta conta" e a conversão pode não ser roteada). Deriva do mesmo valor
 // usado em analytics.ts para não duplicar a fonte da verdade.
 const ADS_ID = (process.env.NEXT_PUBLIC_ADS_CONVERSION ?? 'AW-11038250248/4FZPCPGns8wcEIiquY8p').split('/')[0]
-
-// Evita duplicar a conversão principal se '/login?cadastro=ok' for recarregada
-// (F5) na mesma aba/sessão do navegador.
-const TRIAL_STARTED_KEY = 'ga_trial_iniciado_disparado'
-
-function readTrialFlag(): boolean {
-  try {
-    return window.sessionStorage.getItem(TRIAL_STARTED_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function writeTrialFlag() {
-  try {
-    window.sessionStorage.setItem(TRIAL_STARTED_KEY, '1')
-  } catch {
-    // sessionStorage bloqueado (modo privado etc.) — não quebra o disparo do evento
-  }
-}
 
 /**
  * Observa pathname + querystring e dispara o evento de negócio certo.
@@ -73,13 +61,6 @@ function RouteEvents() {
 
     if (pathname === '/cadastro') {
       trackEvent('iniciar_cadastro')
-    }
-
-    // Conversão principal: sucesso do cadastro cai em /login?cadastro=ok
-    // (server action com redirect — ver (marketing)/cadastro/actions.ts).
-    if (pathname === '/login' && searchParams.get('cadastro') === 'ok' && !readTrialFlag()) {
-      trackEvent('trial_iniciado', { value: 297, currency: 'BRL' })
-      writeTrialFlag()
     }
   }, [pathname, searchParams])
 

@@ -106,10 +106,24 @@ export async function assinarPlano(
 
     if (insertErr) {
       if (insertErr.code === '23505') {
-        // Rollback best-effort: cancela a subscription órfã no Asaas
-        cancelSubscription(subscription.id).catch((e: unknown) => {
-          console.error('[assinarPlano] falha ao cancelar subscription órfã no Asaas:', e)
-        })
+        // CRÍTICO (revisão adversarial 2026-07-08): antes de cancelar, confirma
+        // que a assinatura conflitante é REALMENTE outra diferente desta —
+        // não a mesma subscription que o webhook (processando o SUBSCRIPTION_
+        // CREATED desta mesma chamada, em paralelo) já registrou legitimamente.
+        // Sem essa checagem, uma corrida rara cancelaria no Asaas a própria
+        // assinatura que acabamos de criar pro cliente.
+        const { data: conflitante } = await db
+          .from('assinaturas')
+          .select('asaas_subscription_id')
+          .eq('empresa_id', empresaId)
+          .neq('status', 'cancelado')
+          .maybeSingle()
+
+        if (conflitante && conflitante.asaas_subscription_id !== subscription.id) {
+          cancelSubscription(subscription.id).catch((e: unknown) => {
+            console.error('[assinarPlano] falha ao cancelar subscription órfã no Asaas:', e)
+          })
+        }
         return { error: 'Sua conta já possui uma assinatura ativa.' }
       }
       throw new Error(insertErr.message)

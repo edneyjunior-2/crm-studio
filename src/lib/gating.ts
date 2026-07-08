@@ -22,15 +22,16 @@ export type { StatusEmpresa, PlanoEmpresa, Modulo }
 /**
  * Retorna `true` se o status da assinatura permite acesso ao app.
  *
- * | Status    | Acessa? |
- * |-----------|---------|
- * | trial     | ✅      |
- * | ativo     | ✅      |
- * | pendente  | ✅ (com aviso — dunning suave) |
- * | atrasado  | ✅ (com aviso — grace period) |
- * | suspenso  | ❌ paywall |
- * | cancelado | ❌ paywall |
- * | desconhecido | ❌ (fail-closed por segurança) |
+ * | Status          | Acessa? |
+ * |-----------------|---------|
+ * | pendente_cartao | ❌ (aguardando confirmação do cartão — ver /cadastro/pagamento) |
+ * | trial           | ✅      |
+ * | ativo           | ✅      |
+ * | pendente        | ✅ (com aviso — dunning suave) |
+ * | atrasado        | ✅ (com aviso — grace period) |
+ * | suspenso        | ❌ paywall |
+ * | cancelado       | ❌ paywall |
+ * | desconhecido    | ❌ (fail-closed por segurança) |
  */
 export function acessoLiberado(status: StatusEmpresa): boolean {
   return (['trial', 'ativo', 'pendente', 'atrasado'] as StatusEmpresa[]).includes(status)

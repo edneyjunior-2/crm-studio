@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { cancelSubscription } from '@/lib/asaas'
+import { sendAlertaInterno } from '@/lib/email'
 import { timingSafeEqual, createHash } from 'crypto'
+
+const ALERTA_EMAIL = process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com'
 
 // ---------------------------------------------------------------------------
 // Tipos do payload Asaas
@@ -19,9 +23,13 @@ interface AsaasPaymentPayload {
 }
 
 interface AsaasSubscriptionPayload {
-  id:        string          // sub_...
-  customer:  string          // cus_...
-  status?:   string
+  id:                 string          // sub_...
+  customer:           string          // cus_...
+  status?:            string
+  // Setado por nós na criação do Checkout (createCheckout, externalReference
+  // = empresaId) — ver src/app/(marketing)/cadastro/pagamento/actions.ts.
+  // Usado como atalho de resolução em SUBSCRIPTION_CREATED (ver seção 4).
+  externalReference?: string
 }
 
 interface AsaasWebhookBody {
@@ -134,7 +142,13 @@ export async function POST(request: NextRequest) {
 
   let empresaId: string | null = null
   let empresaPlano: string | null = null
+  let empresaStatusAtual: string | null = null
 
+  // Se ESTA subscription específica já tem linha em `assinaturas`, ela já foi
+  // registrada por alguém (o insert síncrono de assinarPlano(), ou uma entrega
+  // anterior deste mesmo processamento) — usado abaixo pra não reprocessar o
+  // bloco de SUBSCRIPTION_CREATED em cima de uma subscription já conhecida.
+  let assinaturaJaRegistrada = false
   if (subscriptionId) {
     const { data: assinatura, error: assinaturaErr } = await supabase
       .from('assinaturas')
@@ -145,12 +159,36 @@ export async function POST(request: NextRequest) {
       console.error('[webhook] Erro ao buscar assinatura:', assinaturaErr.message)
     }
     empresaId = assinatura?.empresa_id ?? null
+    assinaturaJaRegistrada = !!assinatura
+  }
+
+  // Fallback do fluxo trial-com-cartão: em SUBSCRIPTION_CREATED ainda não
+  // existe nenhuma linha em `assinaturas` pra essa subscription (é este
+  // evento que vai criar a primeira) — o lookup acima sempre dá null. Resolver
+  // por externalReference (= empresaId, setado na criação do Checkout — ver
+  // createCheckout/iniciarCheckoutCartao) é mais direto e não depende do Asaas
+  // ter deduplicado o cliente do checkout com o customer pré-criado. Se não
+  // resolver nada, cai no fallback por customer de sempre (abaixo).
+  if (!empresaId && isSubscriptionEvent && subscription?.externalReference) {
+    const { data: empresaPorRef, error: refErr } = await supabase
+      .from('empresas')
+      .select('id, plano, status')
+      .eq('id', subscription.externalReference)
+      .maybeSingle()
+    if (refErr) {
+      console.error('[webhook] Erro ao buscar empresa por externalReference:', refErr.message)
+    }
+    if (empresaPorRef) {
+      empresaId = empresaPorRef.id
+      empresaPlano = empresaPorRef.plano
+      empresaStatusAtual = empresaPorRef.status
+    }
   }
 
   if (!empresaId) {
     const { data: empresa, error: empresaErr } = await supabase
       .from('empresas')
-      .select('id, plano')
+      .select('id, plano, status')
       .eq('asaas_customer_id', customerId ?? '')
       .maybeSingle()
     if (empresaErr) {
@@ -158,16 +196,18 @@ export async function POST(request: NextRequest) {
     }
     empresaId = empresa?.id ?? null
     empresaPlano = empresa?.plano ?? null
-  } else {
+    empresaStatusAtual = empresa?.status ?? null
+  } else if (empresaPlano === null) {
     const { data: empresa, error: empresaErr } = await supabase
       .from('empresas')
-      .select('plano')
+      .select('plano, status')
       .eq('id', empresaId)
       .maybeSingle()
     if (empresaErr) {
       console.error('[webhook] Erro ao buscar empresa por id:', empresaErr.message)
     }
     empresaPlano = empresa?.plano ?? null
+    empresaStatusAtual = empresa?.status ?? null
   }
 
   if (!empresaId) {
@@ -175,6 +215,25 @@ export async function POST(request: NextRequest) {
       .from('eventos_webhook')
       .update({ error: `empresa_id não encontrada para customer=${customerId ?? '(sem customer)'}`, processed: true, processed_at: new Date().toISOString() })
       .eq('asaas_event_id', asaasEventId)
+
+    // SUBSCRIPTION_CREATED sem empresa resolvida (nem por externalReference,
+    // nem por customer) é grave: alguém pode ter confirmado cartão/pagamento
+    // real e a conta ficar travada em 'pendente_cartao' pra sempre, sem
+    // ninguém saber — a menos que alguém consulte eventos_webhook.error
+    // manualmente. Alerta o dono da plataforma pra investigar na hora.
+    if (event === 'SUBSCRIPTION_CREATED') {
+      sendAlertaInterno({
+        to:        ALERTA_EMAIL,
+        assunto:   '[CRM Studio] Webhook Asaas: empresa não resolvida em SUBSCRIPTION_CREATED',
+        titulo:    'Assinatura confirmada sem empresa correspondente',
+        descricao: 'Um evento SUBSCRIPTION_CREATED do Asaas chegou mas não foi possível resolver a empresa (nem por externalReference, nem por asaas_customer_id). Isso pode significar um cliente que confirmou o cartão mas ficou travado sem acesso — verifique manualmente no painel do Asaas e em eventos_webhook.error.',
+        linhas:    [`subscription_id: ${subscriptionId ?? '(nenhum)'}`, `customer_id: ${customerId ?? '(nenhum)'}`, `evento: ${asaasEventId}`],
+        destaque:  'perigo',
+      }).catch((e: unknown) => {
+        console.error('[webhook] falha ao enviar alerta interno:', e)
+      })
+    }
+
     return NextResponse.json({ ok: true })
   }
 
@@ -209,6 +268,91 @@ export async function POST(request: NextRequest) {
         invoice_url:      payment.invoiceUrl ?? null,
         updated_at:       new Date().toISOString(),
       }, { onConflict: 'asaas_payment_id' })
+  }
+
+  // 5b. SUBSCRIPTION_CREATED — ativa o trial do fluxo "cartão obrigatório no
+  //     cadastro" (spec: .claude/specs/trial-com-cartao.md).
+  //
+  //     CRÍTICO (revisão adversarial 2026-07-08): o INSERT abaixo NÃO é mais
+  //     condicionado a empresaStatusAtual === 'pendente_cartao' — só a
+  //     LIBERAÇÃO DO TRIAL (o UPDATE em empresas, no fim) é. Motivo: se o
+  //     insert só fosse tentado quando a empresa ainda está pendente_cartao,
+  //     uma 2ª subscription real confirmada DEPOIS que uma 1ª já liberou o
+  //     trial (ex.: usuário conclui dois checkouts do trial-com-cartão, ou
+  //     volta numa aba/e-mail antigo dias depois) caía num no-op silencioso —
+  //     nenhum insert, nenhum cancelSubscription — deixando uma assinatura
+  //     recorrente ATIVA no Asaas cobrando o cartão pra sempre, sem nenhum
+  //     registro em `assinaturas` e invisível no admin. Agora o insert é
+  //     SEMPRE tentado (guardado por assinaturaJaRegistrada pra não reprocessar
+  //     uma subscription que já tem linha — caso do fluxo normal de
+  //     assinarPlano(), que insere a sua própria linha sincronamente ANTES do
+  //     webhook chegar, então cai aqui com assinaturaJaRegistrada=true e este
+  //     bloco inteiro vira no-op pra ela, como sempre foi). Uma 2ª subscription
+  //     do trial-com-cartão colide no UNIQUE (empresa_id) WHERE status <>
+  //     'cancelado' existente (23505) e é cancelada como órfã — em vez de
+  //     nunca ser detectada.
+  if (event === 'SUBSCRIPTION_CREATED' && subscriptionId && !assinaturaJaRegistrada) {
+    const { error: insertAssinaturaErr } = await supabase.from('assinaturas').insert({
+      empresa_id:            empresaId,
+      plano:                 'starter',
+      asaas_subscription_id: subscriptionId,
+      status:                'trial',
+      billing_type:          'CREDIT_CARD',
+      cycle:                 'MONTHLY',
+      value:                 147,
+    })
+
+    if (insertAssinaturaErr && insertAssinaturaErr.code === '23505') {
+      // CRÍTICO (revisão adversarial 2026-07-08, 2ª rodada): antes de cancelar,
+      // confirma que a subscription conflitante é REALMENTE outra diferente
+      // desta — não a mesma subscription que outro escritor concorrente (ex.:
+      // assinarPlano(), que insere sua própria linha SINCRONAMENTE, correndo
+      // em paralelo ao processamento deste mesmo webhook) já registrou
+      // legitimamente. Sem essa checagem, uma corrida rara faria este código
+      // cancelar no Asaas a assinatura REAL de um cliente pagante que acabou
+      // de assinar um plano pago, achando (errado) que era uma órfã.
+      // ponytail: o INSERT (acima) e este SELECT não são atômicos — se a linha
+      // conflitante for cancelada por um evento concorrente bem nessa janela
+      // estreita, o SELECT pode vir vazio e uma subscription genuinamente órfã
+      // deixa de ser cancelada aqui (favorecemos NÃO cancelar na dúvida, pra
+      // nunca arriscar cancelar uma assinatura legítima — vazamento de receita
+      // é um mal menor que cancelar cliente pagante por engano). Upgrade se
+      // isso incomodar na prática: mover pra uma função no Postgres com
+      // INSERT ... ON CONFLICT (empresa_id) WHERE status <> 'cancelado' DO
+      // NOTHING RETURNING *, atômico de verdade.
+      const { data: conflitante } = await supabase
+        .from('assinaturas')
+        .select('asaas_subscription_id')
+        .eq('empresa_id', empresaId)
+        .neq('status', 'cancelado')
+        .maybeSingle()
+
+      if (conflitante && conflitante.asaas_subscription_id !== subscriptionId) {
+        // Subscription genuinamente diferente/stale — cancela como órfã.
+        cancelSubscription(subscriptionId).catch((e: unknown) => {
+          console.error('[webhook] falha ao cancelar subscription órfã no Asaas:', e)
+        })
+      }
+      // Se for a mesma subscriptionId (ou a busca não achar nada por causa de
+      // outra corrida), não faz nada — outro escritor já registrou esta
+      // exata subscription; cancelar destruiria uma assinatura legítima.
+    } else if (insertAssinaturaErr) {
+      console.error('[webhook] Erro ao inserir assinatura (SUBSCRIPTION_CREATED):', insertAssinaturaErr.message)
+      return NextResponse.json({ error: 'db_error' }, { status: 500 })
+    } else if (empresaStatusAtual === 'pendente_cartao') {
+      // Só libera o trial se o insert aconteceu de fato (não em cima do
+      // 23505) E a empresa realmente estava esperando o cartão. Condicional
+      // em status='pendente_cartao' trava contra qualquer corrida que já
+      // tenha mudado o status entretanto.
+      await supabase
+        .from('empresas')
+        .update({
+          status:        'trial',
+          trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        })
+        .eq('id', empresaId)
+        .eq('status', 'pendente_cartao')
+    }
   }
 
   // 6. Transição de estado da assinatura

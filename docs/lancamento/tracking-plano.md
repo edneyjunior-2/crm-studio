@@ -5,6 +5,20 @@
 > Stack: Next.js 16 (App Router) + React 19. Site em `src/app/(marketing)/`.
 > Objetivo de conversão a otimizar: **trial iniciado / cadastro concluído**.
 
+> **Atualização (2026-07, spec `trial-com-cartao.md`):** o cadastro passou a
+> exigir cartão de crédito (Checkout hospedado do Asaas) antes de liberar o
+> trial. O redirect de sucesso do cadastro **não é mais** `/login?cadastro=ok`
+> — agora é `/cadastro/pagamento` (confirmação do cartão) e, depois do
+> checkout, `/cadastro/pagamento/sucesso`. O evento `trial_iniciado` também
+> mudou de lugar/critério: não dispara mais automaticamente por pathname no
+> `<Ga/>` (`src/components/analytics/ga.tsx`) — dispara dentro da própria
+> página `/cadastro/pagamento/sucesso`
+> (`trial-iniciado-tracker.tsx`), e só quando o status da empresa já deixou de
+> ser `pendente_cartao` (ou seja, só depois que o webhook do Asaas confirmar o
+> cartão via `SUBSCRIPTION_CREATED`). Isso evita contar a conversão antes do
+> cartão estar de fato confirmado — o texto abaixo (Seções 0–7) descreve o
+> desenho ORIGINAL, anterior a essa mudança, e fica como histórico.
+
 ---
 
 ## 0. Situação atual (auditada no código)

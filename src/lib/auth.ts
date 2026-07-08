@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 
 type Role = 'admin' | 'socio' | 'comercial' | 'parceiro'
 export type PlanoEmpresa = 'free' | 'trial' | 'interno' | 'starter' | 'pro' | 'business'
-export type StatusEmpresa = 'trial' | 'ativo' | 'pendente' | 'atrasado' | 'suspenso' | 'cancelado'
+export type StatusEmpresa = 'pendente_cartao' | 'trial' | 'ativo' | 'pendente' | 'atrasado' | 'suspenso' | 'cancelado'
 
 export interface AuthResult {
   supabase: Awaited<ReturnType<typeof createClient>>
@@ -49,11 +49,14 @@ export const getAuthUser = cache(async (): Promise<AuthResult> => {
   // Carrega dados do plano da empresa efetiva (quando há empresa ativa)
   let empresa: { plano?: string; status?: string; trial_ends_at?: string | null } | null = null
   if (empresaIdEfetivo) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('empresas')
       .select('plano, status, trial_ends_at')
       .eq('id', empresaIdEfetivo)
       .maybeSingle()
+    if (error) {
+      console.error('[getAuthUser] erro ao buscar empresa:', error.message)
+    }
     empresa = data
   }
 
@@ -63,7 +66,14 @@ export const getAuthUser = cache(async (): Promise<AuthResult> => {
     role: (profile?.role ?? 'comercial') as Role,
     empresaId: empresaIdEfetivo,
     plano: (empresa?.plano ?? 'free') as PlanoEmpresa,
-    status: (empresa?.status ?? 'trial') as StatusEmpresa,
+    // Fail-closed: nunca presumir 'trial' quando a leitura da empresa falha ou
+    // não retorna linha (erro transitório de conexão, lag logo após uma
+    // migration etc.) — isso liberaria acesso total sem cartão confirmado pra
+    // qualquer empresa em 'pendente_cartao' que sofresse esse blip.
+    // 'pendente_cartao' já tem redirect próprio em (crm)/layout.tsx e nunca
+    // passa em acessoLiberado() — é o fallback seguro (empresa legítima só
+    // vê isso num blip raro e transitório, e resolve tentando de novo).
+    status: (empresa?.status ?? 'pendente_cartao') as StatusEmpresa,
     trialEndsAt: empresa?.trial_ends_at ?? null,
     isPlatformAdmin,
     modulosPermitidos: (profile?.modulos_permitidos ?? null) as string[] | null,

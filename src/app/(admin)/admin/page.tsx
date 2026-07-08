@@ -4,10 +4,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 const STATUS_LABELS: Record<string, string> = {
-  trial: 'Trial', ativo: 'Ativo', pendente: 'Pendente',
+  pendente_cartao: 'Aguardando cartão', trial: 'Trial', ativo: 'Ativo', pendente: 'Pendente',
   atrasado: 'Atrasado', suspenso: 'Suspenso', cancelado: 'Cancelado',
 }
 const STATUS_COLORS: Record<string, string> = {
+  pendente_cartao: 'bg-amber-50 text-amber-700 border-amber-200',
   trial: 'bg-blue-50 text-blue-700 border-blue-200',
   ativo: 'bg-green-50 text-green-700 border-green-200',
   pendente: 'bg-yellow-50 text-yellow-700 border-yellow-200',

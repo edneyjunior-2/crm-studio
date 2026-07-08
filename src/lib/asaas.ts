@@ -155,3 +155,74 @@ export async function cancelSubscription(
     `/subscriptions/${asaasSubscriptionId}`,
   )
 }
+
+// ---------------------------------------------------------------------------
+// Checkout hospedado (trial com cartão obrigatório)
+// ---------------------------------------------------------------------------
+
+export interface AsaasCheckout {
+  id: string
+  link: string
+  status: string
+}
+
+// 1x1 pixel transparente — o schema do Asaas (CheckoutSessionItemsDTO) marca
+// `imageBase64` como campo obrigatório do item, mesmo para venda sem produto
+// físico (assinatura de SaaS). Não há imagem real a mostrar; usamos um
+// placeholder mínimo só para satisfazer a validação da API.
+const PIXEL_TRANSPARENTE_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+
+/**
+ * Cria um Checkout hospedado do Asaas (POST /v3/checkouts) para uma assinatura
+ * recorrente mensal cobrada em cartão de crédito. O cartão é validado no ato
+ * pelo Asaas; a primeira cobrança real só acontece em `nextDueDate`.
+ *
+ * Nota de schema (verificado na doc oficial em 2026-07):
+ *  - NÃO existe campo `customer` (id de cliente já existente) no body deste
+ *    endpoint — só `customerData` (dados soltos). Por isso recebemos os dados
+ *    do pagador aqui, mesmo que a empresa já tenha um `asaas_customer_id`
+ *    salvo (criado antes, via createCustomer, só para reconciliação —
+ *    ver iniciarCheckoutCartao).
+ *  - O valor da cobrança vem de `items[].value` (não existe `subscription.value`
+ *    no schema real) — `subscription` só carrega `cycle`/`nextDueDate`/`endDate`.
+ */
+export async function createCheckout(params: {
+  empresaId: string
+  customer: { name: string; email?: string; cpfCnpj?: string }
+  value: number
+  nextDueDate: string    // 'YYYY-MM-DD'
+  successUrl: string
+  cancelUrl: string
+  expiredUrl: string
+}): Promise<AsaasCheckout> {
+  const { empresaId, customer, value, nextDueDate, successUrl, cancelUrl, expiredUrl } = params
+  const digits = customer.cpfCnpj?.replace(/\D/g, '') ?? ''
+
+  return asaasRequest<AsaasCheckout>('POST', '/checkouts', {
+    billingTypes: ['CREDIT_CARD'],
+    chargeTypes:  ['RECURRENT'],
+    callback: {
+      successUrl,
+      cancelUrl,
+      expiredUrl,
+    },
+    items: [{
+      name:        'Assinatura CRM Studio',
+      description: 'Plano Starter — cobrança mensal recorrente',
+      value,
+      quantity:    1,
+      imageBase64: PIXEL_TRANSPARENTE_BASE64,
+    }],
+    customerData: {
+      name:  customer.name,
+      ...(customer.email ? { email: customer.email } : {}),
+      ...(digits ? { cpfCnpj: digits } : {}),
+    },
+    subscription: {
+      cycle: 'MONTHLY',
+      nextDueDate,
+    },
+    externalReference: empresaId,
+  })
+}

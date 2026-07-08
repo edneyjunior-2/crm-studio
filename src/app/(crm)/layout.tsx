@@ -25,6 +25,10 @@ export default async function CRMLayout({
     else redirect('/entrar/empresa')
   }
 
+  // Cadastro com cartão pendente de confirmação → volta pro checkout (não é o
+  // paywall genérico de /assinatura, que espera trial/suspenso/cancelado).
+  if (status === 'pendente_cartao') redirect('/cadastro/pagamento')
+
   // Assinatura suspensa/cancelada → paywall (sem loop: /assinatura fica fora deste grupo)
   if (!acessoLiberado(status)) redirect('/assinatura')
 

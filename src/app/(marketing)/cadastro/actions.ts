@@ -156,5 +156,5 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
     empresaNome: metadata.empresa_nome,
   })
 
-  redirect('/login?cadastro=ok')
+  redirect('/cadastro/pagamento')
 }
