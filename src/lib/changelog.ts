@@ -17,6 +17,92 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-08-calendario-prazos',
+    data: '2026-07-08',
+    titulo: 'Prazos e audiências no Calendário',
+    tipo: 'novidade',
+    itens: [
+      'Nova aba "Prazos" no Calendário reúne prazos processuais e audiências de todos os processos num só lugar',
+    ],
+  },
+  {
+    id: '2026-07-08-timbrado',
+    data: '2026-07-08',
+    titulo: 'Papel timbrado nos contratos gerados',
+    tipo: 'novidade',
+    itens: [
+      'Configure o timbrado da sua empresa em Configurações — passa a aparecer nos PDFs gerados pelo sistema',
+    ],
+  },
+  {
+    id: '2026-07-08-processos-organizacao',
+    data: '2026-07-08',
+    titulo: 'Processos mais simples de acompanhar',
+    tipo: 'melhoria',
+    itens: [
+      'Situação do processo passa a ter só 3 estados: Em andamento, Suspenso ou Concluído',
+      'Movimentação com data futura (ex.: publicação agendada pelo tribunal) ganha um aviso explicando — não é erro do sistema',
+    ],
+  },
+  {
+    id: '2026-07-08-datajud-sync',
+    data: '2026-07-08',
+    titulo: 'Sincronização com o DataJud mais rápida e confiável',
+    tipo: 'melhoria',
+    itens: [
+      'Processos de tribunais mais lentos, que travavam sem atualizar, voltam a sincronizar normalmente',
+      'A atualização passa a rodar de madrugada — os processos já chegam atualizados no início do expediente',
+    ],
+  },
+  {
+    id: '2026-07-08-pipeline-desqualificado',
+    data: '2026-07-08',
+    titulo: 'Negócio desqualificado sai do Kanban',
+    tipo: 'melhoria',
+    itens: [
+      'Desqualificar um negócio agora manda ele direto pra 3ª aba do histórico, sem ocupar espaço no funil',
+    ],
+  },
+  {
+    id: '2026-07-08-cliente-cpf',
+    data: '2026-07-08',
+    titulo: 'CPF aparece certo no cadastro de cliente',
+    tipo: 'correcao',
+    itens: [
+      'Clientes pessoa física agora mostram o CPF corretamente (antes a tela só considerava CNPJ)',
+    ],
+  },
+  {
+    id: '2026-07-07-parceiro-externo',
+    data: '2026-07-07',
+    titulo: 'Portal para parceiros externos',
+    tipo: 'novidade',
+    itens: [
+      'Convide por e-mail um parceiro externo (quem indicou o processo) — ele acessa, em modo leitura, só os processos vinculados a ele',
+    ],
+  },
+  {
+    id: '2026-07-07-pipeline-solucoes',
+    data: '2026-07-07',
+    titulo: 'Pipeline com campos obrigatórios configuráveis',
+    tipo: 'melhoria',
+    itens: [
+      'Escolha em Configurações se cliente e/ou produto são obrigatórios para criar um negócio no funil',
+      'Botão de cliente no formulário do negócio agora abre a busca de clientes já cadastrados ou permite cadastrar um novo sem sair da tela',
+      'Extrato em PDF por solução, com filtro de clientes vinculados',
+    ],
+  },
+  {
+    id: '2026-07-03-contratos-modelos',
+    data: '2026-07-03',
+    titulo: 'Dois modelos de contrato de parceria',
+    tipo: 'novidade',
+    itens: [
+      'Escolha entre o modelo novo e o antigo de Contrato de Parceria direto nas abas',
+      'Botão "Minuta de Contrato" gera um rascunho em 1 clique, com selo "MINUTA — sujeita a revisão"',
+    ],
+  },
+  {
     id: '2026-07-02-financeiro-fechamento',
     data: '2026-07-02',
     titulo: 'Financeiro do fechamento se ajusta sozinho',
