@@ -31,7 +31,11 @@ export function BugReportButton({
     setStep('capturing')
     let shot: string | null = null
     try {
-      const html2canvas = (await import('html2canvas')).default
+      // html2canvas-pro (não o html2canvas original): o original não entende
+      // oklch(), a função de cor que o Tailwind v4 usa por padrão — todo
+      // screenshot falhava silenciosamente (catch abaixo) e caía pro texto
+      // sem imagem.
+      const html2canvas = (await import('html2canvas-pro')).default
       const canvas = await html2canvas(document.body, {
         scale: 0.75,
         useCORS: true,

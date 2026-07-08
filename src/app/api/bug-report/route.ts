@@ -4,6 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
 
+// A análise (Claude com imagem) + envio de e-mail agora são aguardados antes
+// da resposta (ver comentário abaixo) — folga acima do default da Vercel.
+export const maxDuration = 30
+
 const ADMIN_EMAIL = 'edneyjuniords@gmail.com'
 
 export async function POST(req: NextRequest) {
@@ -88,8 +92,14 @@ export async function POST(req: NextRequest) {
     } catch { /* silencioso — screenshot é opcional */ }
   }
 
-  // 3. Análise Claude (não bloqueia resposta)
-  analyzeAndNotify({
+  // 3. Análise Claude + e-mail. AWAIT de propósito: em serverless (Vercel), uma
+  // promise disparada sem await ("fire-and-forget") pode ser morta pela
+  // plataforma assim que a resposta HTTP é enviada, ANTES do fetch à Anthropic
+  // ou ao Resend terminar — a análise e o e-mail nunca completavam por causa
+  // disso, não só pelo model id errado. Aumenta a latência da resposta em
+  // alguns segundos, troca aceitável por a análise e o e-mail realmente
+  // acontecerem.
+  await analyzeAndNotify({
     reportId,
     descricao,
     contexto,
@@ -155,7 +165,7 @@ Classifique e retorne JSON com este schema exato:
   let analise: Record<string, unknown> | null = null
   try {
     const resp = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: messageContent }],
@@ -164,7 +174,11 @@ Classifique e retorne JSON com este schema exato:
     const text = resp.content.find((b) => b.type === 'text')?.text ?? ''
     analise = JSON.parse(text)
     await admin.from('bug_reports').update({ analise_claude: analise }).eq('id', reportId)
-  } catch { /* Claude indisponível — relatório fica sem análise */ }
+  } catch (err) {
+    // Relatório fica sem análise, mas o e-mail abaixo ainda dispara — logado
+    // pra não ficar invisível de novo se algo quebrar (era silencioso antes).
+    console.error('[bug-report] falha na análise Claude:', err)
+  }
 
   // 4. Notificar Edney por email
   const sevLabel = analise?.severidade === 'critica' ? '🔴 CRÍTICO'
@@ -220,5 +234,7 @@ Classifique e retorne JSON com este schema exato:
     </p>
   </div>
 </div>`.trim(),
-  }).catch(() => {})
+  }).catch((err: unknown) => {
+    console.error('[bug-report] falha ao enviar e-mail de notificação:', err)
+  })
 }
