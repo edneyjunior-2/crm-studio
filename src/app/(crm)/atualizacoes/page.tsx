@@ -47,6 +47,16 @@ export default async function AtualizacoesPage() {
   const modulos = modulosEfetivos(plano, modulosAtivosExtras)
   const changelogFiltrado = changelogVisivel(modulos)
 
+  // Agrupa por data — vários lançamentos do mesmo dia viram 1 bloco só em
+  // vez de um card repetindo a mesma data várias vezes. CHANGELOG já vem
+  // ordenado (mais recente primeiro) com o mesmo dia sempre adjacente.
+  const gruposPorData: { data: string; releases: Release[] }[] = []
+  for (const release of changelogFiltrado) {
+    const grupo = gruposPorData[gruposPorData.length - 1]
+    if (grupo && grupo.data === release.data) grupo.releases.push(release)
+    else gruposPorData.push({ data: release.data, releases: [release] })
+  }
+
   return (
     <div className="flex flex-col gap-6 p-6">
       <MarcarVisto ultimaVisivel={changelogFiltrado[0]?.id ?? ''} />
@@ -64,43 +74,49 @@ export default async function AtualizacoesPage() {
         </div>
       </div>
 
-      {/* Lista de lançamentos */}
+      {/* Lista de lançamentos — 1 bloco por data */}
       <div className="flex flex-col gap-4">
-        {changelogFiltrado.map((release) => {
-          const badge = release.tipo ? tipoBadge[release.tipo] : null
-          return (
-            <div
-              key={release.id}
-              className="rounded-xl border border-border bg-card p-5 shadow-sm"
-            >
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                {badge && (
-                  <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
-                  >
-                    {badge.label}
-                  </span>
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {formatarData(release.data)}
-                </span>
-              </div>
+        {gruposPorData.map((grupo) => (
+          <div
+            key={grupo.data}
+            className="rounded-xl border border-border bg-card p-5 shadow-sm"
+          >
+            <span className="text-xs font-medium text-muted-foreground">
+              {formatarData(grupo.data)}
+            </span>
 
-              <h2 className="mb-2 text-base font-semibold text-foreground">
-                {release.titulo}
-              </h2>
+            <div className="mt-3 flex flex-col divide-y divide-border">
+              {grupo.releases.map((release) => {
+                const badge = release.tipo ? tipoBadge[release.tipo] : null
+                return (
+                  <div key={release.id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      {badge && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
+                        >
+                          {badge.label}
+                        </span>
+                      )}
+                      <h2 className="text-base font-semibold text-foreground">
+                        {release.titulo}
+                      </h2>
+                    </div>
 
-              <ul className="flex flex-col gap-1.5">
-                {release.itens.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+                    <ul className="flex flex-col gap-1.5">
+                      {release.itens.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
     </div>
   )
