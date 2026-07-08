@@ -1,21 +1,20 @@
 'use client'
 
 import { useEffect } from 'react'
-import { ULTIMA_ATUALIZACAO } from '@/lib/changelog'
 
 /**
- * Componente client que marca a última atualização como vista no localStorage.
- * Renderizado dentro da page de Atualizações para que o dot da sidebar suma
- * após a visita.
+ * Componente client que marca a última atualização VISÍVEL pra esta empresa
+ * como vista no localStorage. Renderizado dentro da page de Atualizações
+ * para que o dot da sidebar suma após a visita.
  */
-export function MarcarVisto() {
+export function MarcarVisto({ ultimaVisivel }: { ultimaVisivel: string }) {
   useEffect(() => {
-    if (ULTIMA_ATUALIZACAO) {
-      localStorage.setItem('atualizacoes_vista', ULTIMA_ATUALIZACAO)
-      // Dispara evento para que a sidebar reaja imediatamente (mesmo aba)
+    if (ultimaVisivel) {
+      localStorage.setItem('atualizacoes_vista', ultimaVisivel)
+      // Dispara evento para que a sidebar reaja imediatamente (mesma aba)
       window.dispatchEvent(new Event('atualizacoes-vista'))
     }
-  }, [])
+  }, [ultimaVisivel])
 
   return null
 }

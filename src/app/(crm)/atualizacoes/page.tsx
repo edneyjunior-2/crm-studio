@@ -1,7 +1,9 @@
 import { Sparkles } from 'lucide-react'
-import { CHANGELOG } from '@/lib/changelog'
+import { changelogVisivel, ultimaAtualizacaoVisivel } from '@/lib/changelog'
 import type { Release } from '@/lib/changelog'
 import { MarcarVisto } from './marcar-visto'
+import { getAuthUser } from '@/lib/auth'
+import { modulosEfetivos } from '@/lib/modulos'
 
 /** Converte 'YYYY-MM-DD' para '30 de junho de 2026' sem usar toISOString. */
 function formatarData(ymd: string): string {
@@ -30,10 +32,24 @@ const tipoBadge: Record<NonNullable<Release['tipo']>, { label: string; className
   },
 }
 
-export default function AtualizacoesPage() {
+export default async function AtualizacoesPage() {
+  const { plano, empresaId, supabase } = await getAuthUser()
+
+  let modulosAtivosExtras: string[] = []
+  if (empresaId) {
+    const { data: empresaData } = await supabase
+      .from('empresas')
+      .select('modulos_ativos')
+      .eq('id', empresaId)
+      .single()
+    modulosAtivosExtras = empresaData?.modulos_ativos ?? []
+  }
+  const modulos = modulosEfetivos(plano, modulosAtivosExtras)
+  const changelogFiltrado = changelogVisivel(modulos)
+
   return (
     <div className="flex flex-col gap-6 p-6">
-      <MarcarVisto />
+      <MarcarVisto ultimaVisivel={changelogFiltrado[0]?.id ?? ''} />
 
       {/* Cabeçalho */}
       <div className="flex items-center gap-3">
@@ -50,7 +66,7 @@ export default function AtualizacoesPage() {
 
       {/* Lista de lançamentos */}
       <div className="flex flex-col gap-4">
-        {CHANGELOG.map((release) => {
+        {changelogFiltrado.map((release) => {
           const badge = release.tipo ? tipoBadge[release.tipo] : null
           return (
             <div

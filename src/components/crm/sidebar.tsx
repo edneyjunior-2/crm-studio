@@ -38,7 +38,7 @@ import type { Profile } from '@/types'
 import type { Modulo } from '@/lib/modulos'
 import { logout } from '@/app/(auth)/login/actions'
 import { BugReportButton } from './bug-report-button'
-import { ULTIMA_ATUALIZACAO } from '@/lib/changelog'
+import { ultimaAtualizacaoVisivel } from '@/lib/changelog'
 
 interface NavItem {
   href: string
@@ -238,10 +238,11 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
   const [temNovidade, setTemNovidade] = useState(false)
 
   useEffect(() => {
+    const ultimaVisivel = ultimaAtualizacaoVisivel(modulosAtivos)
     function verificar() {
       setTemNovidade(
-        ULTIMA_ATUALIZACAO !== '' &&
-          localStorage.getItem('atualizacoes_vista') !== ULTIMA_ATUALIZACAO
+        ultimaVisivel !== '' &&
+          localStorage.getItem('atualizacoes_vista') !== ultimaVisivel
       )
     }
     verificar()
@@ -253,7 +254,7 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
       window.removeEventListener('atualizacoes-vista', verificar)
       window.removeEventListener('storage', verificar)
     }
-  }, [])
+  }, [modulosAtivos])
 
   const visibleItems = navItems.filter((item) => {
     // Filtro de role (AND com filtro de módulo)
