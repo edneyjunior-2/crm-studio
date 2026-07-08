@@ -27,12 +27,20 @@ async function handler(req: NextRequest) {
 
   const db = createAdminClient()
 
-  // Processa os 18 mais desatualizados por rodada (NULLS FIRST = nunca sincronizados antes).
-  // Reduzido de 30 (2026-07-07): DATAJUD_TIMEOUT_MS subiu 8s→15s (API do CNJ mede
-  // 4-15s de latência real) — 18 × (15s timeout + 600ms throttle) ≈ 281s, com
-  // folga sob o teto de 300s (maxDuration). Com cron a cada 30 min: 262 processos
-  // ÷ 18 por rodada ≈ 15 rodadas → todos atualizados em ~7.5h (cabe na janela de 11h/dia).
-  const LOTE_CRON = 18
+  // Processa os 14 mais desatualizados por rodada (NULLS FIRST = nunca sincronizados antes).
+  // Reduzido de 18 (2026-07-08): medição real contra o TJBA mostrou latência de
+  // 7-12s por request MESMO em respostas bem-sucedidas (não é só o caso-limite de
+  // 15s do timeout) — a estimativa anterior (18 × 15,6s ≈ 281s, quase no teto de
+  // 300s do maxDuration) não tinha folga pra absorver isso mais o overhead real de
+  // parsing/upsert de dezenas de movimentos por processo. Um cluster de 44
+  // processos TJBA ficou preso há dias porque toda rodada os selecionava juntos
+  // (por serem os "mais antigos") e a função provavelmente estourava o teto e era
+  // morta pela Vercel no meio do lote, sem nunca gravar ultimo_datajud_update —
+  // reprocessando o mesmo cluster travado pra sempre. 14 × (15s timeout + 600ms
+  // throttle) ≈ 218s, com ~82s de folga real. Com cron a cada 30 min: 262
+  // processos ÷ 14 por rodada ≈ 19 rodadas → cabe no mesmo dia dentro da janela
+  // de 11h, só um pouco mais devagar que antes.
+  const LOTE_CRON = 14
   const { data: processos, error } = await db
     .from('processos_juridicos')
     .select('id, numero_processo, tribunal_slug, empresa_id, advogado_id, assunto')
