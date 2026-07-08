@@ -16,6 +16,7 @@ interface TimelineItem {
   data:        string
   audiencia:   boolean
   isManual:    boolean
+  futura:      boolean
 }
 interface Grupo {
   mes:   string

@@ -215,6 +215,17 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   }
 
   // Dados prontos para o acordeão (formata data + flag de audiência aqui no server)
+  // Alguns tribunais publicam movimentações com dataHora no futuro (ex.: código
+  // 92 "Publicação" pode trazer a data em que o edital será publicado no diário
+  // oficial, não a data do registro em si) — é dado real do DataJud, não bug de
+  // parsing nosso. Sem um sinal visual, isso parece um erro no sistema (o mês
+  // aparece no topo do histórico, acima de "hoje"). Marca como `futura` pra a
+  // timeline explicar em vez de esconder ou reordenar o dado.
+  const hojeStr = (() => {
+    const h = new Date()
+    return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`
+  })()
+
   const recenteId = gruposMov[0]?.itens[0]?.id ?? null
   const gruposTimeline = gruposMov.map((g) => ({
     mes: g.mes,
@@ -225,6 +236,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
       data: formatarData(m.data_movimentacao),
       audiencia: isAudiencia(m.descricao),
       isManual: m.codigo_movimento == null,
+      futura: m.data_movimentacao.slice(0, 10) > hojeStr,
     })),
   }))
 

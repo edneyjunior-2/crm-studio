@@ -12,6 +12,7 @@ interface Item {
   data: string
   audiencia: boolean
   isManual: boolean
+  futura: boolean
 }
 interface Grupo {
   mes: string
@@ -163,6 +164,14 @@ export function MovimentacoesTimeline({
                             {m.isManual && (
                               <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                                 Manual
+                              </span>
+                            )}
+                            {m.futura && (
+                              <span
+                                title="Data informada pelo tribunal para esta movimentação — não é um erro do sistema."
+                                className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                              >
+                                Data futura
                               </span>
                             )}
                           </p>
