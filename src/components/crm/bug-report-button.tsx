@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertTriangle, Camera, Send, Loader2, CheckCircle2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -112,8 +113,11 @@ export function BugReportButton({
         )}
       </button>
 
-      {/* Página cheia */}
-      {isOpen && (
+      {/* Página cheia — via portal pro body: a sidebar usa translate-x-* pro
+          off-canvas mobile, e qualquer ancestral com transform vira o
+          containing block de filhos "fixed" (spec CSS), prendendo esse
+          overlay dentro da caixa da sidebar em vez de cobrir a tela toda. */}
+      {isOpen && createPortal(
         <div
           id="bug-report-overlay"
           className="fixed inset-0 z-50 flex flex-col bg-background"
@@ -247,7 +251,8 @@ export function BugReportButton({
               )}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

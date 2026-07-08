@@ -69,7 +69,11 @@ Classifique e retorne JSON com este schema exato:
   try {
     const resp = await anthropic.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 1024,
+      // 1024 cortava a resposta no meio do JSON (o schema pede causa_provavel +
+      // sugestao_correcao + prompt_correcao, um prompt completo e autocontido) —
+      // JSON.parse falhava com "Unterminated string" e a análise nunca salvava,
+      // silenciosamente (bug real, visto em produção: bug #2f3344d1).
+      max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: messageContent }],
     })
