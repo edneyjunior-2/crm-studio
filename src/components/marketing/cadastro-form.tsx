@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,9 +52,14 @@ export function CadastroForm() {
   const [razaoSocial, setRazaoSocial] = useState('')
   const [nomeFantasia, setNomeFantasia] = useState('')
   const [cpf, setCpf] = useState('')
+  const [senha, setSenha] = useState('')
+  const [confirmarSenha, setConfirmarSenha] = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
   const [isBuscandoCnpj, setIsBuscandoCnpj] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const senhasDivergem = confirmarSenha.length > 0 && senha !== confirmarSenha
 
   const cnpjDigits = cnpj.replace(/\D/g, '')
   const cnpjCompleto = cnpjDigits.length === 14
@@ -105,6 +110,11 @@ export function CadastroForm() {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setServerError(null)
+
+    if (senha !== confirmarSenha) {
+      setServerError('As senhas não coincidem.')
+      return
+    }
 
     const form = e.currentTarget
     const formData = new FormData(form)
@@ -301,15 +311,58 @@ export function CadastroForm() {
             <Label htmlFor="senha">
               Senha <span className="text-destructive">*</span>
             </Label>
-            <Input
-              id="senha"
-              name="senha"
-              type="password"
-              required
-              minLength={8}
-              placeholder="Mínimo 8 caracteres"
-              autoComplete="new-password"
-            />
+            <div className="relative">
+              <Input
+                id="senha"
+                name="senha"
+                type={mostrarSenha ? 'text' : 'password'}
+                required
+                minLength={8}
+                placeholder="Mínimo 8 caracteres"
+                autoComplete="new-password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                className="pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarSenha((v) => !v)}
+                className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground"
+                aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {mostrarSenha ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="confirmar_senha">
+              Confirmar senha <span className="text-destructive">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="confirmar_senha"
+                type={mostrarSenha ? 'text' : 'password'}
+                required
+                placeholder="Repita a senha"
+                autoComplete="new-password"
+                value={confirmarSenha}
+                onChange={(e) => setConfirmarSenha(e.target.value)}
+                aria-invalid={senhasDivergem}
+                className="pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarSenha((v) => !v)}
+                className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground"
+                aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {mostrarSenha ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              </button>
+            </div>
+            {senhasDivergem && (
+              <p className="text-xs text-destructive">As senhas não coincidem.</p>
+            )}
           </div>
 
           {/* Aceite */}
