@@ -13,6 +13,10 @@ import { NegocioCardActions } from './negocio-card-actions'
 import { BotaoLembrete } from '@/components/crm/pipeline/botao-lembrete'
 import { BotaoTimeline } from '@/components/crm/pipeline/negocio-timeline-dialog'
 
+// ponytail: `desqualificado` ainda não está em NegocioComRelacoes (src/types,
+// fora da lane deste stream) — alias local só p/ este arquivo compilar.
+type NegocioComDesq = NegocioComRelacoes & { desqualificado?: boolean | null }
+
 // ─── Formatadores / helpers puros ────────────────────────────────────────────
 
 function formatBRL(valor: number | null): string {
@@ -89,10 +93,11 @@ function casaBusca(neg: NegocioComRelacoes, termo: string): boolean {
 interface HistoricoViewProps {
   perdidos: NegocioComRelacoes[]
   ganhos: NegocioComRelacoes[]
+  desqualificados: NegocioComDesq[]
   estagios: EstagioPipeline[]
 }
 
-export function HistoricoView({ perdidos, ganhos, estagios }: HistoricoViewProps) {
+export function HistoricoView({ perdidos, ganhos, desqualificados, estagios }: HistoricoViewProps) {
   const [busca, setBusca] = useState('')
 
   const mapaSlug = useMemo(() => {
@@ -103,6 +108,10 @@ export function HistoricoView({ perdidos, ganhos, estagios }: HistoricoViewProps
 
   const perdidosFiltrados = useMemo(() => perdidos.filter((n) => casaBusca(n, busca)), [perdidos, busca])
   const ganhosFiltrados = useMemo(() => ganhos.filter((n) => casaBusca(n, busca)), [ganhos, busca])
+  const desqualificadosFiltrados = useMemo(
+    () => desqualificados.filter((n) => casaBusca(n, busca)),
+    [desqualificados, busca]
+  )
 
   return (
     <Tabs defaultValue="perdido">
@@ -115,6 +124,10 @@ export function HistoricoView({ perdidos, ganhos, estagios }: HistoricoViewProps
           <TabsTrigger value="ganho">
             Ganhos
             <ContadorTab n={ganhosFiltrados.length} />
+          </TabsTrigger>
+          <TabsTrigger value="desqualificado">
+            Desqualificados
+            <ContadorTab n={desqualificadosFiltrados.length} />
           </TabsTrigger>
         </TabsList>
 
@@ -145,6 +158,15 @@ export function HistoricoView({ perdidos, ganhos, estagios }: HistoricoViewProps
           emptyMsg={busca ? 'Nenhum negócio ganho encontrado para essa busca.' : 'Nenhum negócio contratado ainda.'}
         />
       </TabsContent>
+
+      <TabsContent value="desqualificado">
+        <ListaNegocios
+          negocios={desqualificadosFiltrados}
+          mapaSlug={mapaSlug}
+          desqualificado
+          emptyMsg={busca ? 'Nenhum negócio desqualificado encontrado para essa busca.' : 'Nenhum negócio desqualificado ainda.'}
+        />
+      </TabsContent>
     </Tabs>
   )
 }
@@ -161,10 +183,12 @@ function ListaNegocios({
   negocios,
   mapaSlug,
   emptyMsg,
+  desqualificado = false,
 }: {
   negocios: NegocioComRelacoes[]
   mapaSlug: Map<string, EstagioPipeline>
   emptyMsg: string
+  desqualificado?: boolean
 }) {
   if (negocios.length === 0) {
     return (
@@ -191,7 +215,7 @@ function ListaNegocios({
             </div>
             <div className="flex flex-col gap-2">
               {itens.map((neg) => (
-                <NegocioCard key={neg.id} negocio={neg} estagio={mapaSlug.get(neg.estagio)} />
+                <NegocioCard key={neg.id} negocio={neg} estagio={mapaSlug.get(neg.estagio)} desqualificado={desqualificado} />
               ))}
             </div>
           </section>
@@ -201,7 +225,15 @@ function ListaNegocios({
   )
 }
 
-function NegocioCard({ negocio, estagio }: { negocio: NegocioComRelacoes; estagio: EstagioPipeline | undefined }) {
+function NegocioCard({
+  negocio,
+  estagio,
+  desqualificado = false,
+}: {
+  negocio: NegocioComRelacoes
+  estagio: EstagioPipeline | undefined
+  desqualificado?: boolean
+}) {
   const dataRef = getDataReferencia(negocio)
   const tipo = estagio?.tipo ?? 'aberto'
   const cores = corPorTipo(tipo)
@@ -215,7 +247,13 @@ function NegocioCard({ negocio, estagio }: { negocio: NegocioComRelacoes; estagi
           <BotaoTimeline negocioId={negocio.id} titulo={negocio.titulo}>
             <span className="text-sm font-semibold text-foreground leading-snug truncate">{negocio.titulo}</span>
           </BotaoTimeline>
-          <Badge className={cn('shrink-0 text-[10px] px-1.5 py-0 border', cores.badge)}>{nomeEstagio}</Badge>
+          {desqualificado ? (
+            <Badge className="shrink-0 text-[10px] px-1.5 py-0 border bg-amber-500/10 text-amber-600">
+              Desqualificado
+            </Badge>
+          ) : (
+            <Badge className={cn('shrink-0 text-[10px] px-1.5 py-0 border', cores.badge)}>{nomeEstagio}</Badge>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -238,12 +276,15 @@ function NegocioCard({ negocio, estagio }: { negocio: NegocioComRelacoes; estagi
 
         {negocio.motivo_perda && (
           <p className="mt-0.5 text-xs text-muted-foreground">
-            <span className="text-muted-foreground/50">Motivo:</span> {negocio.motivo_perda}
+            <span className="text-muted-foreground/50">
+              {desqualificado ? 'Motivo da desqualificação:' : 'Motivo:'}
+            </span>{' '}
+            {negocio.motivo_perda}
           </p>
         )}
 
         <div className="mt-1 flex flex-wrap items-center gap-1">
-          <NegocioCardActions negocioId={negocio.id} negocioTitulo={negocio.titulo} />
+          <NegocioCardActions negocioId={negocio.id} negocioTitulo={negocio.titulo} desqualificado={desqualificado} />
           <BotaoLembrete negocioId={negocio.id} clienteNome={clienteNome} />
         </div>
       </div>

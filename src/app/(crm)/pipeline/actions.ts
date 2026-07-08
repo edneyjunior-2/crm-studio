@@ -598,3 +598,28 @@ export async function reabrirNegocio(id: string): Promise<{ error?: string; avis
   revalidatePath('/pipeline/historico-perdidos')
   return aviso ? { aviso } : {}
 }
+
+/**
+ * Requalifica um negócio marcado `desqualificado=true` (triagem do SDR ou
+ * manual): remove a flag e mantém o `estagio` atual (já é uma etapa aberta —
+ * é onde o SDR sempre cria o negócio desqualificado). O negócio volta a
+ * aparecer no board assim que a página revalidar.
+ */
+export async function requalificarNegocio(id: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const auth = await getAuthUser()
+  if (!auth.user) redirect('/login')
+  if (!auth.empresaId) return { error: 'Empresa não identificada.' }
+
+  const { error } = await supabase
+    .from('negocios')
+    .update({ desqualificado: false, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('empresa_id', auth.empresaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/pipeline')
+  revalidatePath('/pipeline/historico-perdidos')
+  return {}
+}

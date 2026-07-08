@@ -31,6 +31,11 @@ const leadSchema = z.object({
   urgencia:    z.string().trim().max(120).optional(),
   objetivo:    z.string().trim().max(500).optional(),
   resumo:      z.string().trim().max(4000).optional(),
+  // Triagem do SDR: lead que NÃO passou no crivo automático. Default true
+  // (comportamento atual, inalterado) — só vira "portão fechado" quando o
+  // SDR manda qualificado:false explicitamente.
+  qualificado: z.boolean().optional().default(true),
+  motivo_desqualificacao: z.string().trim().max(500).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -176,14 +181,20 @@ export async function POST(req: NextRequest) {
     clienteNovo = true
   }
 
-  // 6) Negócio: reusa um negócio EM ABERTO do cliente (evita cards duplicados em reenvios)
+  // 6) Negócio: reusa um negócio EM ABERTO do cliente (evita cards duplicados em
+  // reenvios) — só no caminho QUALIFICADO. Um lead desqualificado nunca reusa
+  // (nem ressuscita, via .eq('desqualificado', false)) um negócio existente:
+  // sempre cria um negócio novo isolado, pra não contaminar um negócio real.
+  const desqualificado = lead.qualificado === false
+
   let negocioId: string | null = null
-  if (!clienteNovo) {
+  if (!desqualificado && !clienteNovo) {
     const { data: aberto } = await db
       .from('negocios')
       .select('id')
       .eq('empresa_id', empresaId)
       .eq('cliente_id', clienteId)
+      .eq('desqualificado', false)
       .in('estagio', estagiosAbertos.length > 0 ? estagiosAbertos : ['prospeccao'])
       .order('created_at', { ascending: false })
       .limit(1)
@@ -193,7 +204,7 @@ export async function POST(req: NextRequest) {
 
   let negocioCriado = false
   if (!negocioId) {
-    const probabilidade = lead.urgencia ? 80 : 50
+    const probabilidade = desqualificado ? 0 : (lead.urgencia ? 80 : 50)
     const titulo = `Diagnóstico — ${lead.segmento || lead.objetivo || lead.nome}`.slice(0, 200)
     const { data: negocio, error: errNeg } = await db
       .from('negocios')
@@ -205,6 +216,11 @@ export async function POST(req: NextRequest) {
         titulo,
         estagio:        estagioInicial,
         probabilidade,
+        // desqualificado=false é o default da coluna no caminho qualificado —
+        // só setamos explicitamente quando o lead veio desqualificado.
+        ...(desqualificado
+          ? { desqualificado: true, motivo_perda: lead.motivo_desqualificacao ?? null }
+          : {}),
       })
       .select('id')
       .single()
@@ -225,7 +241,9 @@ export async function POST(req: NextRequest) {
     lead.urgencia && `Urgência: ${lead.urgencia}`,
     lead.objetivo && `Objetivo: ${lead.objetivo}`,
   ].filter(Boolean)
-  const descricao = (partesResumo.join('\n') || 'Lead qualificado via SDR.').slice(0, 4000)
+  const descricaoBase =
+    partesResumo.join('\n') || (desqualificado ? 'Lead desqualificado via SDR.' : 'Lead qualificado via SDR.')
+  const descricao = (desqualificado ? `DESQUALIFICADO — ${descricaoBase}` : descricaoBase).slice(0, 4000)
   const hoje = new Date()
   const dataAtividade = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
 
@@ -241,6 +259,13 @@ export async function POST(req: NextRequest) {
   // A nota é secundária — não falha a ingestão se ela não gravar, mas registra.
   if (errAtiv) {
     console.error('[ingest] falha ao registrar nota da triagem:', errAtiv.message, { negocioId, empresaId })
+  }
+
+  if (desqualificado) {
+    return NextResponse.json(
+      { ok: true, cliente_id: clienteId, negocio_id: negocioId, desqualificado: true },
+      { status: 201 },
+    )
   }
 
   return NextResponse.json(

@@ -31,6 +31,10 @@ import {
 } from '@/components/ui/select'
 import type { Periodicidade } from '@/types'
 
+// ponytail: `desqualificado` ainda não está em NegocioComRelacoes (src/types,
+// fora da lane deste stream) — alias local só p/ este arquivo compilar.
+type NegocioComDesq = NegocioComRelacoes & { desqualificado?: boolean | null }
+
 const PERIODICIDADE_LABELS: Record<Periodicidade, string> = {
   unico: 'Contrato Único',
   mensal: 'Mensal',
@@ -78,7 +82,7 @@ interface DropPendente {
 }
 
 interface KanbanBoardProps {
-  negocios: NegocioComRelacoes[]
+  negocios: NegocioComDesq[]
   clientes: Pick<Cliente, 'id' | 'razao_social'>[]
   solucoes: Pick<Solucao, 'id' | 'nome'>[]
   googleConnected: boolean
@@ -89,7 +93,7 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, googleConnected, estagios, parceiros = [], membrosTime = [], pipelineConfig = PIPELINE_CONFIG_DEFAULT }: KanbanBoardProps) {
-  const [negocios, setNegocios] = useState<NegocioComRelacoes[]>(initialNegocios)
+  const [negocios, setNegocios] = useState<NegocioComDesq[]>(initialNegocios)
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dragOverSlug, setDragOverSlug] = useState<string | null>(null)
   const [dropPendente, setDropPendente] = useState<DropPendente | null>(null)
@@ -249,11 +253,16 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
   // Determina tipo do drop pendente para controlar qual dialog abrir
   const dropTipo = dropPendente?.targetTipo ?? null
 
+  // Defesa em profundidade: o fetch do board já filtra desqualificado=false,
+  // mas um negócio desqualificado nunca deve aparecer numa coluna mesmo se
+  // chegar via estado otimista (ex.: update de outro fluxo antes do refresh).
+  const negociosVisiveis = negocios.filter((n) => !n.desqualificado)
+
   return (
     <>
       <div className="flex gap-3 overflow-x-auto pb-4">
         {estagios.map((estagio) => {
-          const cards = negocios.filter((n) => n.estagio === estagio.slug)
+          const cards = negociosVisiveis.filter((n) => n.estagio === estagio.slug)
           const totalValor = cards.reduce((acc, n) => acc + (n.valor_estimado ?? 0), 0)
           const isDragOver = dragOverSlug === estagio.slug
           const headerClass = headerClassForTipo(estagio.tipo, estagio.cor)

@@ -5,14 +5,15 @@ import { useRouter } from 'next/navigation'
 import { RotateCcw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { reabrirNegocio, deleteNegocio } from '@/app/(crm)/pipeline/actions'
+import { reabrirNegocio, requalificarNegocio, deleteNegocio } from '@/app/(crm)/pipeline/actions'
 
 interface NegocioCardActionsProps {
   negocioId: string
   negocioTitulo: string
+  desqualificado?: boolean
 }
 
-export function NegocioCardActions({ negocioId, negocioTitulo }: NegocioCardActionsProps) {
+export function NegocioCardActions({ negocioId, negocioTitulo, desqualificado = false }: NegocioCardActionsProps) {
   const router = useRouter()
   const [isPendingReabrir, startReabrir] = useTransition()
   const [isPendingExcluir, startExcluir] = useTransition()
@@ -20,12 +21,19 @@ export function NegocioCardActions({ negocioId, negocioTitulo }: NegocioCardActi
 
   function handleReabrir() {
     startReabrir(async () => {
-      const result = await reabrirNegocio(negocioId)
+      const result = desqualificado
+        ? await requalificarNegocio(negocioId)
+        : await reabrirNegocio(negocioId)
       if (result?.error) {
-        toast.error('Erro ao reabrir negócio', { description: result.error })
+        toast.error(
+          desqualificado ? 'Erro ao requalificar negócio' : 'Erro ao reabrir negócio',
+          { description: result.error }
+        )
       } else {
-        toast.success('Negócio reaberto', {
-          description: `"${negocioTitulo}" voltou para Negociação.`,
+        toast.success(desqualificado ? 'Negócio requalificado' : 'Negócio reaberto', {
+          description: desqualificado
+            ? `"${negocioTitulo}" voltou para o pipeline.`
+            : `"${negocioTitulo}" voltou para Negociação.`,
         })
         router.refresh()
       }
@@ -62,10 +70,10 @@ export function NegocioCardActions({ negocioId, negocioTitulo }: NegocioCardActi
         className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
         onClick={handleReabrir}
         disabled={isPending}
-        title="Reabrir negócio (volta para Negociação)"
+        title={desqualificado ? 'Requalificar negócio (volta para o pipeline)' : 'Reabrir negócio (volta para Negociação)'}
       >
         <RotateCcw className="size-3.5" />
-        Reabrir
+        {desqualificado ? 'Requalificar' : 'Reabrir'}
       </Button>
 
       <Button

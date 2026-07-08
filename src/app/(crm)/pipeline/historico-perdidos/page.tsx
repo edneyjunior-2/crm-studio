@@ -9,6 +9,10 @@ import type { NegocioComRelacoes } from '@/types'
 import { listarEstagios } from '@/lib/pipeline-estagios'
 import { HistoricoView } from './historico-view'
 
+// ponytail: `desqualificado` ainda não está em NegocioComRelacoes (src/types,
+// fora da lane deste stream) — alias local só p/ este arquivo compilar.
+type NegocioComDesq = NegocioComRelacoes & { desqualificado?: boolean | null }
+
 export default async function HistoricoPerdidosPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,11 +29,15 @@ export default async function HistoricoPerdidosPage() {
 
   const isComercial = profile?.role === 'comercial'
 
-  // Histórico = TODOS os fechados (o arquivo completo, pesquisável). O kanban é
-  // quem arquiva por mês; aqui o usuário busca qualquer negócio fechado.
-  let todosNegocios: NegocioComRelacoes[] = []
+  // Histórico = TODOS os fechados + desqualificados (o arquivo completo,
+  // pesquisável). O kanban é quem arquiva por mês; aqui o usuário busca
+  // qualquer negócio fechado ou desqualificado. Desqualificados ficam num
+  // estágio ABERTO (fora de slugsFechamento) — por isso o OR com a flag.
+  const filtroEstagio = slugsFechamento.length > 0 ? slugsFechamento.join(',') : '__none__'
+
+  let todosNegocios: NegocioComDesq[] = []
   try {
-    todosNegocios = await fetchAllRows<NegocioComRelacoes>((from, to) => {
+    todosNegocios = await fetchAllRows<NegocioComDesq>((from, to) => {
       let q = supabase
         .from('negocios')
         .select(`
@@ -38,7 +46,7 @@ export default async function HistoricoPerdidosPage() {
           solucoes ( nome ),
           profiles!responsavel_id ( full_name )
         `)
-        .in('estagio', slugsFechamento.length > 0 ? slugsFechamento : ['__none__'])
+        .or(`estagio.in.(${filtroEstagio}),desqualificado.eq.true`)
         .order('estagio_atualizado_em', { ascending: false })
         .range(from, to)
 
@@ -56,13 +64,17 @@ export default async function HistoricoPerdidosPage() {
     )
   }
 
-  const perdidos = todosNegocios.filter((n) => slugsPerdidos.includes(n.estagio))
-  const ganhos = todosNegocios.filter((n) => slugsGanhos.includes(n.estagio))
+  // A flag desqualificado tem precedência: um negócio desqualificado aparece
+  // SÓ na aba Desqualificados, nunca em Perdidos/Ganhos (mesmo que o estágio
+  // atual seja de fechamento).
+  const desqualificados = todosNegocios.filter((n) => n.desqualificado)
+  const perdidos = todosNegocios.filter((n) => slugsPerdidos.includes(n.estagio) && !n.desqualificado)
+  const ganhos = todosNegocios.filter((n) => slugsGanhos.includes(n.estagio) && !n.desqualificado)
 
   return (
     <div className="flex flex-col gap-6">
       <Header />
-      <HistoricoView perdidos={perdidos} ganhos={ganhos} estagios={estagios} />
+      <HistoricoView perdidos={perdidos} ganhos={ganhos} desqualificados={desqualificados} estagios={estagios} />
     </div>
   )
 }
@@ -75,7 +87,7 @@ function Header() {
           Histórico de Fechados
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Negócios perdidos e contratados, agrupados por mês de fechamento.
+          Negócios perdidos, contratados e desqualificados, agrupados por mês.
         </p>
       </div>
       <Link

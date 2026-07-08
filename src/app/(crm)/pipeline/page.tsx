@@ -57,6 +57,7 @@ export default async function PipelinePage() {
             indicador:profiles!indicado_por ( full_name )
           `)
           .order('created_at', { ascending: false })
+          .eq('desqualificado', false)
           .range(from, to)
 
         if (slugsFechamento.length > 0) {
