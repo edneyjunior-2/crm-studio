@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -97,6 +98,13 @@ export async function getAuthAdmin(): Promise<AuthResult> {
 /** Apenas platform admins (tabela platform_admins). Redireciona para /dashboard. */
 export const getAuthPlatformAdmin = cache(async (): Promise<AuthResult> => {
   const auth = await getAuthUser()
-  if (!auth.isPlatformAdmin) redirect('/dashboard')
+  if (!auth.isPlatformAdmin) {
+    // No host admin.crmstudio.com.br um redirect relativo para /dashboard
+    // reentra no mesmo host — o middleware manda de volta pra /admin, que
+    // cai aqui de novo: loop infinito (ERR_TOO_MANY_REDIRECTS). Sai pro
+    // host certo em vez de ficar preso no admin.
+    const host = (await headers()).get('host') ?? ''
+    redirect(host === 'admin.crmstudio.com.br' ? 'https://app.crmstudio.com.br/dashboard' : '/dashboard')
+  }
   return auth
 })

@@ -55,7 +55,7 @@ export function SiteHeader() {
             Entrar
           </Link>
           <Link
-            href="/login"
+            href="/cadastro"
             className="rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background transition-opacity hover:opacity-90"
           >
             Começar grátis
