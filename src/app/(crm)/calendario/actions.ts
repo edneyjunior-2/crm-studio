@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthUser } from '@/lib/auth'
-import { createEvent, deleteEvent, updateEvent, CALENDAR_ID } from '@/lib/google-calendar'
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/lib/google/calendar'
 
 export async function criarEvento(formData: FormData) {
   const { user, empresaId, role } = await getAuthUser()
@@ -12,15 +12,12 @@ export async function criarEvento(formData: FormData) {
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const title = formData.get('title') as string
-  const description = formData.get('description') as string
+  const descricaoForm = (formData.get('description') as string) ?? ''
   const start = formData.get('start') as string
   const end = formData.get('end') as string
   const attendeesRaw = formData.get('attendees') as string
   const externalLink = (formData.get('external_link') as string)?.trim() || undefined
-  const recurrenceRaw = (formData.get('recurrence') as string)?.trim() || null
-  const recurrence = (recurrenceRaw === 'semanal' || recurrenceRaw === 'mensal' || recurrenceRaw === 'anual')
-    ? recurrenceRaw
-    : null
+  const visivelEquipe = (formData.get('visivel_equipe') as string) === 'true'
 
   if (!title || !start || !end) return { error: 'Preencha todos os campos obrigatórios' }
 
@@ -36,61 +33,109 @@ export async function criarEvento(formData: FormData) {
         .filter(Boolean)
     : []
 
-  try {
-    // organizerEmail: impersona o usuário logado via DWD para que o convite
-    // do Meet saia do e-mail dele, não do e-mail padrão da service account.
-    // Requer que o e-mail do usuário esteja no mesmo Google Workspace com DWD configurado.
-    const { eventData, calendarId: calendarIdUsado } = await createEvent({
-      title, description, start, end, attendees, externalLink,
-      organizerEmail: user.email ?? undefined,
-      recurrence: recurrence ?? undefined,
-    })
+  // Schema não tem coluna própria pro link externo (Zoom/Teams) — concatena de
+  // forma legível na descrição (ponytail, evita migration nova).
+  const descricao = externalLink ? `${descricaoForm}\n\nLink: ${externalLink}`.trim() : descricaoForm
 
-    // Registrar evento na tabela de tracking para habilitar edição e notificações
-    if (eventData.id) {
-      const admin = createAdminClient()
-      const { error: insertErr } = await admin.from('calendario_eventos').insert({
-        event_id: eventData.id,
-        calendar_id: calendarIdUsado,
-        organizer_email: user.email ?? '',
-        organizer_user_id: user.id,
-        titulo: title,
-        empresa_id: empresaId,
+  // Inputs do form vêm como "YYYY-MM-DDTHH:MM:00" (hora local implícita, sem
+  // offset) — adiciona o offset explícito de São Paulo antes de ir pro Google/banco.
+  const startISO = `${start}-03:00`
+  const endISO = `${end}-03:00`
+
+  const admin = createAdminClient()
+  const supabase = await createClient()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('google_access_token, google_refresh_token, google_token_expiry')
+    .eq('id', user.id)
+    .single()
+
+  let eventId: string
+  let calendarIdUsado: string | null = null
+  let meetLink: string | undefined
+
+  if (!profile?.google_refresh_token) {
+    // Usuário não conectou o Google — evento existe só no CRM.
+    eventId = crypto.randomUUID()
+  } else {
+    try {
+      const result = await createCalendarEvent({
+        userId: user.id,
+        accessToken: profile.google_access_token ?? '',
+        refreshToken: profile.google_refresh_token,
+        tokenExpiry: profile.google_token_expiry ?? new Date(0).toISOString(),
+        title,
+        description: descricao,
+        startDateTime: startISO,
+        endDateTime: endISO,
+        attendeeEmails: attendees,
+        createMeet: !externalLink,
+        externalLink,
       })
-      if (insertErr) {
-        // O evento já foi criado no Google — tenta remover para não deixar órfão.
-        try {
-          await deleteEvent(calendarIdUsado, eventData.id, user.email ?? undefined)
-        } catch {
-          // Best-effort: ignora falha na remoção, mas o erro principal é surfaçado.
-        }
-        return { error: `Evento criado no Google, mas falhou ao registrar localmente: ${insertErr.message}` }
+      eventId = result.eventId
+      calendarIdUsado = 'primary'
+      meetLink = result.meetLink
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro desconhecido'
+      return {
+        error: `A conexão com o Google Calendar expirou ou foi revogada. Reconecte sua conta em /minha-conta. (${message})`,
       }
     }
+  }
 
-    // Salvar e-mails externos novos para autocomplete futuro
-    if (attendees.length > 0) {
-      const admin = createAdminClient()
-      // E-mail vem da view profiles_auth (banco, via service_role), NÃO de
-      // auth.admin.listUsers() (GoTrue) — que falha/retorna vazio em prod.
-      const { data: internos } = await admin.from('profiles_auth').select('email')
-      const emailsInternos = new Set((internos ?? []).map((u) => u.email))
-      const externos = attendees.filter((e) => !emailsInternos.has(e))
-      if (externos.length > 0) {
-        await admin
-          .from('calendario_contatos')
-          .upsert(externos.map((email) => ({ email, empresa_id: empresaId })), { onConflict: 'empresa_id,email', ignoreDuplicates: true })
+  // Registrar evento na tabela de tracking para habilitar edição e notificações
+  const { error: insertErr } = await admin.from('calendario_eventos').insert({
+    event_id: eventId,
+    calendar_id: calendarIdUsado,
+    organizer_email: user.email ?? '',
+    organizer_user_id: user.id,
+    titulo: title,
+    empresa_id: empresaId,
+    descricao,
+    data_inicio: startISO,
+    data_fim: endISO,
+    visivel_equipe: visivelEquipe,
+    meet_link: meetLink ?? null,
+  })
+
+  if (insertErr) {
+    // O evento já foi criado no Google — tenta remover para não deixar órfão.
+    if (calendarIdUsado && profile?.google_refresh_token) {
+      try {
+        await deleteCalendarEvent({
+          userId: user.id,
+          accessToken: profile.google_access_token ?? '',
+          refreshToken: profile.google_refresh_token,
+          tokenExpiry: profile.google_token_expiry ?? new Date(0).toISOString(),
+          eventId,
+        })
+      } catch {
+        // Best-effort: ignora falha na remoção, mas o erro principal é surfaçado.
       }
     }
+    return { error: `Evento criado, mas falhou ao registrar localmente: ${insertErr.message}` }
+  }
 
-    revalidatePath('/calendario')
-    return {
-      success: true,
-      meetLink: eventData.conferenceData?.entryPoints?.[0]?.uri,
-      eventId: eventData.id,
+  // Salvar e-mails externos novos para autocomplete futuro
+  if (attendees.length > 0) {
+    // E-mail vem da view profiles_auth (banco, via service_role), NÃO de
+    // auth.admin.listUsers() (GoTrue) — que falha/retorna vazio em prod.
+    const { data: internos } = await admin.from('profiles_auth').select('email')
+    const emailsInternos = new Set((internos ?? []).map((u) => u.email))
+    const externos = attendees.filter((e) => !emailsInternos.has(e))
+    if (externos.length > 0) {
+      await admin
+        .from('calendario_contatos')
+        .upsert(externos.map((email) => ({ email, empresa_id: empresaId })), { onConflict: 'empresa_id,email', ignoreDuplicates: true })
     }
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Erro ao criar evento' }
+  }
+
+  revalidatePath('/calendario')
+  return {
+    success: true,
+    meetLink,
+    eventId,
   }
 }
 
@@ -120,6 +165,14 @@ export async function editarEvento(
     ? attendeesRaw.split(',').map((e) => e.trim()).filter(Boolean)
     : []
 
+  // Mesma regra da criação: link externo concatenado na descrição, já que o
+  // schema não tem coluna própria pra ele.
+  const descricao = externalLink ? `${description}\n\nLink: ${externalLink}`.trim() : description
+
+  // Offset explícito de São Paulo — inputs do form são naive (sem offset).
+  const startISO = `${start}-03:00`
+  const endISO = `${end}-03:00`
+
   const admin = createAdminClient()
 
   // Buscar registro do evento no banco
@@ -136,16 +189,46 @@ export async function editarEvento(
     return { error: 'Evento não encontrado ou sem permissão' }
   }
 
-  const calendarId = eventoRegistrado.calendar_id ?? CALENDAR_ID
-  const organizerEmail = eventoRegistrado.organizer_email ?? undefined
   const organizerUserId = eventoRegistrado.organizer_user_id ?? null
 
-  try {
-    await updateEvent(calendarId, eventId, {
-      title, description, start, end, attendees, externalLink,
-    }, organizerEmail)
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Erro ao atualizar evento no Google Calendar' }
+  // Visibilidade não é editável aqui (decisão deliberada de escopo) — o toggle
+  // "visivel_equipe" só existe na criação, não lemos/escrevemos esse campo.
+
+  // Só sincroniza com o Google se o evento tiver calendar_id (organizador estava
+  // conectado ao criar). Usa os tokens do ORGANIZADOR (eventoRegistrado.organizer_user_id),
+  // não do usuário que está editando — podem ser pessoas diferentes.
+  if (eventoRegistrado.calendar_id && organizerUserId) {
+    const { data: organizerProfile } = await admin
+      .from('profiles')
+      .select('google_access_token, google_refresh_token, google_token_expiry')
+      .eq('id', organizerUserId)
+      .single()
+
+    if (organizerProfile?.google_refresh_token) {
+      try {
+        await updateCalendarEvent({
+          userId: organizerUserId,
+          accessToken: organizerProfile.google_access_token ?? '',
+          refreshToken: organizerProfile.google_refresh_token,
+          tokenExpiry: organizerProfile.google_token_expiry ?? new Date(0).toISOString(),
+          eventId,
+          title,
+          description: descricao,
+          startDateTime: startISO,
+          endDateTime: endISO,
+          // Convidados não são persistidos localmente (ver page.tsx) — o form de
+          // edição sempre abre com a lista vazia, a menos que o usuário re-adicione
+          // manualmente. Só manda o campo se houver algo real, senão omite (undefined)
+          // pra não apagar os convidados que já existem no evento do Google.
+          attendeeEmails: attendees.length > 0 ? attendees : undefined,
+          externalLink,
+        })
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : 'Erro ao atualizar evento no Google Calendar' }
+      }
+    }
+    // Organizador desconectou o Google depois de criar o evento — segue só
+    // local, sem erro pro usuário (mesma regra de "sem Google = evento só no CRM").
   }
 
   // Detectar campos alterados e gerar notificações para o organizador (se não for o editor)
@@ -238,13 +321,18 @@ export async function editarEvento(
     }
   }
 
-  // Atualizar título na tabela de tracking se mudou
-  if (eventoRegistrado && title !== eventoRegistrado.titulo) {
-    await admin
-      .from('calendario_eventos')
-      .update({ titulo: title })
-      .eq('event_id', eventId)
-  }
+  // Sincroniza os campos locais (título/descrição/horário) com o que foi salvo
+  // no Google (ou, se o evento não tem calendar_id, com o próprio input — é o
+  // único lugar onde esses dados existem).
+  await admin
+    .from('calendario_eventos')
+    .update({
+      titulo: title,
+      descricao,
+      data_inicio: startISO,
+      data_fim: endISO,
+    })
+    .eq('event_id', eventId)
 
   // Salvar e-mails externos novos
   if (attendees.length > 0) {
@@ -310,11 +398,32 @@ export async function excluirEvento(eventId: string) {
     return { error: 'Evento não encontrado ou sem permissão' }
   }
 
-  try {
-    await deleteEvent(eventoRegistrado.calendar_id, eventId, eventoRegistrado.organizer_email)
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Erro ao excluir evento' }
+  // Só chama o Google se o evento tiver calendar_id. Usa os tokens do
+  // ORGANIZADOR (eventoRegistrado.organizer_user_id), não de quem está excluindo.
+  if (eventoRegistrado.calendar_id && eventoRegistrado.organizer_user_id) {
+    const { data: organizerProfile } = await admin
+      .from('profiles')
+      .select('google_access_token, google_refresh_token, google_token_expiry')
+      .eq('id', eventoRegistrado.organizer_user_id)
+      .single()
+
+    if (organizerProfile?.google_refresh_token) {
+      try {
+        await deleteCalendarEvent({
+          userId: eventoRegistrado.organizer_user_id,
+          accessToken: organizerProfile.google_access_token ?? '',
+          refreshToken: organizerProfile.google_refresh_token,
+          tokenExpiry: organizerProfile.google_token_expiry ?? new Date(0).toISOString(),
+          eventId,
+        })
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : 'Erro ao excluir evento' }
+      }
+    }
+    // Organizador sem token do Google (desconectou) — não bloqueia a exclusão
+    // no CRM por causa disso, trata como sucesso local.
   }
+
   await admin.from('calendario_eventos').delete().eq('event_id', eventId)
   revalidatePath('/calendario')
   return { success: true }

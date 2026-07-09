@@ -5,8 +5,7 @@ import { GoogleCalendarConnect } from '@/components/crm/google/google-calendar-c
 import { getAuthUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { listCalendarEvents, listEvents, isConfigured, CALENDAR_ID } from '@/lib/google-calendar'
-import { getFeriados, getFeriadoNoDia } from '@/lib/feriados'
+import { getFeriados } from '@/lib/feriados'
 import { getAniversariosDoMes } from '@/lib/aniversarios'
 import type { Aniversario } from '@/lib/aniversarios'
 import { SemanaView } from '@/components/crm/calendario/semana-view'
@@ -15,14 +14,11 @@ import { PrazosView } from '@/components/crm/calendario/prazos-view'
 import { NovoEventoDialog } from '@/components/crm/calendario/novo-evento-dialog'
 import { NovoBloqueioDialog } from '@/components/crm/calendario/novo-bloqueio-dialog'
 import { ExportarSemanaBtn } from '@/components/crm/calendario/exportar-semana-btn'
-import { Relogio } from '@/components/crm/calendario/relogio'
 import { NotificacoesDialog } from '@/components/crm/calendario/notificacoes-dialog'
 import type { CalendarioNotificacao } from '@/components/crm/calendario/notificacoes-dialog'
 import { listarPrazosEmpresa, listarAudienciasEmpresa } from '@/lib/processos-prazos-calendario'
 import { cn } from '@/lib/utils'
 import type { AgendaBloqueio } from '@/types'
-
-const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 export type MembroInterno = { id: string; nome: string; email: string }
 export type { Aniversario }
@@ -175,11 +171,9 @@ export default async function CalendarioPage({
           (a, idx, arr) => arr.findIndex((b) => b.data === a.data) === idx,
         )
 
-  const configured = isConfigured()
   // empresaId já resolvido acima (ramo "prazos" retorna antes de chegar aqui)
   const { data: myProfile } = await supabase.from('profiles').select('google_refresh_token').eq('id', user.id).maybeSingle()
   const isGoogleConnected = !!myProfile?.google_refresh_token
-  let events: Awaited<ReturnType<typeof listEvents>> = []
 
   const admin = createAdminClient()
 
@@ -198,6 +192,7 @@ export default async function CalendarioPage({
     { data: bloqueiosRaw },
     { data: notificacoesRaw },
     { data: notasRaw },
+    { data: eventosDb },
   ] = await Promise.all([
     // E-mail vem da view profiles_auth (banco, via service_role), NÃO de
     // auth.admin.listUsers() (GoTrue) — que falha/retorna vazio em prod.
@@ -221,6 +216,18 @@ export default async function CalendarioPage({
       .from('calendario_notas')
       .select('event_id, texto, updated_by, updated_at')
       .eq('empresa_id', empresaId),
+    // calendario_eventos com o CLIENT DO USUÁRIO (não admin): a RLS da tabela
+    // já garante isolamento por empresa + visibilidade (organizador sempre vê o
+    // próprio evento; demais membros da empresa só se visivel_equipe = true).
+    // Usar createAdminClient() aqui bypassaria a RLS e vazaria eventos entre
+    // usuários/empresas — não fazer.
+    supabase
+      .from('calendario_eventos')
+      .select('event_id, titulo, descricao, data_inicio, data_fim, organizer_email, meet_link, visivel_equipe')
+      .eq('empresa_id', empresaId)
+      .gte('data_inicio', `${bloqueioInicio}T00:00:00-03:00`)
+      .lte('data_inicio', `${bloqueioFim}T23:59:59-03:00`)
+      .order('data_inicio', { ascending: true }),
   ])
 
   const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name as string]))
@@ -250,39 +257,35 @@ export default async function CalendarioPage({
     ]),
   )
 
-  if (configured) {
-    const timeMin = visao === 'mes'
-      ? `${dateToParam(new Date(anoAtual, mesAtual, 1))}T00:00:00-03:00`
-      : `${dateToParam(weekDates[0])}T00:00:00-03:00`
-    const timeMax = visao === 'mes'
-      ? `${dateToParam(new Date(anoAtual, mesAtual + 1, 0))}T23:59:59-03:00`
-      : `${dateToParam(weekDates[6])}T23:59:59-03:00`
-
-    // Busca do calendário compartilhado + calendário primário de cada membro do time.
-    // Cada membro cria eventos no próprio 'primary' via DWD — precisamos buscar em todos.
-    const allEmails = membrosInternos.map((m) => m.email)
-    const fetches = await Promise.all([
-      listCalendarEvents(CALENDAR_ID, timeMin, timeMax),
-      ...allEmails.map((email) => listCalendarEvents('primary', timeMin, timeMax, email)),
-    ])
-
-    // Mescla e deduplica por ID (um evento pode aparecer em múltiplas fontes)
-    const seen = new Set<string>()
-    const merged: typeof events = []
-    for (const batch of fetches) {
-      for (const ev of batch) {
-        if (ev.id && !seen.has(ev.id)) {
-          seen.add(ev.id)
-          merged.push(ev)
-        }
-      }
-    }
-    events = merged.sort((a, b) => {
-      const at = a.start?.dateTime ?? a.start?.date ?? ''
-      const bt = b.start?.dateTime ?? b.start?.date ?? ''
-      return at.localeCompare(bt)
-    })
+  // Forma esperada por MesView/SemanaView (tipo local `CalendarEvent` em
+  // mes-view.tsx e semana-view.tsx — todos os campos opcionais/nulláveis).
+  type EventoCalendario = {
+    id?: string | null
+    summary?: string | null
+    description?: string | null
+    start?: { dateTime?: string | null; date?: string | null } | null
+    end?: { dateTime?: string | null; date?: string | null } | null
+    organizer?: { email?: string | null } | null
+    attendees?: Array<{ email?: string | null }> | null
+    htmlLink?: string | null
+    conferenceData?: {
+      entryPoints?: Array<{ entryPointType?: string | null; uri?: string | null }> | null
+    } | null
   }
+
+  const events: EventoCalendario[] = (eventosDb ?? []).map((e) => ({
+    id: e.event_id,
+    summary: e.titulo,
+    description: e.descricao ?? undefined,
+    start: { dateTime: e.data_inicio },
+    end: { dateTime: e.data_fim },
+    organizer: { email: e.organizer_email },
+    attendees: [], // ponytail: attendees não persistidos localmente, só existem no evento do Google quando há um
+    htmlLink: undefined,
+    conferenceData: e.meet_link
+      ? { entryPoints: [{ entryPointType: 'video', uri: e.meet_link }] }
+      : undefined,
+  }))
 
   const tituloHeader = visao === 'mes'
     ? new Date(anoAtual, mesAtual, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
@@ -313,42 +316,40 @@ export default async function CalendarioPage({
           <h1 className="text-2xl font-bold tracking-tight">Calendário</h1>
           <p className="mt-0.5 text-sm text-muted-foreground capitalize">{tituloHeader}</p>
         </div>
-        {configured && (
-          <div className="flex items-center gap-2">
-            {visao === 'semana' && (
-              <ExportarSemanaBtn
-                eventos={events.map((ev) => ({
-                  id: ev.id,
-                  summary: ev.summary,
-                  start: ev.start
-                    ? { dateTime: ev.start.dateTime ?? null, date: ev.start.date ?? null }
-                    : null,
-                  end: ev.end
-                    ? { dateTime: ev.end.dateTime ?? null, date: ev.end.date ?? null }
-                    : null,
-                  organizer: ev.organizer ? { email: ev.organizer.email ?? null } : null,
-                }))}
-                bloqueios={bloqueios.map((b) => ({
-                  id: b.id,
-                  user_id: b.user_id,
-                  titulo: b.titulo,
-                  data: b.data,
-                  hora_inicio: b.hora_inicio,
-                  hora_fim: b.hora_fim,
-                  nomeUsuario: b.nomeUsuario,
-                }))}
-                weekDates={weekDates.map((d) => dateToParam(d))}
-                membrosInternos={membrosInternos}
-              />
-            )}
-            <NovoBloqueioDialog />
-            <NovoEventoDialog membrosInternos={membrosInternos} contatosExternos={contatosExternos} />
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {visao === 'semana' && (
+            <ExportarSemanaBtn
+              eventos={events.map((ev) => ({
+                id: ev.id,
+                summary: ev.summary,
+                start: ev.start
+                  ? { dateTime: ev.start.dateTime ?? null, date: ev.start.date ?? null }
+                  : null,
+                end: ev.end
+                  ? { dateTime: ev.end.dateTime ?? null, date: ev.end.date ?? null }
+                  : null,
+                organizer: ev.organizer ? { email: ev.organizer.email ?? null } : null,
+              }))}
+              bloqueios={bloqueios.map((b) => ({
+                id: b.id,
+                user_id: b.user_id,
+                titulo: b.titulo,
+                data: b.data,
+                hora_inicio: b.hora_inicio,
+                hora_fim: b.hora_fim,
+                nomeUsuario: b.nomeUsuario,
+              }))}
+              weekDates={weekDates.map((d) => dateToParam(d))}
+              membrosInternos={membrosInternos}
+            />
+          )}
+          <NovoBloqueioDialog />
+          <NovoEventoDialog membrosInternos={membrosInternos} contatosExternos={contatosExternos} />
+        </div>
       </div>
 
-      {/* Conectar Google Calendar */}
-      {!configured && (
+      {/* Conectar Google Calendar — convite pessoal, não bloqueia a visualização da agenda */}
+      {!isGoogleConnected && (
         <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
           <div>
             <h2 className="text-base font-semibold">Conecte seu Google Calendar</h2>
@@ -436,70 +437,35 @@ export default async function CalendarioPage({
         </div>
       </div>
 
-      {/* Conteúdo principal */}
-      {configured ? (
-        visao === 'mes' ? (
-          <MesView
-            events={events}
-            ano={anoAtual}
-            mes={mesAtual}
-            feriados={feriados}
-            aniversarios={aniversarios}
-            membrosInternos={membrosInternos}
-            contatosExternos={contatosExternos}
-            bloqueios={bloqueios}
-            notas={notas}
-            currentUserId={user.id}
-            currentUserEmail={user.email ?? ''}
-          />
-        ) : (
-          <SemanaView
-            events={events}
-            weekDates={weekDates}
-            feriados={feriados}
-            aniversarios={aniversarios}
-            membrosInternos={membrosInternos}
-            contatosExternos={contatosExternos}
-            bloqueios={bloqueios}
-            notas={notas}
-            currentUserId={user.id}
-            currentUserEmail={user.email ?? ''}
-          />
-        )
+      {/* Conteúdo principal — grade de eventos sempre aparece (independe do Google
+          Calendar estar conectado; a fonte agora é calendario_eventos no banco) */}
+      {visao === 'mes' ? (
+        <MesView
+          events={events}
+          ano={anoAtual}
+          mes={mesAtual}
+          feriados={feriados}
+          aniversarios={aniversarios}
+          membrosInternos={membrosInternos}
+          contatosExternos={contatosExternos}
+          bloqueios={bloqueios}
+          notas={notas}
+          currentUserId={user.id}
+          currentUserEmail={user.email ?? ''}
+        />
       ) : (
-        <>
-          <div className="grid grid-cols-7 gap-2 pointer-events-none opacity-50">
-            {weekDates.map((date, i) => {
-              const diaNum = date.getDate().toString().padStart(2, '0')
-              const mesNum = (date.getMonth() + 1).toString().padStart(2, '0')
-              const dateStr = `${date.getFullYear()}-${mesNum}-${diaNum}`
-              const feriado = getFeriadoNoDia(feriados, dateStr)
-              return (
-                <div key={i} className="flex flex-col gap-1.5">
-                  <div className={cn(
-                    'flex flex-col items-center rounded-lg py-2',
-                    feriado ? 'bg-red-50' : 'bg-muted/40'
-                  )}>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {DIAS_SEMANA[date.getDay()]}
-                    </span>
-                    <span className="mt-0.5 text-lg font-bold leading-none text-foreground">{diaNum}</span>
-                    <span className="text-[10px] text-muted-foreground">{mesNum}</span>
-                    {feriado && (
-                      <span className="mt-0.5 px-1 text-[9px] font-medium text-red-500 text-center leading-tight">
-                        {feriado.nome}
-                      </span>
-                    )}
-                  </div>
-                  <div className="rounded-md border border-dashed border-border px-2 py-3 text-center">
-                    <p className="text-[10px] text-muted-foreground">Sem eventos</p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          <Relogio />
-        </>
+        <SemanaView
+          events={events}
+          weekDates={weekDates}
+          feriados={feriados}
+          aniversarios={aniversarios}
+          membrosInternos={membrosInternos}
+          contatosExternos={contatosExternos}
+          bloqueios={bloqueios}
+          notas={notas}
+          currentUserId={user.id}
+          currentUserEmail={user.email ?? ''}
+        />
       )}
     </div>
   )

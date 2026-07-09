@@ -144,6 +144,7 @@ export function NovoEventoDialog({
   const [externalLink, setExternalLink] = useState('')
   const [diaTodo, setDiaTodo] = useState(false)
   const [recurrence, setRecurrence] = useState<string>('none')
+  const [visivelEquipe, setVisivelEquipe] = useState(false)
 
   // Valores anteriores para comparação de diff na edição
   const [tituloAnterior, setTituloAnterior] = useState('')
@@ -263,6 +264,7 @@ export function NovoEventoDialog({
     setExternalLink('')
     setDiaTodo(false)
     setRecurrence('none')
+    setVisivelEquipe(false)
     setSelectedInternos(new Set())
     setExternosAdicionados([])
     setExternoInput('')
@@ -302,6 +304,9 @@ export function NovoEventoDialog({
     payload.set('attendees', todosConvidados.join(','))
     payload.set('external_link', externalLink)
     payload.set('recurrence', recurrence === 'none' ? '' : recurrence)
+    if (!modoEdicao) {
+      payload.set('visivel_equipe', String(visivelEquipe))
+    }
 
     if (modoEdicao && eventoParaEditar) {
       // Campos para detecção de diff
@@ -452,6 +457,25 @@ export function NovoEventoDialog({
                 Dia todo
               </Label>
             </div>
+
+            {/* Toggle: Visível para a equipe (só na criação — visibilidade não é editável) */}
+            {!modoEdicao && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="visivel_equipe"
+                    checked={visivelEquipe}
+                    onCheckedChange={setVisivelEquipe}
+                  />
+                  <Label htmlFor="visivel_equipe" className="cursor-pointer select-none">
+                    Visível para a equipe
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Por padrão só você vê este evento. Ative para toda a equipe ver.
+                </p>
+              </div>
+            )}
 
             {/* Data/hora início */}
             <div className="grid grid-cols-2 gap-3">

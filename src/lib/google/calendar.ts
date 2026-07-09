@@ -78,11 +78,18 @@ interface CalendarEventParams {
   startDateTime: string
   endDateTime: string
   attendeeEmails?: string[]
+  /** Cria um Google Meet vinculado ao evento. Default false — chamadores existentes
+   *  (atividades/follow-up do pipeline) não devem ganhar Meet sem pedir. */
+  createMeet?: boolean
+  /** Link externo (Zoom/Teams etc). Mutuamente exclusivo com createMeet — quando
+   *  presente, vai pro campo `location` do evento e nenhum Meet é solicitado. */
+  externalLink?: string
 }
 
 interface CalendarEventResult {
   eventId: string
   eventUrl: string
+  meetLink?: string
 }
 
 /** Retorna um cliente OAuth com token válido (renova automaticamente se necessário). */
@@ -120,19 +127,35 @@ export async function createCalendarEvent(
     startDateTime,
     endDateTime,
     attendeeEmails,
+    createMeet,
+    externalLink,
   } = params
 
   const auth = await getValidAuthClient(userId, accessToken, refreshToken, tokenExpiry)
   const calendar = google.calendar({ version: 'v3', auth })
 
+  // Meet e link externo são mutuamente exclusivos (mesma regra do UX atual):
+  // se há link externo, ele vai pro campo location e nenhum Meet é pedido.
+  const useMeet = !!createMeet && !externalLink
+
   const event = await calendar.events.insert({
     calendarId: 'primary',
+    conferenceDataVersion: useMeet ? 1 : 0,
     requestBody: {
       summary: title,
       description: description ?? '',
+      location: externalLink,
       start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
       end: { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' },
       attendees: attendeeEmails?.map((email) => ({ email })) ?? [],
+      ...(useMeet && {
+        conferenceData: {
+          createRequest: {
+            requestId: `crm-${Date.now()}`,
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
+        },
+      }),
     },
   })
 
@@ -143,7 +166,74 @@ export async function createCalendarEvent(
     throw new Error('Evento criado, mas ID/URL não retornados pelo Google.')
   }
 
-  return { eventId, eventUrl }
+  const meetLink = event.data.conferenceData?.entryPoints?.[0]?.uri ?? undefined
+
+  return { eventId, eventUrl, meetLink }
+}
+
+interface UpdateCalendarEventParams {
+  userId: string
+  accessToken: string
+  refreshToken: string
+  tokenExpiry: string
+  eventId: string
+  title: string
+  description?: string
+  startDateTime: string
+  endDateTime: string
+  attendeeEmails?: string[]
+  externalLink?: string
+}
+
+/** Espelha createCalendarEvent, mas atualiza um evento existente via patch.
+ *  Não mexe no Meet do evento (mantém o que já existir, se existir). */
+export async function updateCalendarEvent(
+  params: UpdateCalendarEventParams
+): Promise<CalendarEventResult> {
+  const {
+    userId,
+    accessToken,
+    refreshToken,
+    tokenExpiry,
+    eventId,
+    title,
+    description,
+    startDateTime,
+    endDateTime,
+    attendeeEmails,
+    externalLink,
+  } = params
+
+  const auth = await getValidAuthClient(userId, accessToken, refreshToken, tokenExpiry)
+  const calendar = google.calendar({ version: 'v3', auth })
+
+  const event = await calendar.events.patch({
+    calendarId: 'primary',
+    eventId,
+    requestBody: {
+      summary: title,
+      description: description ?? '',
+      location: externalLink,
+      start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
+      end: { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' },
+      // Sem "?? []": se attendeeEmails vier undefined, omite o campo do patch em
+      // vez de mandar array vazio — o Google Calendar SUBSTITUI (não faz merge)
+      // a lista de convidados no que for enviado, então "[]" apagaria convidados
+      // reais do evento. Ver editarEvento em calendario/actions.ts.
+      attendees: attendeeEmails?.map((email) => ({ email })),
+    },
+  })
+
+  const updatedEventId = event.data.id
+  const eventUrl = event.data.htmlLink
+
+  if (!updatedEventId || !eventUrl) {
+    throw new Error('Evento atualizado, mas ID/URL não retornados pelo Google.')
+  }
+
+  const meetLink = event.data.conferenceData?.entryPoints?.[0]?.uri ?? undefined
+
+  return { eventId: updatedEventId, eventUrl, meetLink }
 }
 
 interface DeleteEventParams {
