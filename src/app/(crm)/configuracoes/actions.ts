@@ -711,32 +711,48 @@ export async function salvarEncarregado(
   return {}
 }
 
+/**
+ * GOTCHA billing: `UPDATE` em `empresas` foi revogado de `authenticated`
+ * (20260703130000_protege_billing_empresas.sql) — por isso lê/grava via
+ * `createAdminClient()` (service-role), nunca via client do usuário. O escopo
+ * multi-tenant vem de `getAuthAdmin().empresaId` (tenant efetivo).
+ */
 export async function toggleModuloVisibilidade(
   modulo: string,
   ocultar: boolean,
 ): Promise<{ error?: string }> {
   // getAuthAdmin já valida a role 'admin' (redireciona) e resolve o tenant
   // EFETIVO (empresa_ativa_id p/ platform admin, empresa_id p/ usuário comum).
-  const { supabase, empresaId } = await getAuthAdmin()
+  const { empresaId } = await getAuthAdmin()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
-  const { data: empresa } = await supabase
+  const db = createAdminClient()
+
+  const { data: empresa, error: selectError } = await db
     .from('empresas')
     .select('modulos_ocultos')
     .eq('id', empresaId)
     .single()
+
+  if (selectError) {
+    console.error('[toggleModuloVisibilidade] erro ao ler modulos_ocultos:', selectError.message)
+    return { error: selectError.message }
+  }
 
   const atual: string[] = empresa?.modulos_ocultos ?? []
   const novo = ocultar
     ? [...new Set([...atual, modulo])]
     : atual.filter((m) => m !== modulo)
 
-  const { error } = await supabase
+  const { error } = await db
     .from('empresas')
     .update({ modulos_ocultos: novo })
     .eq('id', empresaId)
 
-  if (error) return { error: error.message }
+  if (error) {
+    console.error('[toggleModuloVisibilidade] erro ao salvar modulos_ocultos:', error.message)
+    return { error: error.message }
+  }
 
   revalidatePath('/', 'layout')
   return {}

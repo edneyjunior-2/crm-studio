@@ -1,6 +1,7 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { toggleModuloVisibilidade } from '@/app/(crm)/configuracoes/actions'
 import { MODULO_LABEL } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
@@ -11,16 +12,33 @@ interface Props {
 }
 
 export function MenuToggles({ modulosDisponiveis, modulosOcultos }: Props) {
+  const [ocultos, setOcultos] = useState<string[]>(modulosOcultos)
   const [isPending, startTransition] = useTransition()
 
   function handle(modulo: Modulo, ocultar: boolean) {
-    startTransition(async () => { await toggleModuloVisibilidade(modulo, ocultar) })
+    const anterior = ocultos
+    // Otimista: reflete a intenção na hora, mas reverte se o backend não confirmar.
+    setOcultos(ocultar ? [...anterior, modulo] : anterior.filter((m) => m !== modulo))
+
+    startTransition(async () => {
+      try {
+        const result = await toggleModuloVisibilidade(modulo, ocultar)
+        if (result.error) {
+          setOcultos(anterior)
+          toast.error(result.error)
+        }
+      } catch (err) {
+        setOcultos(anterior)
+        console.error('[MenuToggles] falha ao atualizar visibilidade do módulo:', err)
+        toast.error('Não foi possível salvar. Tente novamente.')
+      }
+    })
   }
 
   return (
     <div className="flex flex-col gap-2">
       {modulosDisponiveis.map((modulo) => {
-        const oculto = modulosOcultos.includes(modulo)
+        const oculto = ocultos.includes(modulo)
         return (
           <div
             key={modulo}
