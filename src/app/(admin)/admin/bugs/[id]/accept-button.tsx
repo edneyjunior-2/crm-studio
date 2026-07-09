@@ -50,14 +50,18 @@ export function AcceptButton({ bugId, currentStatus, prompt, hasPrompt }: Accept
   }
 
   async function handleIgnore() {
-    const res = await fetch(`/api/admin/bugs/${bugId}/trigger`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'ignorado' }),
-    })
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/admin/bugs/${bugId}/trigger`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ignorado' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Falha ao ignorar')
       setStatus('ignorado')
       toast.success('Bug marcado como ignorado.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao ignorar.')
     }
   }
 

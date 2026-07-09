@@ -54,7 +54,11 @@ export async function POST(
   return NextResponse.json({ ok: true })
 }
 
-const BUG_STATUS_PERMITIDOS = ['aberto', 'em_analise', 'corrigido', 'fechado', 'wont_fix'] as const
+// Precisa bater exatamente com a CHECK constraint bug_reports_status_check
+// no banco — a lista antiga (corrigido/fechado/wont_fix) nem existia lá,
+// e faltava 'ignorado' (usado pelo botão Ignorar): todo PATCH pra ignorar
+// batia 400 "Status inválido", sem toast de erro no botão — silencioso.
+const BUG_STATUS_PERMITIDOS = ['aberto', 'em_analise', 'resolvido', 'ignorado'] as const
 type BugStatus = typeof BUG_STATUS_PERMITIDOS[number]
 
 export async function PATCH(
