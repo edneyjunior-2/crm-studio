@@ -107,12 +107,14 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     { data: documentosRaw },
     { data: perfil },
     { data: empresaProfiles },
+    { data: clientesAdicionaisRaw },
   ] = await Promise.all([
     supabase.from('movimentacoes_internas_processo').select('id, assunto, descricao, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
     supabase.from('processos_prazos').select('id, descricao, data_prazo, cumprido, responsavel_id, profiles!responsavel_id(full_name)').eq('processo_id', id).order('data_prazo', { ascending: true }),
     supabase.from('processos_documentos').select('id, nome, storage_path, mime_type, tamanho, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     supabase.from('profiles').select('id, full_name'),
+    supabase.from('processos_clientes').select('clientes(id, razao_social)').eq('processo_id', id),
   ])
 
   if (errMov) {
@@ -149,6 +151,15 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   const clienteNome = (clienteRaw as { razao_social?: string } | null)?.razao_social ?? null
   const clienteId   = (clienteRaw as { id?: string } | null)?.id ?? null
   const advNome     = (advRaw as { full_name?: string } | null)?.full_name ?? null
+
+  // Todos os clientes vinculados (principal + adicionais), deduplicados por id.
+  const clientesAdicionais = (clientesAdicionaisRaw ?? [])
+    .map((r) => r.clientes as unknown as { id: string; razao_social: string } | null)
+    .filter((c): c is { id: string; razao_social: string } => !!c)
+  const clientesVinculados = [
+    ...(clienteId ? [{ id: clienteId, razao_social: clienteNome ?? '' }] : []),
+    ...clientesAdicionais,
+  ].filter((c, idx, arr) => arr.findIndex((o) => o.id === c.id) === idx)
   const parceiroPortalNome = (parceiroPortalRaw as { full_name?: string } | null)?.full_name ?? null
 
   const partes = (processo.partes_raw as { polo: string; nome: string }[] | null) ?? []
@@ -310,23 +321,34 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           {processo.comarca && (
             <InfoItem icon={MapPin} label="Comarca" value={processo.comarca} />
           )}
-          {clienteNome && clienteId && !isParceiro ? (
-            <Link
-              href={`/clientes/${clienteId}`}
-              className="group -m-1 flex items-start gap-2 rounded-lg p-1 transition-colors hover:bg-accent"
-            >
+          {clientesVinculados.length > 0 && !isParceiro ? (
+            <div className="flex items-start gap-2 rounded-lg p-1">
               <Building2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
-                <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                  Cliente
-                  <ArrowUpRight className="size-3 opacity-60 transition-opacity group-hover:opacity-100" />
+                <p className="text-xs font-medium text-muted-foreground">
+                  {clientesVinculados.length > 1 ? 'Clientes' : 'Cliente'}
                 </p>
-                <p className="truncate text-sm text-foreground group-hover:text-primary">{clienteNome}</p>
+                <div className="flex flex-col">
+                  {clientesVinculados.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/clientes/${c.id}`}
+                      className="group flex items-center gap-1 truncate text-sm text-foreground hover:text-primary"
+                    >
+                      <span className="truncate">{c.razao_social}</span>
+                      <ArrowUpRight className="size-3 shrink-0 opacity-60 transition-opacity group-hover:opacity-100" />
+                    </Link>
+                  ))}
+                </div>
                 <p className="text-[11px] text-muted-foreground">Ver cadastro (telefone, e-mail)</p>
               </div>
-            </Link>
-          ) : clienteNome ? (
-            <InfoItem icon={Building2} label="Cliente" value={clienteNome} />
+            </div>
+          ) : clientesVinculados.length > 0 ? (
+            <InfoItem
+              icon={Building2}
+              label={clientesVinculados.length > 1 ? 'Clientes' : 'Cliente'}
+              value={clientesVinculados.map((c) => c.razao_social).join(', ')}
+            />
           ) : null}
           {advNome && (
             <InfoItem icon={User} label="Advogado responsável" value={advNome} />

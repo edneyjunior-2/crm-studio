@@ -175,6 +175,20 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
     naoLidosPorProcessoRaw = []
   }
 
+  // Clientes adicionais (2º em diante) por processo — só a contagem, pro badge "+N".
+  type ClienteAdicionalRow = { processo_id: string }
+  let clientesAdicionaisRaw: ClienteAdicionalRow[] = []
+  try {
+    clientesAdicionaisRaw = await fetchAllRows<ClienteAdicionalRow>((from, to) =>
+      supabase
+        .from('processos_clientes')
+        .select('processo_id')
+        .range(from, to)
+    )
+  } catch {
+    clientesAdicionaisRaw = []
+  }
+
   // --- Prazos a vencer (próximos 30 dias + vencidos) ---
   type PrazoRow = {
     id: string
@@ -241,6 +255,12 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
     naoLidosPorProcesso.set(row.processo_id, (naoLidosPorProcesso.get(row.processo_id) ?? 0) + 1)
   }
 
+  // Contagem de clientes adicionais por processo (pro badge "+N")
+  const clientesAdicionaisPorProcesso = new Map<string, number>()
+  for (const row of clientesAdicionaisRaw) {
+    clientesAdicionaisPorProcesso.set(row.processo_id, (clientesAdicionaisPorProcesso.get(row.processo_id) ?? 0) + 1)
+  }
+
   const error = fetchError
 
   const semanaAtras = new Date()
@@ -265,6 +285,12 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
 
     const isSemDataJud = !p.ultimo_datajud_update || new Date(p.ultimo_datajud_update) < semanaAtras
 
+    const principalNome = (clienteRaw as { razao_social?: string } | null)?.razao_social ?? null
+    const qtdAdicionais  = clientesAdicionaisPorProcesso.get(p.id) ?? 0
+    const clienteNome    = principalNome
+      ? (qtdAdicionais > 0 ? `${principalNome} +${qtdAdicionais}` : principalNome)
+      : (qtdAdicionais > 0 ? `+${qtdAdicionais} cliente${qtdAdicionais > 1 ? 's' : ''}` : null)
+
     return {
       id:             p.id,
       numeroProcesso: p.numero_processo,
@@ -272,7 +298,7 @@ export default async function ProcessosPage({ searchParams }: ProcessosPageProps
       status:         p.status,
       area:           areaSlug,
       areaLabel:      areaSlug ? (AREA_LABEL[areaSlug] ?? areaSlug) : null,
-      clienteNome:    (clienteRaw as { razao_social?: string } | null)?.razao_social ?? null,
+      clienteNome,
       advogadoNome:   (advRaw as { full_name?: string } | null)?.full_name ?? null,
       advogadoId:     p.advogado_id as string | null,
       ultimoUpdate:   p.ultimo_datajud_update,

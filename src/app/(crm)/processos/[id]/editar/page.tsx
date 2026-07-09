@@ -20,7 +20,7 @@ export default async function EditarProcessoPage({ params }: PageProps) {
   const { role } = await getAuthUser()
   if (role === 'parceiro') redirect(`/processos/${id}`)
 
-  const [{ data: processo, error }, { data: clientes }, { data: advogados }, { data: parceiros }] = await Promise.all([
+  const [{ data: processo, error }, { data: clientes }, { data: advogados }, { data: parceiros }, { data: clientesAdicionais }] = await Promise.all([
     supabase
       .from('processos_juridicos')
       .select('id, numero_processo, assunto, area, vara, comarca, valor_causa, honorarios_tipo, honorarios_valor, cliente_id, advogado_id, parceiro_id, polo_passivo_nome, polo_passivo_cpf_cnpj, advogado_adversario_nome, advogado_adversario_oab')
@@ -29,6 +29,7 @@ export default async function EditarProcessoPage({ params }: PageProps) {
     supabase.from('clientes').select('id, razao_social').order('razao_social'),
     supabase.from('profiles').select('id, full_name').order('full_name'),
     supabase.from('profiles').select('id, full_name').eq('role', 'parceiro').order('full_name'),
+    supabase.from('processos_clientes').select('cliente_id').eq('processo_id', id),
   ])
 
   if (error || !processo) notFound()
@@ -63,6 +64,7 @@ export default async function EditarProcessoPage({ params }: PageProps) {
           honorarios_tipo:  processo.honorarios_tipo,
           honorarios_valor: processo.honorarios_valor,
           cliente_id:                processo.cliente_id,
+          clientes_adicionais_ids:   (clientesAdicionais ?? []).map((c) => c.cliente_id),
           advogado_id:               processo.advogado_id,
           parceiro_id:               (processo as Record<string, unknown>).parceiro_id as string | null ?? null,
           polo_passivo_nome:         (processo as Record<string, unknown>).polo_passivo_nome as string | null ?? null,

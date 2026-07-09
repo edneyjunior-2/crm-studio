@@ -65,8 +65,12 @@ export async function criarProcesso(
   // explicitamente em movimentacoes_processo)
   if (!empresaId) return { error: 'Empresa não encontrada.' }
 
-  const numero     = (formData.get('numero_processo') as string)?.trim()
-  const clienteId  = (formData.get('cliente_id') as string)?.trim() || null
+  const numero      = (formData.get('numero_processo') as string)?.trim()
+  // Vários clientes podem ser selecionados; o 1º vira o principal (cliente_id),
+  // os demais são gravados em processos_clientes (ver spec: sem coluna "principal"
+  // na tabela nova — cliente_id de processos_juridicos já cumpre esse papel).
+  const clienteIds  = [...new Set(formData.getAll('cliente_ids').map((v) => v.toString().trim()).filter(Boolean))]
+  const clienteId   = clienteIds[0] ?? null
   const advogadoId = (formData.get('advogado_id') as string)?.trim() || null
   const parceiroId = (formData.get('parceiro_id') as string)?.trim() || null
   const area       = (formData.get('area') as string)?.trim() || null
@@ -113,6 +117,15 @@ export async function criarProcesso(
       return { error: 'Este processo já está cadastrado.' }
     }
     return { error: errProcesso.message }
+  }
+
+  // Clientes adicionais (2º em diante) — o principal já foi gravado acima.
+  const clientesAdicionais = clienteIds.slice(1)
+  if (clientesAdicionais.length > 0) {
+    const { error: errClientes } = await supabase
+      .from('processos_clientes')
+      .insert(clientesAdicionais.map((cliente_id) => ({ processo_id: processo.id, cliente_id })))
+    if (errClientes) return { error: `Processo criado, mas falhou ao vincular clientes adicionais: ${errClientes.message}` }
   }
 
   // Buscar e salvar movimentações iniciais do DataJud (best-effort — não impede o cadastro)

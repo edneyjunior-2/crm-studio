@@ -44,7 +44,11 @@ export async function atualizarProcesso(
   const processoId = (formData.get('processo_id') as string)?.trim()
   if (!processoId) return { error: 'Processo inválido.' }
 
-  const clienteId  = (formData.get('cliente_id') as string)?.trim() || null
+  // Vários clientes podem ser selecionados; o 1º vira o principal (cliente_id),
+  // os demais ficam em processos_clientes (mesma convenção da criação, ver
+  // .claude/specs/processos-multiplos-clientes.md).
+  const clienteIds = [...new Set(formData.getAll('cliente_ids').map((v) => v.toString().trim()).filter(Boolean))]
+  const clienteId  = clienteIds[0] ?? null
   const advogadoId = (formData.get('advogado_id') as string)?.trim() || null
   const parceiroId = (formData.get('parceiro_id') as string)?.trim() || null
   const area       = (formData.get('area') as string)?.trim() || null
@@ -89,6 +93,37 @@ export async function atualizarProcesso(
 
   if (error) return { error: error.message }
   if (!data?.length) return { error: 'Você não tem permissão para editar este processo.' }
+
+  // Sincroniza os clientes adicionais (2º em diante) com o que já está gravado —
+  // insere só os novos, remove só os que saíram da seleção. Idempotente: reenviar
+  // a mesma seleção duas vezes não gera erro nem linha duplicada.
+  const clientesAdicionais = clienteIds.slice(1)
+  const { data: atuais, error: errAtuais } = await supabase
+    .from('processos_clientes')
+    .select('cliente_id')
+    .eq('processo_id', processoId)
+  if (errAtuais) return { error: errAtuais.message }
+
+  const atuaisIds = new Set((atuais ?? []).map((r) => r.cliente_id as string))
+  const novosIds  = new Set(clientesAdicionais)
+  const paraRemover = [...atuaisIds].filter((cid) => !novosIds.has(cid))
+  const paraAdicionar = clientesAdicionais.filter((cid) => !atuaisIds.has(cid))
+
+  if (paraRemover.length > 0) {
+    const { error: errRemover } = await supabase
+      .from('processos_clientes')
+      .delete()
+      .eq('processo_id', processoId)
+      .in('cliente_id', paraRemover)
+    if (errRemover) return { error: errRemover.message }
+  }
+
+  if (paraAdicionar.length > 0) {
+    const { error: errAdicionar } = await supabase
+      .from('processos_clientes')
+      .insert(paraAdicionar.map((cliente_id) => ({ processo_id: processoId, cliente_id })))
+    if (errAdicionar) return { error: errAdicionar.message }
+  }
 
   revalidatePath(`/processos/${processoId}`)
   redirect(`/processos/${processoId}`)

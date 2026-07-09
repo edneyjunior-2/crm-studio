@@ -36,14 +36,14 @@ export default async function ClienteDetailPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [clienteResult, negociosResult, processosResult, estagios] = await Promise.all([
+  const [clienteResult, negociosResult, processosResult, estagios, processosClientesResult] = await Promise.all([
     supabase.from('clientes').select('*').eq('id', id).single(),
     supabase
       .from('negocios')
       .select('id, titulo, estagio, valor_estimado, data_previsao_fechamento, created_at, updated_at, cliente_id, solucao_id, responsavel_id, probabilidade, observacoes')
       .eq('cliente_id', id)
       .order('created_at', { ascending: false }),
-    // Processos jurídicos do cliente (módulo advocacia) — apenas EM ANDAMENTO (exclui concluído).
+    // Processos jurídicos onde este cliente é o PRINCIPAL — apenas EM ANDAMENTO (exclui concluído).
     supabase
       .from('processos_juridicos')
       .select('id, numero_processo, assunto, status, valor_causa, honorarios_tipo, honorarios_valor')
@@ -51,6 +51,8 @@ export default async function ClienteDetailPage({ params }: PageProps) {
       .in('status', ['em_transito', 'suspenso'])
       .order('created_at', { ascending: false }),
     listarEstagios(),
+    // Processos onde este cliente é ADICIONAL (não principal) — ver processos_multiplos_clientes.
+    supabase.from('processos_clientes').select('processo_id').eq('cliente_id', id),
   ])
 
   const mapa = mapaEstagios(estagios)
@@ -83,7 +85,29 @@ export default async function ClienteDetailPage({ params }: PageProps) {
     honorarios_tipo: string | null; honorarios_valor: number | null
   }
   // Resultado já filtrado: apenas processos em andamento (concluído excluído na query)
-  const processos = (processosResult.data ?? []) as ProcessoLite[]
+  const processosPrincipal = (processosResult.data ?? []) as ProcessoLite[]
+
+  // Processos onde este cliente é adicional (não principal) — busca separada porque
+  // depende dos IDs vindos de processos_clientes.
+  const processoIdsAdicionais = (processosClientesResult.data ?? []).map((r) => r.processo_id as string)
+  let processosAdicionais: ProcessoLite[] = []
+  if (processoIdsAdicionais.length > 0) {
+    const { data: adicionaisData, error: errAdicionais } = await supabase
+      .from('processos_juridicos')
+      .select('id, numero_processo, assunto, status, valor_causa, honorarios_tipo, honorarios_valor')
+      .in('id', processoIdsAdicionais)
+      .in('status', ['em_transito', 'suspenso'])
+      .order('created_at', { ascending: false })
+    if (errAdicionais) {
+      console.error('[cliente/detalhe] Falha ao buscar processos adicionais do cliente:', errAdicionais)
+    } else {
+      processosAdicionais = (adicionaisData ?? []) as ProcessoLite[]
+    }
+  }
+
+  const processos = [...processosPrincipal, ...processosAdicionais]
+    .filter((p, idx, arr) => arr.findIndex((o) => o.id === p.id) === idx)
+
   const previsaoHonorarios = processos.reduce(
     (soma, p) => soma + (calcularHonorarios(p.honorarios_tipo, p.honorarios_valor, p.valor_causa) ?? 0),
     0,

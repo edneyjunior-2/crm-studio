@@ -41,7 +41,7 @@ export function NovoProcessoForm({ clientes, advogados, parceiros }: Props) {
 
   // Cliente: lista mutável (p/ cadastro inline) + seleção controlada
   const [clientesList, setClientesList] = useState<Cliente[]>(clientes)
-  const [clienteId, setClienteId]       = useState('')
+  const [clienteIds, setClienteIds]     = useState<string[]>([])
   const [novoClienteOpen, setNovoClienteOpen] = useState(false)
 
   // Valor da causa (controlado p/ calcular o honorário em %) + honorários
@@ -60,8 +60,12 @@ export function NovoProcessoForm({ clientes, advogados, parceiros }: Props) {
     setClientesList((prev) =>
       [...prev, cliente].sort((a, b) => a.razao_social.localeCompare(b.razao_social, 'pt-BR')),
     )
-    setClienteId(cliente.id)
+    setClienteIds((prev) => [...prev, cliente.id])
     setNovoClienteOpen(false)
+  }
+
+  function toggleCliente(id: string) {
+    setClienteIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
   }
 
   async function handleBuscar() {
@@ -267,10 +271,10 @@ export function NovoProcessoForm({ clientes, advogados, parceiros }: Props) {
           )}
         </div>
 
-        {/* Cliente (com cadastro inline via Dialog) */}
-        <div className="flex flex-col gap-1.5">
+        {/* Cliente(s) — seleção múltipla; o primeiro marcado vira o cliente principal */}
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
           <div className="flex items-center justify-between">
-            <label className={labelClass} htmlFor="cliente_id">Cliente</label>
+            <label className={labelClass}>Cliente(s)</label>
             <button
               type="button"
               onClick={() => setNovoClienteOpen(true)}
@@ -279,18 +283,30 @@ export function NovoProcessoForm({ clientes, advogados, parceiros }: Props) {
               + Novo cliente
             </button>
           </div>
-          <select
-            id="cliente_id"
-            name="cliente_id"
-            value={clienteId}
-            onChange={(e) => setClienteId(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Nenhum</option>
-            {clientesList.map((c) => (
-              <option key={c.id} value={c.id}>{c.razao_social}</option>
-            ))}
-          </select>
+          <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-background p-2">
+            {clientesList.length === 0 ? (
+              <p className="px-1 py-1 text-sm text-muted-foreground">Nenhum cliente cadastrado.</p>
+            ) : (
+              clientesList.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm transition-colors hover:bg-muted">
+                  <input
+                    type="checkbox"
+                    name="cliente_ids"
+                    value={c.id}
+                    checked={clienteIds.includes(c.id)}
+                    onChange={() => toggleCliente(c.id)}
+                  />
+                  {c.razao_social}
+                  {clienteIds[0] === c.id && (
+                    <span className="ml-auto text-xs text-muted-foreground">principal</span>
+                  )}
+                </label>
+              ))
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {clienteIds.length > 1 ? `${clienteIds.length} clientes selecionados.` : 'Marque um ou mais clientes vinculados a este processo.'}
+          </p>
           <ClienteForm
             open={novoClienteOpen}
             onOpenChange={setNovoClienteOpen}

@@ -15,6 +15,7 @@ interface ProcessoEdit {
   honorarios_tipo: string | null
   honorarios_valor: number | null
   cliente_id: string | null
+  clientes_adicionais_ids: string[]
   advogado_id: string | null
   parceiro_id: string | null
   polo_passivo_nome:        string | null
@@ -55,6 +56,13 @@ export function EditarProcessoForm({ processo, clientes, advogados, parceiros }:
     processo.honorarios_tipo === 'fixo' ? 'fixo' : 'percentual',
   )
   const [honValor, setHonValor] = useState(processo.honorarios_valor != null ? String(processo.honorarios_valor) : '')
+  const [clienteIds, setClienteIds] = useState<string[]>(
+    [processo.cliente_id, ...processo.clientes_adicionais_ids].filter((id): id is string => !!id),
+  )
+
+  function toggleCliente(id: string) {
+    setClienteIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
+  }
 
   const valorCausaNum = parseValorBR(valorCausa)
   const honValorNum   = parseFloat((honValor || '').replace(',', '.'))
@@ -140,12 +148,32 @@ export function EditarProcessoForm({ processo, clientes, advogados, parceiros }:
           )}
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label className={labelClass} htmlFor="cliente_id">Cliente</label>
-          <select id="cliente_id" name="cliente_id" defaultValue={processo.cliente_id ?? ''} className={inputClass}>
-            <option value="">Nenhum</option>
-            {clientes.map((c) => <option key={c.id} value={c.id}>{c.razao_social}</option>)}
-          </select>
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <label className={labelClass}>Cliente(s)</label>
+          <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-background p-2">
+            {clientes.length === 0 ? (
+              <p className="px-1 py-1 text-sm text-muted-foreground">Nenhum cliente cadastrado.</p>
+            ) : (
+              clientes.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm transition-colors hover:bg-muted">
+                  <input
+                    type="checkbox"
+                    name="cliente_ids"
+                    value={c.id}
+                    checked={clienteIds.includes(c.id)}
+                    onChange={() => toggleCliente(c.id)}
+                  />
+                  {c.razao_social}
+                  {clienteIds[0] === c.id && (
+                    <span className="ml-auto text-xs text-muted-foreground">principal</span>
+                  )}
+                </label>
+              ))
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {clienteIds.length > 1 ? `${clienteIds.length} clientes selecionados.` : 'Marque um ou mais clientes vinculados a este processo.'}
+          </p>
         </div>
 
         <div className="flex flex-col gap-1.5">
