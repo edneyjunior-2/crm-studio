@@ -1,7 +1,9 @@
-export const ANIVERSARIOS = [
-  { mes: 6, dia: 3, nome: 'Edney Junior' },
-  { mes: 7, dia: 5, nome: 'Edney Paixão' },
-] as const
+// Lista vazia: era hardcoded com aniversários da equipe interna da Aurum
+// (resto de quando este CRM era uso interno, não SaaS) — vazava pra
+// qualquer tenant que não tem nada a ver com essas pessoas. Sem fonte de
+// dados de aniversário por tenant ainda; feature volta quando/se isso
+// existir (ex: campo de data de nascimento em profiles).
+export const ANIVERSARIOS: readonly { mes: number; dia: number; nome: string }[] = []
 
 export type Aniversario = typeof ANIVERSARIOS[number]
 
