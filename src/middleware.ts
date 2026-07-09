@@ -129,11 +129,19 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|html)$).*)',
-    // O matcher geral exclui .html; esta entrada extra força o middleware a rodar
-    // em /contratos/* (gerador estático da Aurum, contém PII) p/ exigir login.
-    // ponytail: fecha o acesso anônimo (o furo real). Tenant-scoping fino (só
-    // Aurum) fica pro gerador white-label por tenant — upgrade path documentado.
-    '/contratos/:path*',
+    // .js excluído junto com os outros estáticos: hoje o único .js em public/
+    // é contratos/engine.js (motor genérico, sem PII, pensado pra ser público)
+    // — sem isso ele caía na regra geral e era gateado por auth mesmo antes
+    // de chegar na entrada específica de /contratos abaixo.
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|html|js)$).*)',
+    // O matcher geral exclui .html; esta entrada extra força login só nos
+    // arquivos .html estáticos sob /contratos/ (ex.: gerador da Aurum, contém
+    // cláusulas reais). NÃO inclui .js: o engine.js é o motor genérico
+    // compartilhado, carregado CROSS-ORIGIN pelos templates white-label (via
+    // signed URL do Supabase Storage, dentro de um iframe) — o cookie de
+    // sessão é SameSite=Lax e não vai em subresource request cross-site, então
+    // gatear engine.js redirecionava esse <script src> pro HTML de /login e
+    // quebrava o gerador inteiro pra qualquer tenant fora da Aurum.
+    '/contratos/(.*\\.html)',
   ],
 }
