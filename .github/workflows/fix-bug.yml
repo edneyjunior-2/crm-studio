@@ -24,6 +24,15 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      # NUNCA usar ${{ github.event.inputs.* }} direto dentro de um `run:` —
+      # vira texto colado cru no script antes do bash rodar. O prompt real
+      # (bug 2f3344d1) tinha `CREATE POLICY "admins podem..."` embutido, e a
+      # aspa dupla fechou a string do bash no meio, quebrando `gh pr create`
+      # com "unknown arguments". Passar por env resolve: o valor chega como
+      # variável de ambiente de verdade, sem re-interpretação pelo shell.
+      BUG_ID: ${{ github.event.inputs.bug_id }}
+      BUG_PROMPT: ${{ github.event.inputs.prompt }}
 
     steps:
       - name: Checkout
@@ -42,7 +51,7 @@ jobs:
 
       - name: Criar branch
         run: |
-          BRANCH="fix/bug-${{ github.event.inputs.bug_id }}"
+          BRANCH="fix/bug-$BUG_ID"
           git config user.name "Claude Code Bot"
           git config user.email "bot@crmstudio.com.br"
           git checkout -b "$BRANCH"
@@ -55,7 +64,7 @@ jobs:
           # Edit/Bash num runner sem interação (não tem como aprovar o prompt).
           # Seguro aqui: runner efêmero, isolado, escopado só a este checkout.
           claude --print --model claude-sonnet-5 --dangerously-skip-permissions \
-            "${{ github.event.inputs.prompt }}
+            "$BUG_PROMPT
 
           Após aplicar a correção:
           1. Rode: npx tsc --noEmit
@@ -90,7 +99,7 @@ jobs:
             "Você é um revisor cético e independente — não escreveu este código, só vai julgá-lo. Um outro agente (Sonnet) recebeu este bug reportado por um usuário e este prompt de correção, e produziu o diff abaixo.
 
           --- BUG / PROMPT ORIGINAL ---
-          ${{ github.event.inputs.prompt }}
+          $BUG_PROMPT
 
           --- DIFF APLICADO ---
           $DIFF
@@ -115,7 +124,7 @@ jobs:
             "Sua correção anterior para este bug foi reprovada numa revisão independente. Ajuste o código pra resolver os pontos levantados — não ignore a crítica.
 
           --- BUG / PROMPT ORIGINAL ---
-          ${{ github.event.inputs.prompt }}
+          $BUG_PROMPT
 
           --- CRÍTICA DA REVISÃO ---
           $(cat review-1.md)
@@ -139,7 +148,7 @@ jobs:
             "Segunda rodada de revisão do mesmo bug, com o mesmo rigor da primeira — o código foi ajustado depois da sua crítica anterior.
 
           --- BUG / PROMPT ORIGINAL ---
-          ${{ github.event.inputs.prompt }}
+          $BUG_PROMPT
 
           --- DIFF ATUALIZADO ---
           $DIFF
@@ -152,9 +161,9 @@ jobs:
       - name: Commit e push
         if: steps.diff.outputs.changed == 'true'
         run: |
-          BRANCH="fix/bug-${{ github.event.inputs.bug_id }}"
+          BRANCH="fix/bug-$BUG_ID"
           git add -A
-          git commit -m "fix: correção automática do bug ${{ github.event.inputs.bug_id }}
+          git commit -m "fix: correção automática do bug $BUG_ID
 
           Aplicado via Claude Code (Sonnet), revisado de forma independente por Opus.
           Co-Authored-By: Claude Code Bot <bot@crmstudio.com.br>"
@@ -165,31 +174,38 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BRANCH="fix/bug-${{ github.event.inputs.bug_id }}"
+          BRANCH="fix/bug-$BUG_ID"
           REVIEW_FINAL=$(cat review-2.md 2>/dev/null || cat review-1.md)
           VEREDITO_LINHA=$(head -1 <<< "$REVIEW_FINAL")
 
+          # --body-file em vez de --body inline: corpo grande com markdown,
+          # crase e possíveis aspas do diff/revisão — arquivo evita qualquer
+          # limite ou aresta de quoting na linha de comando.
+          {
+            echo "## Correção automática (Sonnet, revisada de forma independente por Opus)"
+            echo
+            echo "**Bug ID:** \`$BUG_ID\`"
+            echo
+            echo "**Prompt utilizado:**"
+            echo '```'
+            echo "$BUG_PROMPT"
+            echo '```'
+            echo
+            echo "## Revisão independente (Opus)"
+            echo "$REVIEW_FINAL"
+            echo
+            echo "## Antes de mergear"
+            echo "- [ ] Esperei o CI (lint/tsc/build) ficar verde neste PR"
+            echo "- [ ] Testei manualmente reproduzindo o bug original"
+            echo "- [ ] Revisei o diff linha a linha"
+            echo
+            echo "> A revisão acima é automática e **não substitui teste manual** — principalmente em bugs de permissão/dados (RLS), onde \`tsc\` passar não garante que o comportamento certo aconteceu. Se o veredito acima for 'reprovado', trate como um alerta forte, não como algo pronto pra mergear."
+            echo
+            echo "🤖 Gerado automaticamente pelo sistema de auto-healing do CRM Studio."
+          } > pr-body.md
+
           gh pr create \
-            --title "fix: correção do bug ${{ github.event.inputs.bug_id }} — $VEREDITO_LINHA" \
-            --body "## Correção automática (Sonnet, revisada de forma independente por Opus)
-
-          **Bug ID:** \`${{ github.event.inputs.bug_id }}\`
-
-          **Prompt utilizado:**
-          \`\`\`
-          ${{ github.event.inputs.prompt }}
-          \`\`\`
-
-          ## Revisão independente (Opus)
-          $REVIEW_FINAL
-
-          ## Antes de mergear
-          - [ ] Esperei o CI (lint/tsc/build) ficar verde neste PR
-          - [ ] Testei manualmente reproduzindo o bug original
-          - [ ] Revisei o diff linha a linha
-
-          > A revisão acima é automática e **não substitui teste manual** — principalmente em bugs de permissão/dados (RLS), onde \`tsc\` passar não garante que o comportamento certo aconteceu. Se o veredito acima for 'reprovado', trate como um alerta forte, não como algo pronto pra mergear.
-
-          🤖 Gerado automaticamente pelo sistema de auto-healing do CRM Studio." \
+            --title "fix: correção do bug $BUG_ID — $VEREDITO_LINHA" \
+            --body-file pr-body.md \
             --base main \
             --head "$BRANCH"
