@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { BugDetailPanel } from './bug-detail-panel'
+import { BugsTabs } from './bugs-tabs'
 
 const STATUS_LABELS: Record<string, string> = {
   aberto: 'Aberto',
@@ -47,9 +48,16 @@ type BugReport = {
   created_at: string
 }
 
-export default async function BugsPage() {
+interface BugsPageProps {
+  searchParams: Promise<{ tab?: string }>
+}
+
+export default async function BugsPage({ searchParams }: BugsPageProps) {
   await getAuthPlatformAdmin()
   const admin = createAdminClient()
+
+  const { tab } = await searchParams
+  const isHistorico = tab === 'historico'
 
   let bugs: BugReport[] = []
   try {
@@ -67,6 +75,13 @@ export default async function BugsPage() {
   const total = bugs.length
   const abertos = bugs.filter((b) => b.status === 'aberto').length
   const criticos = bugs.filter((b) => (b.analise_claude as Record<string, unknown> | null)?.severidade === 'critica').length
+
+  // Resolvido sai da lista principal (Reports) e vai pro histórico. Se
+  // alguém mudar o status de volta (aberto/em_analise/ignorado), a linha
+  // volta pra Reports — é só filtrar por status atual, sem flag separada.
+  const bugsAtivos = bugs.filter((b) => b.status !== 'resolvido')
+  const bugsResolvidos = bugs.filter((b) => b.status === 'resolvido')
+  const bugsExibidos = isHistorico ? bugsResolvidos : bugsAtivos
 
   return (
     <div className="flex flex-col gap-6">
@@ -94,92 +109,99 @@ export default async function BugsPage() {
         ))}
       </div>
 
+      {/* Abas: Reports (ativos) | Histórico de resolvidos */}
+      <BugsTabs totalAtivos={bugsAtivos.length} totalResolvidos={bugsResolvidos.length} />
+
       {/* Lista */}
-      {(!bugs || bugs.length === 0) && (
+      {bugsExibidos.length === 0 && (
         <div className="rounded-xl border border-dashed border-border py-20 text-center text-muted-foreground">
-          Nenhum bug reportado ainda.
+          {isHistorico ? 'Nenhum bug resolvido ainda.' : 'Nenhum bug em aberto. 🎉'}
         </div>
       )}
 
-      {bugs && bugs.length > 0 && (
+      {bugsExibidos.length > 0 && (
         <div className="flex flex-col gap-2">
-          {bugs.map((bug) => {
-            const analise = bug.analise_claude as Record<string, unknown> | null
-            const sev = String(analise?.severidade ?? '')
-            const contexto = bug.contexto as Record<string, unknown> | null
-            return (
-              <a
-                key={bug.id}
-                href={`/admin/bugs/${bug.id}`}
-                className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md sm:flex-row sm:items-start sm:gap-4"
-              >
-                {/* Screenshot thumbnail */}
-                {bug.screenshot_url ? (
-                  <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={bug.screenshot_url}
-                      alt="Screenshot"
-                      className="h-16 w-24 rounded-lg border border-border object-cover object-top"
-                    />
-                  </a>
-                ) : (
-                  <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
-                    sem foto
-                  </div>
-                )}
-
-                {/* Conteúdo */}
-                <div className="flex flex-1 flex-col gap-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {sev && (
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${SEV_COLORS[sev] ?? 'bg-muted'}`}>
-                        {sev}
-                      </span>
-                    )}
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_COLORS[bug.status] ?? ''}`}>
-                      {STATUS_LABELS[bug.status] ?? bug.status}
-                    </span>
-                    {!!analise?.categoria && (
-                      <span className="text-[11px] text-muted-foreground">#{String(analise.categoria)}</span>
-                    )}
-                    <span className="ml-auto text-[11px] text-muted-foreground">{relTime(String(bug.created_at))}</span>
-                  </div>
-
-                  <p className="font-semibold leading-snug">
-                    {String(analise?.titulo_curto ?? bug.descricao).slice(0, 90)}
-                  </p>
-
-                  <p className="text-sm text-muted-foreground line-clamp-2">{bug.descricao}</p>
-
-                  <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
-                    <span>{bug.user_name ?? '?'} · {bug.user_role}</span>
-                    <span>{contexto?.empresa_nome as string ?? '?'}</span>
-                    <code className="font-mono">{String(bug.url ?? '').replace('https://app.crmstudio.com.br', '')}</code>
-                  </div>
-
-                  {!!analise?.causa_provavel && (
-                    <p className="text-[12px] text-muted-foreground">
-                      <span className="font-medium text-foreground/70">Causa provável:</span>{' '}
-                      {String(analise.causa_provavel)}
-                    </p>
-                  )}
-
-                  {!!analise?.sugestao_correcao && (
-                    <p className="text-[12px] text-muted-foreground">
-                      <span className="font-medium text-foreground/70">Sugestão:</span>{' '}
-                      {String(analise.sugestao_correcao)}
-                    </p>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <BugDetailPanel bugId={bug.id} currentStatus={bug.status} />
-              </a>
-            )
-          })}
+          {bugsExibidos.map((bug) => (
+            <BugCard key={bug.id} bug={bug} />
+          ))}
         </div>
       )}
     </div>
+  )
+}
+
+function BugCard({ bug }: { bug: BugReport }) {
+  const analise = bug.analise_claude as Record<string, unknown> | null
+  const sev = String(analise?.severidade ?? '')
+  const contexto = bug.contexto as Record<string, unknown> | null
+
+  return (
+    <a
+      href={`/admin/bugs/${bug.id}`}
+      className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md sm:flex-row sm:items-start sm:gap-4"
+    >
+      {/* Screenshot thumbnail */}
+      {bug.screenshot_url ? (
+        <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={bug.screenshot_url}
+            alt="Screenshot"
+            className="h-16 w-24 rounded-lg border border-border object-cover object-top"
+          />
+        </a>
+      ) : (
+        <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+          sem foto
+        </div>
+      )}
+
+      {/* Conteúdo */}
+      <div className="flex flex-1 flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {sev && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${SEV_COLORS[sev] ?? 'bg-muted'}`}>
+              {sev}
+            </span>
+          )}
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_COLORS[bug.status] ?? ''}`}>
+            {STATUS_LABELS[bug.status] ?? bug.status}
+          </span>
+          {!!analise?.categoria && (
+            <span className="text-[11px] text-muted-foreground">#{String(analise.categoria)}</span>
+          )}
+          <span className="ml-auto text-[11px] text-muted-foreground">{relTime(String(bug.created_at))}</span>
+        </div>
+
+        <p className="font-semibold leading-snug">
+          {String(analise?.titulo_curto ?? bug.descricao).slice(0, 90)}
+        </p>
+
+        <p className="text-sm text-muted-foreground line-clamp-2">{bug.descricao}</p>
+
+        <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
+          <span>{bug.user_name ?? '?'} · {bug.user_role}</span>
+          <span>{contexto?.empresa_nome as string ?? '?'}</span>
+          <code className="font-mono">{String(bug.url ?? '').replace('https://app.crmstudio.com.br', '')}</code>
+        </div>
+
+        {!!analise?.causa_provavel && (
+          <p className="text-[12px] text-muted-foreground">
+            <span className="font-medium text-foreground/70">Causa provável:</span>{' '}
+            {String(analise.causa_provavel)}
+          </p>
+        )}
+
+        {!!analise?.sugestao_correcao && (
+          <p className="text-[12px] text-muted-foreground">
+            <span className="font-medium text-foreground/70">Sugestão:</span>{' '}
+            {String(analise.sugestao_correcao)}
+          </p>
+        )}
+      </div>
+
+      {/* Actions */}
+      <BugDetailPanel bugId={bug.id} currentStatus={bug.status} />
+    </a>
   )
 }
