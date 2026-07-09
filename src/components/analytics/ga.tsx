@@ -24,10 +24,14 @@ import { Suspense, useEffect, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { trackEvent } from '@/lib/analytics'
 
-// ID de métricas do fluxo Web (www.crmstudio.com.br). É público (fica visível no
-// HTML), então fica cravado como padrão pra funcionar sem depender de env na
-// Vercel; NEXT_PUBLIC_GA_ID sobrepõe se precisar trocar de propriedade.
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-B9J589682L'
+// ID de métricas do fluxo Web (www.crmstudio.com.br). Configurado como env
+// var na Vercel (Production + Preview) — NÃO usar fallback hardcoded aqui:
+// um valor cravado também vaza pro build do job e2e do CI (.github/workflows/ci.yml,
+// que não passa NEXT_PUBLIC_GA_ID) e pro `npm run dev` local, fazendo o
+// Playwright/dev server disparar hits reais pro GA4 de produção — foi a causa
+// de tráfego fake dos EUA aparecendo no relatório de geolocalização.
+// Sem a env, o componente vira no-op (ver `if (!GA_ID) return null` abaixo).
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID
 
 // ID base da conta do Google Ads (sem o /label — o label só entra no evento de
 // conversão, ver src/lib/analytics.ts). Precisa de um gtag('config', 'AW-...')
