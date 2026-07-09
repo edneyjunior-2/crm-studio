@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { atualizarStatusBug } from './actions'
 
 const STATUS_OPTIONS = [
   { value: 'aberto',     label: 'Aberto' },
@@ -17,13 +17,9 @@ export function BugDetailPanel({ bugId, currentStatus }: { bugId: string; curren
 
   async function updateStatus(next: string) {
     setSaving(true)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('bug_reports')
-      .update({ status: next, updated_at: new Date().toISOString() })
-      .eq('id', bugId)
-    if (error) {
-      toast.error('Falha ao atualizar.')
+    const result = await atualizarStatusBug(bugId, next)
+    if (result.error) {
+      toast.error(result.error)
     } else {
       setStatus(next)
       toast.success('Status atualizado.')
@@ -32,7 +28,14 @@ export function BugDetailPanel({ bugId, currentStatus }: { bugId: string; curren
   }
 
   return (
-    <div className="shrink-0">
+    // O card inteiro é um <a> pro relatório completo (page.tsx). A navegação
+    // nativa do <a> não é bloqueada por stopPropagation sozinho — só
+    // preventDefault cancela; por isso os dois juntos aqui.
+    <div
+      className="shrink-0"
+      onClick={(e) => { e.stopPropagation(); e.preventDefault() }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <select
         value={status}
         disabled={saving}

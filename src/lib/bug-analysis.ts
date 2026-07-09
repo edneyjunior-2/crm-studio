@@ -144,3 +144,65 @@ Classifique e retorne JSON com este schema exato:
     console.error('[bug-analysis] falha ao enviar e-mail de notificação:', err)
   })
 }
+
+/**
+ * Avisa quem reportou o bug que ele foi resolvido. Não abre nenhum canal de
+ * chamados novo — só aponta de volta pro botão "Teve um problema?" (já
+ * existente em toda tela) caso a pessoa ainda veja algo estranho.
+ *
+ * CHAME COM AWAIT (mesmo motivo de analyzeAndNotifyBug acima).
+ */
+export async function notificarReporteResolvido(params: {
+  reportId: string
+  descricao: string
+  userId: string
+  userName: string | null
+}) {
+  const { reportId, descricao, userId, userName } = params
+  const admin = createAdminClient()
+
+  // E-mail vem da view profiles_auth (service-role) — NÃO admin.auth.admin.listUsers(),
+  // que voltava vazio em prod neste projeto.
+  const { data: pessoa } = await admin
+    .from('profiles_auth')
+    .select('email')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (!pessoa?.email) {
+    console.error('[bug-analysis] sem e-mail pra notificar resolução do bug', reportId)
+    return
+  }
+
+  const primeiroNome = (userName ?? '').trim().split(' ')[0] || null
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  await resend.emails.send({
+    from: 'nao-responda@crmstudio.com.br',
+    to: pessoa.email,
+    subject: 'Resolvemos o problema que você reportou',
+    html: `
+<div style="font-family:sans-serif;max-width:640px;margin:0 auto;color:#14233A">
+  <div style="background:#14233A;padding:20px 24px;border-radius:12px 12px 0 0">
+    <span style="color:#ECEAE3;font-size:18px;font-weight:700">CRM Studio</span><span style="color:#E8915B">.</span>
+  </div>
+  <div style="border:1px solid #e5e5e5;border-top:none;padding:24px;border-radius:0 0 12px 12px">
+    <h2 style="margin:0 0 12px">Tudo certo${primeiroNome ? `, ${primeiroNome}` : ''}! ✅</h2>
+    <p style="margin:0 0 16px;line-height:1.5">
+      O problema que você reportou foi resolvido:
+    </p>
+    <p style="background:#f5f5f5;padding:12px 16px;border-radius:8px;margin:0 0 16px;font-style:italic">
+      "${descricao}"
+    </p>
+    <p style="margin:0 0 16px;line-height:1.5">
+      Se ainda notar algo estranho ou encontrar outro problema, é só reportar de novo pelo botão
+      <strong>"Teve um problema?"</strong> no menu lateral do sistema — a gente recebe direto.
+    </p>
+    <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
+    <p style="font-size:12px;color:#aaa;margin:0">Obrigado por ajudar a melhorar o CRM Studio.</p>
+  </div>
+</div>`.trim(),
+  }).catch((err: unknown) => {
+    console.error('[bug-analysis] falha ao enviar e-mail de resolução:', err)
+  })
+}

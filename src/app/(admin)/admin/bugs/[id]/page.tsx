@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import { AcceptButton } from './accept-button'
 import { ReanalisarButton } from './reanalisar-button'
+import { BugDetailPanel } from '../bug-detail-panel'
 
 const SEV_COLORS: Record<string, string> = {
   critica: 'bg-red-100 text-red-700 border-red-300',
@@ -82,6 +83,7 @@ export default async function BugDetailPage({ params }: { params: Promise<{ id: 
               {CAT_LABELS[cat] ?? cat}
             </span>
           )}
+          <BugDetailPanel bugId={id} currentStatus={String(bug.status)} />
         </div>
       </div>
 
