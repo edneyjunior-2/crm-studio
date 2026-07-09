@@ -285,9 +285,9 @@ export function NovoProcessoForm({ clientes, advogados, parceiros }: Props) {
             </button>
           </div>
           <SeletorClientes clientes={clientesList} value={clienteIds} onToggle={toggleCliente} name="cliente_ids" />
-          <p className="text-xs text-muted-foreground">
-            {clienteIds.length > 1 ? `${clienteIds.length} clientes selecionados.` : 'Marque um ou mais clientes vinculados a este processo.'}
-          </p>
+          {clienteIds.length === 0 && (
+            <p className="text-xs text-muted-foreground">Busque e adicione um ou mais clientes vinculados a este processo.</p>
+          )}
           <ClienteForm
             open={novoClienteOpen}
             onOpenChange={setNovoClienteOpen}

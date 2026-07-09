@@ -152,9 +152,9 @@ export function EditarProcessoForm({ processo, clientes, advogados, parceiros }:
         <div className="flex flex-col gap-1.5 sm:col-span-2">
           <label className={labelClass}>Cliente(s)</label>
           <SeletorClientes clientes={clientes} value={clienteIds} onToggle={toggleCliente} name="cliente_ids" />
-          <p className="text-xs text-muted-foreground">
-            {clienteIds.length > 1 ? `${clienteIds.length} clientes selecionados.` : 'Marque um ou mais clientes vinculados a este processo.'}
-          </p>
+          {clienteIds.length === 0 && (
+            <p className="text-xs text-muted-foreground">Busque e adicione um ou mais clientes vinculados a este processo.</p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">
