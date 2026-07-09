@@ -1,5 +1,12 @@
 name: Fix Bug (Claude Code)
 
+# Mesmo padrão do skill "orquestrar" do projeto: Sonnet constrói (barato,
+# rápido), Opus revisa depois — de forma INDEPENDENTE, sem ter escrito o
+# código — antes de virar PR. Se a revisão reprova, tenta corrigir mais uma
+# vez (teto de 2 rodadas — isso roda sozinho, sem ninguém pra intervir se
+# entrar em loop). O CI (ci.yml) roda de novo em cima do PR de qualquer
+# forma; nada aqui faz merge sozinho.
+
 on:
   workflow_dispatch:
     inputs:
@@ -13,6 +20,7 @@ on:
 jobs:
   fix:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: write
       pull-requests: write
@@ -29,64 +37,158 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run Claude Code fix
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd app
-          npm ci
+      - name: Instalar dependências
+        run: npm ci
 
-          # Cria branch para o fix
+      - name: Criar branch
+        run: |
           BRANCH="fix/bug-${{ github.event.inputs.bug_id }}"
           git config user.name "Claude Code Bot"
           git config user.email "bot@crmstudio.com.br"
           git checkout -b "$BRANCH"
 
-          # Roda Claude Code com o prompt do bug report
-          # Modo --print: gera o plano de correção sem aplicar automaticamente
-          claude --print \
+      - name: "Build (Sonnet) — aplica a correção"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # --dangerously-skip-permissions: sem isso o Claude não consegue usar
+          # Edit/Bash num runner sem interação (não tem como aprovar o prompt).
+          # Seguro aqui: runner efêmero, isolado, escopado só a este checkout.
+          claude --print --model claude-sonnet-5 --dangerously-skip-permissions \
             "${{ github.event.inputs.prompt }}
 
           Após aplicar a correção:
           1. Rode: npx tsc --noEmit
           2. Se passar, faça git add e git commit com mensagem clara
-          3. NÃO faça git push — o workflow cuida disso" > claude-fix-plan.md
+          3. NÃO faça git push — o workflow cuida disso" > build-1.md
 
-          echo "--- Plano gerado ---"
-          cat claude-fix-plan.md
+          echo "--- Build (Sonnet), rodada 1 ---"
+          cat build-1.md
 
-          # Verifica se há mudanças
+      - name: Checar se algo mudou
+        id: diff
+        run: |
           if git diff --staged --quiet && git diff --quiet; then
-            echo "Nenhuma mudança aplicada."
-            exit 0
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Nenhuma mudança aplicada — nada a revisar ou commitar."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-          # Commit e push
+      - name: "Gate — type check (rodada 1)"
+        if: steps.diff.outputs.changed == 'true'
+        run: npx tsc --noEmit
+
+      - name: "Review (Opus) — independente, rodada 1"
+        if: steps.diff.outputs.changed == 'true'
+        id: review1
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          DIFF=$(git diff main)
+          claude --print --model claude-opus-4-8 \
+            "Você é um revisor cético e independente — não escreveu este código, só vai julgá-lo. Um outro agente (Sonnet) recebeu este bug reportado por um usuário e este prompt de correção, e produziu o diff abaixo.
+
+          --- BUG / PROMPT ORIGINAL ---
+          ${{ github.event.inputs.prompt }}
+
+          --- DIFF APLICADO ---
+          $DIFF
+
+          Avalie com rigor: (1) o diff plausivelmente resolve a CAUSA RAIZ do bug descrito, ou só mexe em algo parecido sem resolver de fato? (2) tem algo incompleto, arriscado (ex: RLS mais permissiva que deveria, dado exposto) ou obviamente errado? (3) o que um humano DEVE testar manualmente antes de mergear, reproduzindo o bug original?
+          Responda em português. A PRIMEIRA LINHA deve ser exatamente uma destas duas, sem mais nada na linha: 'VEREDITO: aprovado' ou 'VEREDITO: reprovado' — só aprove se você apostaria que esse diff resolve o bug. Depois, até 200 palavras justificando." > review-1.md
+
+          echo "--- Review (Opus), rodada 1 ---"
+          cat review-1.md
+          {
+            echo "veredito<<VEREDITO_EOF"
+            head -1 review-1.md
+            echo "VEREDITO_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: "Build (Sonnet) — correção, rodada 2 (só se reprovado)"
+        if: steps.diff.outputs.changed == 'true' && contains(steps.review1.outputs.veredito, 'reprovado')
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude --print --model claude-sonnet-5 --dangerously-skip-permissions \
+            "Sua correção anterior para este bug foi reprovada numa revisão independente. Ajuste o código pra resolver os pontos levantados — não ignore a crítica.
+
+          --- BUG / PROMPT ORIGINAL ---
+          ${{ github.event.inputs.prompt }}
+
+          --- CRÍTICA DA REVISÃO ---
+          $(cat review-1.md)
+
+          Após ajustar: rode npx tsc --noEmit, e se passar faça git add + git commit (NÃO dê push)." > build-2.md
+
+          echo "--- Build (Sonnet), rodada 2 ---"
+          cat build-2.md
+
+      - name: "Gate — type check (rodada 2)"
+        if: steps.diff.outputs.changed == 'true' && contains(steps.review1.outputs.veredito, 'reprovado')
+        run: npx tsc --noEmit
+
+      - name: "Review (Opus) — independente, rodada final"
+        if: steps.diff.outputs.changed == 'true' && contains(steps.review1.outputs.veredito, 'reprovado')
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          DIFF=$(git diff main)
+          claude --print --model claude-opus-4-8 \
+            "Segunda rodada de revisão do mesmo bug, com o mesmo rigor da primeira — o código foi ajustado depois da sua crítica anterior.
+
+          --- BUG / PROMPT ORIGINAL ---
+          ${{ github.event.inputs.prompt }}
+
+          --- DIFF ATUALIZADO ---
+          $DIFF
+
+          A PRIMEIRA LINHA deve ser exatamente 'VEREDITO: aprovado' ou 'VEREDITO: reprovado', sem mais nada na linha. Depois, até 150 palavras — se ainda reprovar, diga claramente o que continua faltando (não haverá mais rodadas automáticas depois desta)." > review-2.md
+
+          echo "--- Review (Opus), rodada final ---"
+          cat review-2.md
+
+      - name: Commit e push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          BRANCH="fix/bug-${{ github.event.inputs.bug_id }}"
           git add -A
           git commit -m "fix: correção automática do bug ${{ github.event.inputs.bug_id }}
 
-          Aplicado via Claude Code a partir do bug report.
+          Aplicado via Claude Code (Sonnet), revisado de forma independente por Opus.
           Co-Authored-By: Claude Code Bot <bot@crmstudio.com.br>"
           git push origin "$BRANCH"
 
       - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           BRANCH="fix/bug-${{ github.event.inputs.bug_id }}"
-          gh pr create \
-            --title "fix: correção do bug ${{ github.event.inputs.bug_id }}" \
-            --body "## Correção automática via Claude Code
+          REVIEW_FINAL=$(cat review-2.md 2>/dev/null || cat review-1.md)
+          VEREDITO_LINHA=$(head -1 <<< "$REVIEW_FINAL")
 
-          **Bug ID:** ${{ github.event.inputs.bug_id }}
+          gh pr create \
+            --title "fix: correção do bug ${{ github.event.inputs.bug_id }} — $VEREDITO_LINHA" \
+            --body "## Correção automática (Sonnet, revisada de forma independente por Opus)
+
+          **Bug ID:** \`${{ github.event.inputs.bug_id }}\`
 
           **Prompt utilizado:**
           \`\`\`
           ${{ github.event.inputs.prompt }}
           \`\`\`
 
-          > Revise o diff antes de fazer merge.
+          ## Revisão independente (Opus)
+          $REVIEW_FINAL
+
+          ## Antes de mergear
+          - [ ] Esperei o CI (lint/tsc/build) ficar verde neste PR
+          - [ ] Testei manualmente reproduzindo o bug original
+          - [ ] Revisei o diff linha a linha
+
+          > A revisão acima é automática e **não substitui teste manual** — principalmente em bugs de permissão/dados (RLS), onde \`tsc\` passar não garante que o comportamento certo aconteceu. Se o veredito acima for 'reprovado', trate como um alerta forte, não como algo pronto pra mergear.
 
           🤖 Gerado automaticamente pelo sistema de auto-healing do CRM Studio." \
             --base main \
