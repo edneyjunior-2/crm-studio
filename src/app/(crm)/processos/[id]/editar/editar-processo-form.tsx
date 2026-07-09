@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { atualizarProcesso } from '../actions'
 import { mascararMilhar, parseValorBR, valorParaMascara } from '@/lib/honorarios'
+import { SeletorClientes } from '@/components/crm/processos/seletor-clientes'
 
 interface ProcessoEdit {
   id: string
@@ -150,27 +151,7 @@ export function EditarProcessoForm({ processo, clientes, advogados, parceiros }:
 
         <div className="flex flex-col gap-1.5 sm:col-span-2">
           <label className={labelClass}>Cliente(s)</label>
-          <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-background p-2">
-            {clientes.length === 0 ? (
-              <p className="px-1 py-1 text-sm text-muted-foreground">Nenhum cliente cadastrado.</p>
-            ) : (
-              clientes.map((c) => (
-                <label key={c.id} className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm transition-colors hover:bg-muted">
-                  <input
-                    type="checkbox"
-                    name="cliente_ids"
-                    value={c.id}
-                    checked={clienteIds.includes(c.id)}
-                    onChange={() => toggleCliente(c.id)}
-                  />
-                  {c.razao_social}
-                  {clienteIds[0] === c.id && (
-                    <span className="ml-auto text-xs text-muted-foreground">principal</span>
-                  )}
-                </label>
-              ))
-            )}
-          </div>
+          <SeletorClientes clientes={clientes} value={clienteIds} onToggle={toggleCliente} name="cliente_ids" />
           <p className="text-xs text-muted-foreground">
             {clienteIds.length > 1 ? `${clienteIds.length} clientes selecionados.` : 'Marque um ou mais clientes vinculados a este processo.'}
           </p>

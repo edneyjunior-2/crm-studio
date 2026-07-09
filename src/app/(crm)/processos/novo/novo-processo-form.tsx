@@ -7,6 +7,7 @@ import { criarProcesso, buscarProcesso } from './actions'
 import type { BuscarProcessoResult } from './actions'
 import { mascararMilhar, parseValorBR } from '@/lib/honorarios'
 import { ClienteForm } from '@/components/crm/clientes/cliente-form'
+import { SeletorClientes } from '@/components/crm/processos/seletor-clientes'
 
 interface Cliente { id: string; razao_social: string }
 
@@ -283,27 +284,7 @@ export function NovoProcessoForm({ clientes, advogados, parceiros }: Props) {
               + Novo cliente
             </button>
           </div>
-          <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-background p-2">
-            {clientesList.length === 0 ? (
-              <p className="px-1 py-1 text-sm text-muted-foreground">Nenhum cliente cadastrado.</p>
-            ) : (
-              clientesList.map((c) => (
-                <label key={c.id} className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm transition-colors hover:bg-muted">
-                  <input
-                    type="checkbox"
-                    name="cliente_ids"
-                    value={c.id}
-                    checked={clienteIds.includes(c.id)}
-                    onChange={() => toggleCliente(c.id)}
-                  />
-                  {c.razao_social}
-                  {clienteIds[0] === c.id && (
-                    <span className="ml-auto text-xs text-muted-foreground">principal</span>
-                  )}
-                </label>
-              ))
-            )}
-          </div>
+          <SeletorClientes clientes={clientesList} value={clienteIds} onToggle={toggleCliente} name="cliente_ids" />
           <p className="text-xs text-muted-foreground">
             {clienteIds.length > 1 ? `${clienteIds.length} clientes selecionados.` : 'Marque um ou mais clientes vinculados a este processo.'}
           </p>
