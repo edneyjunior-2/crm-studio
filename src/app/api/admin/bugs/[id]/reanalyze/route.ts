@@ -35,10 +35,21 @@ export async function POST(
   let screenshot_base64: string | null = null
   if (bug.screenshot_url) {
     try {
-      const res = await fetch(bug.screenshot_url)
-      if (res.ok) {
-        const buffer = Buffer.from(await res.arrayBuffer())
-        screenshot_base64 = `data:image/png;base64,${buffer.toString('base64')}`
+      // bucket bug-reports é privado — fetch direto na URL salva nunca
+      // funcionou (era uma "public URL" quebrada; registros antigos têm ela
+      // salva, novos têm só o path). Assina antes de baixar.
+      const raw = bug.screenshot_url as string
+      const marker = '/bug-reports/'
+      const idx = raw.indexOf(marker)
+      const path = idx >= 0 ? raw.slice(idx + marker.length) : raw
+      const { data: signed } = await admin.storage.from('bug-reports').createSignedUrl(path, 60)
+
+      if (signed?.signedUrl) {
+        const res = await fetch(signed.signedUrl)
+        if (res.ok) {
+          const buffer = Buffer.from(await res.arrayBuffer())
+          screenshot_base64 = `data:image/png;base64,${buffer.toString('base64')}`
+        }
       }
     } catch (err) {
       console.error('[reanalyze] falha ao baixar screenshot existente:', err)

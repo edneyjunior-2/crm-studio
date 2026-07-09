@@ -82,8 +82,11 @@ export async function POST(req: NextRequest) {
         .from('bug-reports')
         .upload(path, buffer, { contentType: 'image/png', upsert: true })
       if (!uploadErr) {
-        const { data: { publicUrl } } = admin.storage.from('bug-reports').getPublicUrl(path)
-        screenshotUrl = publicUrl
+        // Guarda o PATH (não getPublicUrl): o bucket é privado — screenshot
+        // pode capturar dado sensível de cliente na tela. getPublicUrl gera
+        // uma URL que nunca funciona pra bucket privado ("Bucket not found"),
+        // mas não avisa — ficava quebrado em silêncio. Exibição via signed URL.
+        screenshotUrl = path
         await admin.from('bug_reports').update({ screenshot_url: screenshotUrl }).eq('id', reportId)
       }
     } catch { /* silencioso — screenshot é opcional */ }

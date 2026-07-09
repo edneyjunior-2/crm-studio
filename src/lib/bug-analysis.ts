@@ -92,8 +92,12 @@ Classifique e retorne JSON com este schema exato:
     : analise?.severidade === 'media' ? '🟡 Média'
     : '🟢 Baixa'
 
+  // screenshotUrl agora é o PATH no bucket privado, não uma URL clicável (o
+  // bucket bug-reports não é público — ver bug-report/route.ts). O link "Ver
+  // no painel admin" abaixo já leva pro screenshot (renderizado lá via signed
+  // URL), então não precisa de link direto aqui.
   const screenshotHtml = params.screenshotUrl
-    ? `<p><a href="${params.screenshotUrl}">📷 Ver screenshot</a></p>`
+    ? '<p>📷 Screenshot anexado — veja no painel admin.</p>'
     : '<p><em>Sem screenshot.</em></p>'
 
   const resend = new Resend(process.env.RESEND_API_KEY)

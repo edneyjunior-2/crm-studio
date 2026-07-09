@@ -34,6 +34,20 @@ export default async function BugDetailPage({ params }: { params: Promise<{ id: 
 
   if (!bug) notFound()
 
+  // bucket bug-reports é privado — getPublicUrl nunca funcionou ("Bucket not
+  // found" silencioso). Registros antigos guardaram essa URL quebrada; novos
+  // guardam só o path. Tolerante aos dois: extrai o path pelo marker se for
+  // URL, usa direto se já for path, e assina pra exibir por 1h.
+  let screenshotSignedUrl: string | null = null
+  if (bug.screenshot_url) {
+    const raw = bug.screenshot_url as string
+    const marker = '/bug-reports/'
+    const idx = raw.indexOf(marker)
+    const path = idx >= 0 ? raw.slice(idx + marker.length) : raw
+    const { data: signed } = await admin.storage.from('bug-reports').createSignedUrl(path, 3600)
+    screenshotSignedUrl = signed?.signedUrl ?? null
+  }
+
   const analise = bug.analise_claude as Record<string, unknown> | null
   const contexto = bug.contexto as Record<string, unknown> | null
   const sev = String(analise?.severidade ?? '')
@@ -92,17 +106,17 @@ export default async function BugDetailPage({ params }: { params: Promise<{ id: 
         <div className="flex flex-col gap-4">
 
           {/* Screenshot */}
-          {bug.screenshot_url && (
+          {screenshotSignedUrl && (
             <div className="overflow-hidden rounded-xl border border-border">
               <div className="flex items-center justify-between border-b border-border bg-secondary/50 px-4 py-2">
                 <span className="text-xs font-medium text-muted-foreground">Screenshot</span>
-                <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer"
+                <a href={screenshotSignedUrl} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                   <ExternalLink className="size-3" /> Abrir original
                 </a>
               </div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={bug.screenshot_url} alt="Screenshot" className="w-full object-cover object-top" />
+              <img src={screenshotSignedUrl} alt="Screenshot" className="w-full object-cover object-top" />
             </div>
           )}
 

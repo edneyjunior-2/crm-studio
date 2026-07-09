@@ -72,6 +72,32 @@ export default async function BugsPage({ searchParams }: BugsPageProps) {
     bugs = []
   }
 
+  // bucket bug-reports é privado — getPublicUrl nunca funcionou. Registros
+  // antigos guardaram a URL pública quebrada, novos guardam só o path.
+  // Assina em lote (1h) pras thumbnails da lista.
+  const screenshotPaths = bugs
+    .filter((b) => b.screenshot_url)
+    .map((b) => {
+      const raw = b.screenshot_url as string
+      const marker = '/bug-reports/'
+      const idx = raw.indexOf(marker)
+      return idx >= 0 ? raw.slice(idx + marker.length) : raw
+    })
+  const signedUrlByPath = new Map<string, string>()
+  if (screenshotPaths.length > 0) {
+    const { data: signedList } = await admin.storage.from('bug-reports').createSignedUrls(screenshotPaths, 3600)
+    for (const s of signedList ?? []) {
+      if (s.signedUrl) signedUrlByPath.set(s.path ?? '', s.signedUrl)
+    }
+  }
+  function screenshotSignedUrl(rawUrl: string | null): string | null {
+    if (!rawUrl) return null
+    const marker = '/bug-reports/'
+    const idx = rawUrl.indexOf(marker)
+    const path = idx >= 0 ? rawUrl.slice(idx + marker.length) : rawUrl
+    return signedUrlByPath.get(path) ?? null
+  }
+
   const total = bugs.length
   const abertos = bugs.filter((b) => b.status === 'aberto').length
   const criticos = bugs.filter((b) => (b.analise_claude as Record<string, unknown> | null)?.severidade === 'critica').length
@@ -122,7 +148,7 @@ export default async function BugsPage({ searchParams }: BugsPageProps) {
       {bugsExibidos.length > 0 && (
         <div className="flex flex-col gap-2">
           {bugsExibidos.map((bug) => (
-            <BugCard key={bug.id} bug={bug} />
+            <BugCard key={bug.id} bug={bug} screenshotUrl={screenshotSignedUrl(bug.screenshot_url)} />
           ))}
         </div>
       )}
@@ -130,7 +156,7 @@ export default async function BugsPage({ searchParams }: BugsPageProps) {
   )
 }
 
-function BugCard({ bug }: { bug: BugReport }) {
+function BugCard({ bug, screenshotUrl }: { bug: BugReport; screenshotUrl: string | null }) {
   const analise = bug.analise_claude as Record<string, unknown> | null
   const sev = String(analise?.severidade ?? '')
   const contexto = bug.contexto as Record<string, unknown> | null
@@ -141,15 +167,13 @@ function BugCard({ bug }: { bug: BugReport }) {
       className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md sm:flex-row sm:items-start sm:gap-4"
     >
       {/* Screenshot thumbnail */}
-      {bug.screenshot_url ? (
-        <a href={bug.screenshot_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={bug.screenshot_url}
-            alt="Screenshot"
-            className="h-16 w-24 rounded-lg border border-border object-cover object-top"
-          />
-        </a>
+      {screenshotUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={screenshotUrl}
+          alt="Screenshot"
+          className="h-16 w-24 shrink-0 rounded-lg border border-border object-cover object-top"
+        />
       ) : (
         <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
           sem foto
