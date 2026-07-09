@@ -79,41 +79,40 @@ export function PrazosAVencer({ prazos }: PrazosAVencerProps) {
           const isVencido = badge.label.startsWith('Vencido')
 
           return (
-            <li
-              key={prazo.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white/70 dark:bg-white/5 px-3 py-2 text-sm"
-            >
-              {/* Data */}
-              <span className="w-10 shrink-0 font-mono text-xs text-muted-foreground">
-                {formatDate(prazo.data_prazo)}
-              </span>
-
-              {/* Badge urgência */}
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none ${badge.className}`}
-              >
-                {badge.label}
-              </span>
-
-              {/* Descrição */}
-              <span className={`flex-1 truncate ${isVencido ? 'text-red-700 dark:text-red-400' : 'text-foreground'}`}>
-                {prazo.descricao}
-              </span>
-
-              {/* Número do processo — link */}
+            <li key={prazo.id}>
               <Link
                 href={`/processos/${prazo.processo_id}`}
-                className="shrink-0 font-mono text-xs text-primary underline-offset-2 hover:underline"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white/70 dark:bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white dark:hover:bg-white/10"
               >
-                {numero}
-              </Link>
-
-              {/* Responsável */}
-              {responsavel && (
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {responsavel}
+                {/* Data */}
+                <span className="w-10 shrink-0 font-mono text-xs text-muted-foreground">
+                  {formatDate(prazo.data_prazo)}
                 </span>
-              )}
+
+                {/* Badge urgência */}
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none ${badge.className}`}
+                >
+                  {badge.label}
+                </span>
+
+                {/* Descrição */}
+                <span className={`flex-1 truncate ${isVencido ? 'text-red-700 dark:text-red-400' : 'text-foreground'}`}>
+                  {prazo.descricao}
+                </span>
+
+                {/* Número do processo */}
+                <span className="shrink-0 font-mono text-xs text-primary">
+                  {numero}
+                </span>
+
+                {/* Responsável */}
+                {responsavel && (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {responsavel}
+                  </span>
+                )}
+              </Link>
             </li>
           )
         })}

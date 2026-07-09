@@ -21,6 +21,12 @@ export function isAudiencia(descricao: string): boolean {
   return lower.includes('audiência') || lower.includes('audiencia')
 }
 
+// getFullYear/getMonth/getDate — nunca toISOString() para data local (ver CLAUDE.md).
+function hojeStr(): string {
+  const hoje = new Date()
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+}
+
 export type PrazoCalendario = {
   id: string
   processo_id: string
@@ -154,6 +160,8 @@ export async function listarAudienciasEmpresa(
         `)
         .eq('empresa_id', empresaId)
         .or('descricao.ilike.%audiência%,descricao.ilike.%audiencia%')
+        // Audiências já realizadas (antes de hoje) não precisam aparecer aqui.
+        .gte('data_movimentacao', hojeStr())
         .order('data_movimentacao', { ascending: true })
         .range(from, to)
     )
