@@ -1,6 +1,7 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { toggleModuloVisibilidade } from '@/app/(crm)/configuracoes/actions'
 import { MODULO_LABEL } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
@@ -11,20 +12,26 @@ interface Props {
 }
 
 export function MenuToggles({ modulosDisponiveis, modulosOcultos }: Props) {
+  const [ocultos, setOcultos] = useState<string[]>(modulosOcultos)
   const [isPending, startTransition] = useTransition()
 
   function handle(modulo: Modulo, ocultar: boolean) {
-    startTransition(async () => { await toggleModuloVisibilidade(modulo, ocultar) })
+    const anterior = ocultos
+    setOcultos(ocultar ? [...anterior, modulo] : anterior.filter((m) => m !== modulo))
+    startTransition(async () => {
+      const r = await toggleModuloVisibilidade(modulo, ocultar)
+      if (r.error) { toast.error(r.error); setOcultos(anterior) }
+    })
   }
 
   return (
     <div className="flex flex-col gap-2">
       {modulosDisponiveis.map((modulo) => {
-        const oculto = modulosOcultos.includes(modulo)
+        const oculto = ocultos.includes(modulo)
         return (
           <div
             key={modulo}
-            className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3"
+            className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3 transition-colors hover:bg-muted"
           >
             <span className={`text-sm ${oculto ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
               {MODULO_LABEL[modulo]}
