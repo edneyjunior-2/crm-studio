@@ -41,7 +41,15 @@ export function BugReportButton({
         scale: 0.75,
         useCORS: true,
         logging: false,
-        ignoreElements: (el) => el.id === 'bug-report-overlay',
+        // html2canvas não respeita o `display:none` que o navegador aplica
+        // ao conteúdo de <details> fechado — ele pinta esse conteúdo por
+        // cima do que vem depois no layout. Ignorar manualmente.
+        ignoreElements: (el) => {
+          if (el.id === 'bug-report-overlay') return true
+          if (el.tagName === 'DETAILS' || el.tagName === 'SUMMARY') return false
+          const details = el.closest('details')
+          return details !== null && !details.open
+        },
       })
       shot = canvas.toDataURL('image/png')
     } catch {
