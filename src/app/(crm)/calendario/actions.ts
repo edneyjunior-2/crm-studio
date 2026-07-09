@@ -18,6 +18,10 @@ export async function criarEvento(formData: FormData) {
   const attendeesRaw = formData.get('attendees') as string
   const externalLink = (formData.get('external_link') as string)?.trim() || undefined
   const visivelEquipe = (formData.get('visivel_equipe') as string) === 'true'
+  const recurrenceRaw = (formData.get('recurrence') as string)?.trim() || null
+  const recurrence = (recurrenceRaw === 'semanal' || recurrenceRaw === 'mensal' || recurrenceRaw === 'anual')
+    ? recurrenceRaw
+    : undefined
 
   if (!title || !start || !end) return { error: 'Preencha todos os campos obrigatórios' }
 
@@ -72,6 +76,7 @@ export async function criarEvento(formData: FormData) {
         attendeeEmails: attendees,
         createMeet: !externalLink,
         externalLink,
+        recurrence,
       })
       eventId = result.eventId
       calendarIdUsado = 'primary'

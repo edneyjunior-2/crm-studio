@@ -558,21 +558,30 @@ export function NovoEventoDialog({
               )}
             </div>
 
-            {/* Recorrência */}
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="recurrence">Repetição</Label>
-              <select
-                id="recurrence"
-                value={recurrence}
-                onChange={(e) => setRecurrence(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="none">Não repetir</option>
-                <option value="semanal">Semanalmente</option>
-                <option value="mensal">Mensalmente</option>
-                <option value="anual">Anualmente</option>
-              </select>
-            </div>
+            {/* Recorrência — só na criação: editar a recorrência de um evento
+                já existente não é suportado (repetir também precisa de Google
+                conectado — sem isso o evento fica só no CRM, sem série). */}
+            {!modoEdicao && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="recurrence">Repetição</Label>
+                <select
+                  id="recurrence"
+                  value={recurrence}
+                  onChange={(e) => setRecurrence(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="none">Não repetir</option>
+                  <option value="semanal">Semanalmente</option>
+                  <option value="mensal">Mensalmente</option>
+                  <option value="anual">Anualmente</option>
+                </select>
+                {recurrence !== 'none' && (
+                  <p className="text-xs text-muted-foreground">
+                    A repetição fica só na sua agenda do Google — aqui no CRM só a primeira ocorrência aparece.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Membros internos */}
             {membrosInternos.length > 0 && (

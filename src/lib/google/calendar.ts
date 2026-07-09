@@ -84,6 +84,9 @@ interface CalendarEventParams {
   /** Link externo (Zoom/Teams etc). Mutuamente exclusivo com createMeet — quando
    *  presente, vai pro campo `location` do evento e nenhum Meet é solicitado. */
   externalLink?: string
+  /** Recorrência via RRULE. Só tem efeito em evento novo (sem suporte a editar
+   *  recorrência de um evento já existente). */
+  recurrence?: 'semanal' | 'mensal' | 'anual'
 }
 
 interface CalendarEventResult {
@@ -129,6 +132,7 @@ export async function createCalendarEvent(
     attendeeEmails,
     createMeet,
     externalLink,
+    recurrence,
   } = params
 
   const auth = await getValidAuthClient(userId, accessToken, refreshToken, tokenExpiry)
@@ -137,6 +141,12 @@ export async function createCalendarEvent(
   // Meet e link externo são mutuamente exclusivos (mesma regra do UX atual):
   // se há link externo, ele vai pro campo location e nenhum Meet é pedido.
   const useMeet = !!createMeet && !externalLink
+
+  const rrule =
+    recurrence === 'semanal' ? ['RRULE:FREQ=WEEKLY']
+    : recurrence === 'mensal' ? ['RRULE:FREQ=MONTHLY']
+    : recurrence === 'anual'  ? ['RRULE:FREQ=YEARLY']
+    : undefined
 
   const event = await calendar.events.insert({
     calendarId: 'primary',
@@ -148,6 +158,7 @@ export async function createCalendarEvent(
       start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
       end: { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' },
       attendees: attendeeEmails?.map((email) => ({ email })) ?? [],
+      ...(rrule && { recurrence: rrule }),
       ...(useMeet && {
         conferenceData: {
           createRequest: {
