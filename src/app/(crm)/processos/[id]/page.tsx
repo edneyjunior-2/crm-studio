@@ -71,7 +71,8 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
       *,
       clientes(id, razao_social),
       profiles!advogado_id(id, full_name),
-      parceiro:profiles!parceiro_id(id, full_name)
+      parceiro:profiles!parceiro_id(id, full_name),
+      indicadorParceiro:parceiros!indicador_parceiro_id(id, nome)
     `)
     .eq('id', id)
     .single()
@@ -168,10 +169,14 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   const advogadoId  = advogadoIdProcesso
   const advogadoEmail = advogadoId ? emailMap.get(advogadoId) ?? null : null
 
-  // Indicação → Parceiro
+  // Indicação → Parceiro. Fonte primária: indicador_parceiro_id (vínculo
+  // explícito, setável no form de criar/editar). Fallback: match ILIKE contra
+  // o texto livre `indicacao` (só populado pelo importador de Excel) — igual
+  // ao comportamento anterior a este vínculo explícito existir.
+  const indicadorParceiroRaw = (processo as Record<string, unknown>).indicadorParceiro as { id: string; nome: string } | null
   const indicacao = (processo as Record<string, unknown>).indicacao as string | null
-  let parceiroVinculado: { id: string; nome: string } | null = null
-  if (indicacao) {
+  let parceiroVinculado: { id: string; nome: string } | null = indicadorParceiroRaw ?? null
+  if (!parceiroVinculado && indicacao) {
     const { data: pcRaw } = await supabase
       .from('parceiros')
       .select('id, nome')
@@ -355,6 +360,24 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           )}
           {!isParceiro && !!(processo as Record<string, unknown>).indicacao && (
             <InfoItem icon={Users} label="Indicação" value={String((processo as Record<string, unknown>).indicacao)} />
+          )}
+          {/* Vínculo explícito setado manualmente (form de criar/editar), sem
+              texto livre de indicação — o caso do bloco acima (indicacao +
+              IndicacaoParceiroPrompt) já cobre quando os dois coexistem. */}
+          {!isParceiro && indicadorParceiroRaw && !indicacao && (
+            <Link
+              href={`/parceiros/${indicadorParceiroRaw.id}`}
+              className="group -m-1 flex items-start gap-2 rounded-lg p-1 transition-colors hover:bg-accent"
+            >
+              <Users className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                  Parceiro indicador
+                  <ArrowUpRight className="size-3 opacity-60 transition-opacity group-hover:opacity-100" />
+                </p>
+                <p className="truncate text-sm text-foreground group-hover:text-primary">{indicadorParceiroRaw.nome}</p>
+              </div>
+            </Link>
           )}
           {!isParceiro && parceiroPortalNome && (
             <InfoItem icon={Handshake} label="Parceiro" value={parceiroPortalNome} />

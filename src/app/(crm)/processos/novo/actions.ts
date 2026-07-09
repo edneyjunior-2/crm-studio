@@ -73,6 +73,8 @@ export async function criarProcesso(
   const clienteId   = clienteIds[0] ?? null
   const advogadoId = (formData.get('advogado_id') as string)?.trim() || null
   const parceiroId = (formData.get('parceiro_id') as string)?.trim() || null
+  // Parceiro indicador (public.parceiros) — distinto de parceiroId acima (profiles/portal).
+  const indicadorParceiroId = (formData.get('indicador_parceiro_id') as string)?.trim() || null
   const area       = (formData.get('area') as string)?.trim() || null
   const assunto    = (formData.get('assunto') as string)?.trim() || null
   const vara       = (formData.get('vara') as string)?.trim() || null
@@ -101,6 +103,7 @@ export async function criarProcesso(
       cliente_id:      clienteId,
       advogado_id:     advogadoId,
       parceiro_id:     parceiroId,
+      indicador_parceiro_id: indicadorParceiroId,
       area,
       assunto,
       vara,

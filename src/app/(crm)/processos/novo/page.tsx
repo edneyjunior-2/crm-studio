@@ -12,7 +12,7 @@ export default async function NovoProcessoPage() {
   const { role } = await getAuthUser()
   if (role === 'parceiro') redirect('/processos')
 
-  const [{ data: clientes }, { data: advogados }, { data: parceiros }] = await Promise.all([
+  const [{ data: clientes }, { data: advogados }, { data: parceiros }, { data: parceirosIndicadores }] = await Promise.all([
     supabase
       .from('clientes')
       .select('id, razao_social')
@@ -26,6 +26,12 @@ export default async function NovoProcessoPage() {
       .select('id, full_name')
       .eq('role', 'parceiro')
       .order('full_name'),
+    // public.parceiros — indicador comercial SEM login (módulo /parceiros),
+    // distinto do parceiro-portal acima (profiles.role='parceiro').
+    supabase
+      .from('parceiros')
+      .select('id, nome')
+      .order('nome'),
   ])
 
   return (
@@ -43,6 +49,7 @@ export default async function NovoProcessoPage() {
         clientes={(clientes ?? []).map((c) => ({ id: c.id, razao_social: c.razao_social }))}
         advogados={(advogados ?? []).map((a) => ({ id: a.id, full_name: a.full_name }))}
         parceiros={(parceiros ?? []).map((p) => ({ id: p.id, full_name: p.full_name }))}
+        parceirosIndicadores={(parceirosIndicadores ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
       />
     </div>
   )

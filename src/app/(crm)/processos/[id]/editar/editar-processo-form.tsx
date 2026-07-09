@@ -19,6 +19,7 @@ interface ProcessoEdit {
   clientes_adicionais_ids: string[]
   advogado_id: string | null
   parceiro_id: string | null
+  indicador_parceiro_id: string | null
   polo_passivo_nome:        string | null
   polo_passivo_cpf_cnpj:    string | null
   advogado_adversario_nome: string | null
@@ -30,6 +31,8 @@ interface Props {
   clientes:  { id: string; razao_social: string }[]
   advogados: { id: string; full_name: string }[]
   parceiros: { id: string; full_name: string }[]
+  /** public.parceiros — indicador comercial sem login (distinto de `parceiros` acima). */
+  parceirosIndicadores: { id: string; nome: string }[]
 }
 
 const AREAS = [
@@ -49,7 +52,7 @@ const labelClass = 'text-sm font-medium text-foreground'
 const brl = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
-export function EditarProcessoForm({ processo, clientes, advogados, parceiros }: Props) {
+export function EditarProcessoForm({ processo, clientes, advogados, parceiros, parceirosIndicadores }: Props) {
   const [state, action, isPending] = useActionState(atualizarProcesso, null)
 
   const [valorCausa, setValorCausa] = useState(valorParaMascara(processo.valor_causa))
@@ -165,16 +168,33 @@ export function EditarProcessoForm({ processo, clientes, advogados, parceiros }:
           </select>
         </div>
 
-        {/* Parceiro — quem trouxe o processo (opcional) */}
+        {/* Parceiro indicador — quem trouxe o processo (indicador comercial, public.parceiros) */}
+        <div className="flex flex-col gap-1.5">
+          <label className={labelClass} htmlFor="indicador_parceiro_id">Parceiro indicador</label>
+          <select
+            id="indicador_parceiro_id"
+            name="indicador_parceiro_id"
+            defaultValue={processo.indicador_parceiro_id ?? ''}
+            className={inputClass}
+          >
+            <option value="">Nenhum</option>
+            {parceirosIndicadores.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Quem indicou este processo (módulo Parceiros).
+          </p>
+        </div>
+
+        {/* Acesso ao portal — usuário com login que enxerga este processo (opcional) */}
         {parceiros.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <label className={labelClass} htmlFor="parceiro_id">Parceiro (indicação)</label>
+            <label className={labelClass} htmlFor="parceiro_id">Acesso ao portal (parceiro)</label>
             <select id="parceiro_id" name="parceiro_id" defaultValue={processo.parceiro_id ?? ''} className={inputClass}>
               <option value="">Nenhum</option>
               {parceiros.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
             </select>
             <p className="text-xs text-muted-foreground">
-              Quem trouxe este processo. Ele passa a ver este processo no portal dele (só leitura).
+              Ele passa a ver este processo no portal dele (só leitura).
             </p>
           </div>
         )}
