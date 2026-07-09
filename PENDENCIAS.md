@@ -6,6 +6,25 @@ Backlog de features planejadas, ordenadas por prioridade. Mover para "Concluído
 
 ## Em aberto
 
+### Verificação OAuth do Google — Google Calendar
+**Objetivo:** sair do modo de teste do app OAuth no Google Cloud Console. Sem
+a verificação, o app fica limitado a ~100 usuários de teste cadastrados
+manualmente e mostra a tela de aviso "Google não verificou este app" no
+consentimento — trava a integração de Calendário pra qualquer cliente real.
+
+**O que fazer:**
+1. Atualizar `/privacidade` declarando explicitamente o uso do escopo do
+   Google Calendar (quais dados o app lê/escreve, finalidade, tempo de
+   retenção) — é um dos requisitos do processo de verificação do Google
+   pra escopos sensíveis/restritos.
+2. Gravar o vídeo de demonstração do fluxo OAuth (exigido na submissão).
+3. Confirmar o domínio de produção verificado no Google Search Console
+   (mesmo domínio usado no `redirect_uri`/`GOOGLE_REDIRECT_URI`).
+4. Submeter pra verificação no Google Cloud Console → OAuth consent screen
+   → Verification Center.
+
+---
+
 ### Configuração do Resend (e-mail automático)
 **Objetivo:** ativar o envio de e-mail automático nos follow-ups D+3/D+7 e futuros alertas financeiros.
 
@@ -189,6 +208,16 @@ Permite que o Claude Code interaja diretamente com o n8n via MCP — criar, edit
 
 ---
 
+### Gerador de contratos white-label — liberar Saturnino e Coelho
+**Objetivo:** confirmar com o escritório os 2 pontos em aberto antes de considerar o gerador deles pronto de vez (hoje `contrato_aprovado=true`, já visível pra qualquer usuário do tenant).
+
+**O que fazer:**
+1. Confirmar se a frase extra da Cláusula Sexta (Assinatura Digital) — presente só no modelo PF original — é intencional ou esquecimento no documento fonte deles.
+2. Pegar logo/paleta oficial da Saturnino e Coelho (hoje usando a paleta neutra do `_starter`, com marcador `«TROQUE»`).
+3. Se algum dos dois não fechar, revogar liberação em `/admin/empresas/a5a1c2d5-29d1-4564-86f1-0c6ac91f5b05` até resolver.
+
+---
+
 ### White-label: módulos configuráveis
 **Objetivo:** além de nome/logo, permitir ligar/desligar módulos por instância do CRM.
 
@@ -218,3 +247,6 @@ Permite que o Claude Code interaja diretamente com o n8n via MCP — criar, edit
 - Automações: cron diário marcando contas vencidas como "atrasado" (pg_cron)
 - Automações: página `/automacoes` com cards por categoria (Admin / Vendas) e botão "?"
 - Follow-ups de e-mail: botão no card do pipeline, dialog D+3/D+7, widget no dashboard
+- Gerador de contratos: motor compartilhado (`engine.js`) extraído do template da Aurum, reusável por qualquer tenant; gerador da Saturnino e Coelho construído a partir dos modelos reais deles
+- Gerador de contratos: corrigido bug de produção em que o `engine.js` não carregava nos templates white-label (matcher do middleware gateava `.js` sob `/contratos/` por engano — cookie de sessão `SameSite=Lax` não vai em request cross-site do Storage)
+- Admin > Relatórios de bug: dropdown de status não abria mais o card sozinho (bug de propagação de clique dentro do `<a>`); notificação por e-mail ao autor quando o report é marcado como resolvido; aba "Histórico de resolvidos" separada da lista ativa
