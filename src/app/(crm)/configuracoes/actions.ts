@@ -581,10 +581,15 @@ export async function salvarDadosEmpresa(dados: {
   nome_fantasia: string | null
   cnpj: string | null
 }): Promise<{ error?: string }> {
-  const { supabase, empresaId } = await getAuthAdmin()
+  const { empresaId } = await getAuthAdmin()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
-  const { error } = await supabase
+  // GOTCHA billing: `UPDATE` em `empresas` foi revogado de `authenticated`
+  // (20260703130000_protege_billing_empresas.sql) — por isso grava via
+  // `createAdminClient()` (service-role), nunca via client do usuário. O
+  // escopo multi-tenant vem de `getAuthAdmin().empresaId` (tenant efetivo).
+  const admin = createAdminClient()
+  const { error } = await admin
     .from('empresas')
     .update({
       razao_social:  dados.razao_social?.trim()  || null,
@@ -687,7 +692,7 @@ export async function obterTimbradoAtual(): Promise<{ url: string | null }> {
 export async function salvarEncarregado(
   data: unknown
 ): Promise<{ error?: string }> {
-  const { supabase, empresaId } = await getAuthAdmin()
+  const { empresaId } = await getAuthAdmin()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   const parsed = encarregadoSchema.safeParse(data)
@@ -696,7 +701,9 @@ export async function salvarEncarregado(
     return { error: msg }
   }
 
-  const { error } = await supabase
+  // GOTCHA billing: ver salvarDadosEmpresa — UPDATE em empresas exige service-role.
+  const admin = createAdminClient()
+  const { error } = await admin
     .from('empresas')
     .update({
       encarregado_nome: parsed.data.encarregado_nome ?? null,
@@ -717,10 +724,12 @@ export async function toggleModuloVisibilidade(
 ): Promise<{ error?: string }> {
   // getAuthAdmin já valida a role 'admin' (redireciona) e resolve o tenant
   // EFETIVO (empresa_ativa_id p/ platform admin, empresa_id p/ usuário comum).
-  const { supabase, empresaId } = await getAuthAdmin()
+  const { empresaId } = await getAuthAdmin()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
-  const { data: empresa } = await supabase
+  // GOTCHA billing: ver salvarDadosEmpresa — UPDATE em empresas exige service-role.
+  const admin = createAdminClient()
+  const { data: empresa } = await admin
     .from('empresas')
     .select('modulos_ocultos')
     .eq('id', empresaId)
@@ -731,7 +740,7 @@ export async function toggleModuloVisibilidade(
     ? [...new Set([...atual, modulo])]
     : atual.filter((m) => m !== modulo)
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('empresas')
     .update({ modulos_ocultos: novo })
     .eq('id', empresaId)
