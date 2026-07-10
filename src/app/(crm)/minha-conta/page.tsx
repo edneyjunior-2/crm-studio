@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { GoogleCalendarConnect } from '@/components/crm/google/google-calendar-connect'
 import { GoogleConnectFeedback } from '@/components/crm/google/google-connect-feedback'
 import { RefazerTourBtn } from '@/components/crm/refazer-tour-btn'
+import { OabForm } from '@/components/crm/minha-conta/oab-form'
 
 // Site de marketing onde ficam os demais produtos/verticais do CRM Studio.
 const SITE_PRODUTOS = 'https://www.crmstudio.com.br'
@@ -19,7 +20,7 @@ export default async function MinhaContaPage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, role, google_refresh_token, empresa_id')
+    .select('full_name, role, google_refresh_token, empresa_id, oab_numero, oab_uf')
     .eq('id', user.id)
     .single()
 
@@ -100,6 +101,19 @@ export default async function MinhaContaPage({
           </div>
         </div>
       </section>
+
+      {/* OAB — só para tenants com o módulo de Processos (advocacia) ativo */}
+      {ehAdvocacia && (
+        <section className="flex flex-col gap-4">
+          <div>
+            <h3 className="text-base font-medium text-foreground">OAB</h3>
+            <p className="text-sm text-muted-foreground">
+              Seu registro na Ordem dos Advogados do Brasil.
+            </p>
+          </div>
+          <OabForm oabNumero={profile?.oab_numero ?? null} oabUf={profile?.oab_uf ?? null} />
+        </section>
+      )}
 
       {/* Versão do produto */}
       <section className="flex flex-col gap-4">

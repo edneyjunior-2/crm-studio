@@ -88,6 +88,17 @@ export const contaReceberSchema = z.object({
   moeda: z.string().default('BRL'),
 })
 
+// Self-service: advogado cadastra a própria OAB em "Minha Conta" (usada pelo
+// cron de captura de publicações do DJEN — ver src/app/(crm)/minha-conta/actions.ts).
+export const oabSchema = z.object({
+  oabNumero: z.string().trim().min(1, 'Informe o número da OAB').max(20, 'Número da OAB muito longo'),
+  oabUf: z
+    .string()
+    .trim()
+    .length(2, 'UF deve ter 2 letras (ex: SP)')
+    .transform((v) => v.toUpperCase()),
+})
+
 export const negocioSchema = z.object({
   titulo: z.string().min(1, 'Título obrigatório').max(255),
   // Opcionais no schema: o Zod não sabe o tenant. A exigência de fato (quando
