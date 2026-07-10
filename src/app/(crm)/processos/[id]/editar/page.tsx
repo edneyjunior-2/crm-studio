@@ -20,7 +20,9 @@ export default async function EditarProcessoPage({ params }: PageProps) {
   const { role } = await getAuthUser()
   if (role === 'parceiro') redirect(`/processos/${id}`)
 
-  const [{ data: processo, error }, { data: clientes }, { data: advogados }, { data: parceiros }, { data: clientesAdicionais }, { data: parceirosIndicadores }] = await Promise.all([
+  const AREAS_FIXAS = ['civel', 'trabalhista', 'criminal', 'previdenciario', 'tributario', 'administrativo', 'familia', 'outro']
+
+  const [{ data: processo, error }, { data: clientes }, { data: advogados }, { data: parceiros }, { data: clientesAdicionais }, { data: parceirosIndicadores }, { data: areasRows }] = await Promise.all([
     supabase
       .from('processos_juridicos')
       .select('id, numero_processo, assunto, area, vara, comarca, valor_causa, honorarios_tipo, honorarios_valor, cliente_id, advogado_id, parceiro_id, indicador_parceiro_id, polo_passivo_nome, polo_passivo_cpf_cnpj, advogado_adversario_nome, advogado_adversario_oab')
@@ -32,9 +34,17 @@ export default async function EditarProcessoPage({ params }: PageProps) {
     supabase.from('processos_clientes').select('cliente_id').eq('processo_id', id),
     // public.parceiros — indicador comercial sem login (distinto de parceiros/profiles acima).
     supabase.from('parceiros').select('id, nome').order('nome'),
+    // Áreas customizadas (fora das 8 fixas) já usadas por processos da empresa — RLS isola por tenant.
+    supabase.from('processos_juridicos').select('area').not('area', 'is', null),
   ])
 
   if (error || !processo) notFound()
+
+  const areasCustomizadas = [...new Set(
+    (areasRows ?? [])
+      .map((r) => r.area?.trim())
+      .filter((a): a is string => !!a && !AREAS_FIXAS.includes(a)),
+  )].sort((a, b) => a.localeCompare(b, 'pt-BR'))
 
   return (
     <div className="flex flex-col gap-6">
@@ -79,6 +89,7 @@ export default async function EditarProcessoPage({ params }: PageProps) {
         advogados={(advogados ?? []).map((a) => ({ id: a.id, full_name: a.full_name }))}
         parceiros={(parceiros ?? []).map((p) => ({ id: p.id, full_name: p.full_name }))}
         parceirosIndicadores={(parceirosIndicadores ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
+        areasCustomizadas={areasCustomizadas}
       />
     </div>
   )

@@ -33,6 +33,8 @@ interface Props {
   parceiros: { id: string; full_name: string }[]
   /** public.parceiros — indicador comercial sem login (distinto de `parceiros` acima). */
   parceirosIndicadores: { id: string; nome: string }[]
+  /** Áreas customizadas (fora das 8 fixas) já usadas por outros processos da empresa. */
+  areasCustomizadas: string[]
 }
 
 const AREAS = [
@@ -52,8 +54,15 @@ const labelClass = 'text-sm font-medium text-foreground'
 const brl = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
-export function EditarProcessoForm({ processo, clientes, advogados, parceiros, parceirosIndicadores }: Props) {
+const AREAS_VALUES = new Set(AREAS.map((a) => a.value))
+
+export function EditarProcessoForm({ processo, clientes, advogados, parceiros, parceirosIndicadores, areasCustomizadas }: Props) {
   const [state, action, isPending] = useActionState(atualizarProcesso, null)
+
+  const areaSalva     = processo.area?.trim() || ''
+  const areaCustomizada = areaSalva !== '' && !AREAS_VALUES.has(areaSalva)
+  const [area, setArea]           = useState(areaCustomizada ? 'outro' : areaSalva)
+  const [areaOutro, setAreaOutro] = useState(areaCustomizada ? areaSalva : '')
 
   const [valorCausa, setValorCausa] = useState(valorParaMascara(processo.valor_causa))
   const [honTipo, setHonTipo] = useState<'percentual' | 'fixo'>(
@@ -104,10 +113,33 @@ export function EditarProcessoForm({ processo, clientes, advogados, parceiros, p
 
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="area">Área do direito</label>
-          <select id="area" name="area" defaultValue={processo.area ?? ''} className={inputClass}>
+          <select
+            id="area"
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+            className={inputClass}
+          >
             <option value="">Selecionar...</option>
             {AREAS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
           </select>
+          {area === 'outro' && (
+            <>
+              <input
+                name="area"
+                value={areaOutro}
+                onChange={(e) => setAreaOutro(e.target.value)}
+                placeholder="Ex.: Direito Ambiental"
+                list="areas-customizadas"
+                className={inputClass}
+              />
+              <datalist id="areas-customizadas">
+                {areasCustomizadas.map((a) => (
+                  <option key={a} value={a} />
+                ))}
+              </datalist>
+            </>
+          )}
+          {area !== 'outro' && <input type="hidden" name="area" value={area} />}
         </div>
 
         <div className="flex flex-col gap-1.5">

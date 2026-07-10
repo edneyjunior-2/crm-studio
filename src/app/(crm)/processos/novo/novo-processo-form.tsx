@@ -17,6 +17,8 @@ interface Props {
   parceiros: { id: string; full_name: string }[]
   /** public.parceiros — indicador comercial sem login (distinto de `parceiros` acima). */
   parceirosIndicadores: { id: string; nome: string }[]
+  /** Áreas customizadas (fora das 8 fixas) já usadas por outros processos da empresa. */
+  areasCustomizadas: string[]
 }
 
 const AREAS = [
@@ -34,13 +36,16 @@ const inputClass =
   'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10'
 const labelClass = 'text-sm font-medium text-foreground'
 
-export function NovoProcessoForm({ clientes, advogados, parceiros, parceirosIndicadores }: Props) {
+export function NovoProcessoForm({ clientes, advogados, parceiros, parceirosIndicadores, areasCustomizadas }: Props) {
   const [state, action, isPending] = useActionState(criarProcesso, null)
 
   const [numeroInput, setNumeroInput] = useState('')
   const [buscando, setBuscando]       = useState(false)
   const [dadosDJ, setDadosDJ]         = useState<BuscarProcessoResult | null>(null)
   const [erroDJ, setErroDJ]           = useState<string | null>(null)
+
+  const [area, setArea]           = useState('')
+  const [areaOutro, setAreaOutro] = useState('')
 
   // Cliente: lista mutável (p/ cadastro inline) + seleção controlada
   const [clientesList, setClientesList] = useState<Cliente[]>(clientes)
@@ -83,6 +88,11 @@ export function NovoProcessoForm({ clientes, advogados, parceiros, parceirosIndi
         setErroDJ(resultado.erro ?? 'Erro desconhecido.')
       } else {
         setDadosDJ(resultado)
+        // DataJud só infere uma das 8 áreas fixas (ou '') — nunca cai em "outro".
+        if (resultado.area) {
+          setArea(resultado.area)
+          setAreaOutro('')
+        }
       }
     } catch {
       setErroDJ('Não foi possível consultar o DataJud agora. Tente novamente.')
@@ -203,9 +213,8 @@ export function NovoProcessoForm({ clientes, advogados, parceiros, parceirosIndi
           <label className={labelClass} htmlFor="area">Área do direito</label>
           <select
             id="area"
-            name="area"
-            defaultValue={dadosDJ?.area ?? ''}
-            key={dadosDJ?.area ?? 'sem-area'}
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
             className={inputClass}
           >
             <option value="">Selecionar...</option>
@@ -213,6 +222,24 @@ export function NovoProcessoForm({ clientes, advogados, parceiros, parceirosIndi
               <option key={a.value} value={a.value}>{a.label}</option>
             ))}
           </select>
+          {area === 'outro' && (
+            <>
+              <input
+                name="area"
+                value={areaOutro}
+                onChange={(e) => setAreaOutro(e.target.value)}
+                placeholder="Ex.: Direito Ambiental"
+                list="areas-customizadas"
+                className={inputClass}
+              />
+              <datalist id="areas-customizadas">
+                {areasCustomizadas.map((a) => (
+                  <option key={a} value={a} />
+                ))}
+              </datalist>
+            </>
+          )}
+          {area !== 'outro' && <input type="hidden" name="area" value={area} />}
           {dadosDJ?.area && (
             <p className="text-xs text-muted-foreground">
               Preenchido automaticamente pelo DataJud — ajuste se necessário.

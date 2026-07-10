@@ -12,7 +12,9 @@ export default async function NovoProcessoPage() {
   const { role } = await getAuthUser()
   if (role === 'parceiro') redirect('/processos')
 
-  const [{ data: clientes }, { data: advogados }, { data: parceiros }, { data: parceirosIndicadores }] = await Promise.all([
+  const AREAS_FIXAS = ['civel', 'trabalhista', 'criminal', 'previdenciario', 'tributario', 'administrativo', 'familia', 'outro']
+
+  const [{ data: clientes }, { data: advogados }, { data: parceiros }, { data: parceirosIndicadores }, { data: areasRows }] = await Promise.all([
     supabase
       .from('clientes')
       .select('id, razao_social')
@@ -32,7 +34,18 @@ export default async function NovoProcessoPage() {
       .from('parceiros')
       .select('id, nome')
       .order('nome'),
+    // Áreas customizadas (fora das 8 fixas) já usadas por processos da empresa — RLS isola por tenant.
+    supabase
+      .from('processos_juridicos')
+      .select('area')
+      .not('area', 'is', null),
   ])
+
+  const areasCustomizadas = [...new Set(
+    (areasRows ?? [])
+      .map((r) => r.area?.trim())
+      .filter((a): a is string => !!a && !AREAS_FIXAS.includes(a)),
+  )].sort((a, b) => a.localeCompare(b, 'pt-BR'))
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,6 +63,7 @@ export default async function NovoProcessoPage() {
         advogados={(advogados ?? []).map((a) => ({ id: a.id, full_name: a.full_name }))}
         parceiros={(parceiros ?? []).map((p) => ({ id: p.id, full_name: p.full_name }))}
         parceirosIndicadores={(parceirosIndicadores ?? []).map((p) => ({ id: p.id, nome: p.nome }))}
+        areasCustomizadas={areasCustomizadas}
       />
     </div>
   )
