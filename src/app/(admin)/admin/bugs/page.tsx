@@ -37,6 +37,7 @@ function relTime(iso: string): string {
 
 type BugReport = {
   id: string
+  numero: number
   status: string
   descricao: string
   analise_claude: Record<string, unknown> | null
@@ -183,6 +184,9 @@ function BugCard({ bug, screenshotUrl }: { bug: BugReport; screenshotUrl: string
       {/* Conteúdo */}
       <div className="flex flex-1 flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-xs font-bold text-foreground/70">
+            #{String(bug.numero).padStart(3, '0')}
+          </span>
           {sev && (
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${SEV_COLORS[sev] ?? 'bg-muted'}`}>
               {sev}

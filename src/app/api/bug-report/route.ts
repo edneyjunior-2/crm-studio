@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       },
       status: 'aberto',
     })
-    .select('id')
+    .select('id, numero')
     .single()
 
   if (insertErr || !report) {
@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
   // acontecerem.
   await analyzeAndNotifyBug({
     reportId,
+    numero: report.numero,
     descricao,
     contexto,
     screenshot_base64,

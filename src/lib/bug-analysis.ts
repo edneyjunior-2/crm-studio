@@ -18,6 +18,7 @@ const ADMIN_EMAIL = 'edneyjuniords@gmail.com'
  */
 export async function analyzeAndNotifyBug(params: {
   reportId: string
+  numero: number
   descricao: string
   contexto: Record<string, unknown>
   screenshot_base64: string | null
@@ -26,7 +27,8 @@ export async function analyzeAndNotifyBug(params: {
   userRole: string | null
 }) {
   const admin = createAdminClient()
-  const { reportId, descricao, contexto, screenshot_base64, userName, userRole } = params
+  const { reportId, numero, descricao, contexto, screenshot_base64, userName, userRole } = params
+  const chamado = `#${String(numero).padStart(3, '0')}`
 
   const systemPrompt = `Você é o assistente de suporte do CRM Studio, um SaaS brasileiro para PMEs.
 Sua tarefa: analisar bugs reportados por usuários e retornar um JSON estruturado.
@@ -104,7 +106,7 @@ Classifique e retorne JSON com este schema exato:
   await resend.emails.send({
     from: 'nao-responda@crmstudio.com.br',
     to: ADMIN_EMAIL,
-    subject: `[Bug #${reportId.slice(0, 8)}] ${analise?.titulo_curto ?? descricao.slice(0, 60)}`,
+    subject: `[Chamado ${chamado}] ${analise?.titulo_curto ?? descricao.slice(0, 60)}`,
     html: `
 <div style="font-family:sans-serif;max-width:640px;margin:0 auto;color:#14233A">
   <div style="background:#14233A;padding:20px 24px;border-radius:12px 12px 0 0">
@@ -112,8 +114,8 @@ Classifique e retorne JSON com este schema exato:
     <span style="color:#ECEAE3;opacity:.6;font-size:12px;margin-left:12px">Relatório de Bug</span>
   </div>
   <div style="border:1px solid #e5e5e5;border-top:none;padding:24px;border-radius:0 0 12px 12px">
-    <h2 style="margin:0 0 4px">${analise?.titulo_curto ?? 'Novo bug reportado'}</h2>
-    <p style="margin:0;color:#666;font-size:13px">ID: ${reportId} &nbsp;|&nbsp; Severidade: <strong>${sevLabel}</strong></p>
+    <h2 style="margin:0 0 4px">Chamado ${chamado} — ${analise?.titulo_curto ?? 'Novo bug reportado'}</h2>
+    <p style="margin:0;color:#666;font-size:13px">Severidade: <strong>${sevLabel}</strong></p>
     <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
 
     <h3 style="margin:0 0 8px;font-size:14px;text-transform:uppercase;color:#999;letter-spacing:.05em">Descrição do usuário</h3>

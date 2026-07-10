@@ -70,7 +70,7 @@ export default async function BugDetailPage({ params }: { params: Promise<{ id: 
           Bug Reports
         </Link>
         <span className="text-muted-foreground">/</span>
-        <span className="font-mono text-xs text-muted-foreground">{id.slice(0, 8)}</span>
+        <span className="font-mono text-xs text-muted-foreground">#{String(bug.numero).padStart(3, '0')}</span>
       </div>
 
       {/* Header */}
@@ -81,6 +81,7 @@ export default async function BugDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div>
             <h1 className="text-xl font-bold leading-snug">
+              <span className="text-muted-foreground">#{String(bug.numero).padStart(3, '0')}</span>{' '}
               {String(analise?.titulo_curto ?? bug.descricao).slice(0, 80)}
             </h1>
             <p className="mt-0.5 text-sm text-muted-foreground">{dataFormatada}</p>

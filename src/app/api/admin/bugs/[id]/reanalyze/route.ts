@@ -24,7 +24,7 @@ export async function POST(
   const admin = createAdminClient()
   const { data: bug, error } = await admin
     .from('bug_reports')
-    .select('id, descricao, url, contexto, screenshot_url, user_name, user_role')
+    .select('id, numero, descricao, url, contexto, screenshot_url, user_name, user_role')
     .eq('id', id)
     .maybeSingle()
 
@@ -64,6 +64,7 @@ export async function POST(
 
   await analyzeAndNotifyBug({
     reportId: bug.id,
+    numero: bug.numero,
     descricao: bug.descricao,
     contexto,
     screenshot_base64,
