@@ -38,6 +38,7 @@ interface ClientesTableProps {
 export function ClientesTable({ clientes }: ClientesTableProps) {
   const [search, setSearch] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null)
 
   const filtered = clientes.filter((c) =>
     c.razao_social.toLowerCase().includes(search.toLowerCase())
@@ -91,12 +92,16 @@ export function ClientesTable({ clientes }: ClientesTableProps) {
                 <TableHead>Responsável</TableHead>
                 <TableHead>Área</TableHead>
                 <TableHead>Segmento</TableHead>
-                <TableHead className="w-28 text-right">Ações</TableHead>
+                <TableHead className="sticky right-0 w-28 bg-card text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((cliente) => (
-                <TableRow key={cliente.id}>
+                <TableRow
+                  key={cliente.id}
+                  onClick={() => setEditingCliente(cliente)}
+                  className="cursor-pointer"
+                >
                   <TableCell className="font-medium">
                     {cliente.razao_social}
                   </TableCell>
@@ -135,7 +140,10 @@ export function ClientesTable({ clientes }: ClientesTableProps) {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell
+                    onClick={(e) => e.stopPropagation()}
+                    className="sticky right-0 bg-card"
+                  >
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
@@ -147,15 +155,14 @@ export function ClientesTable({ clientes }: ClientesTableProps) {
                         <span className="sr-only">Ver detalhes</span>
                       </Button>
 
-                      <ClienteForm
-                        cliente={cliente}
-                        trigger={
-                          <Button variant="ghost" size="icon-sm">
-                            <Pencil className="size-3.5" />
-                            <span className="sr-only">Editar</span>
-                          </Button>
-                        }
-                      />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setEditingCliente(cliente)}
+                      >
+                        <Pencil className="size-3.5" />
+                        <span className="sr-only">Editar</span>
+                      </Button>
 
                       <AlertDialog>
                         <AlertDialogTrigger
@@ -201,6 +208,14 @@ export function ClientesTable({ clientes }: ClientesTableProps) {
           </Table>
         </div>
       )}
+
+      <ClienteForm
+        cliente={editingCliente ?? undefined}
+        open={editingCliente !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setEditingCliente(null)
+        }}
+      />
     </div>
   )
 }
