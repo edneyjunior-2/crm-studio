@@ -22,11 +22,12 @@ export default async function ContratosPage() {
     const aprovado     = config.contrato_aprovado as boolean | undefined
 
     if (templatePath && aprovado) {
-      // Signed URL válida por 1 hora — o bucket é privado por tenant
-      const { data: signed } = await db.storage
-        .from('contrato-templates')
-        .createSignedUrl(templatePath, 3600)
-      templateUrl = signed?.signedUrl ?? null
+      // Proxy same-origin autenticado (/api/contratos/template) em vez de signed
+      // URL direta do Storage: Supabase serve .html como text/plain por padrão
+      // (proteção anti-XSS), o que fazia o navegador mostrar o código-fonte em
+      // vez de renderizar. A rota busca os bytes no servidor e corrige o
+      // Content-Type.
+      templateUrl = '/api/contratos/template'
     } else if (templatePath && !aprovado) {
       // Modelo existe mas ainda não foi liberado
       emRevisao = true

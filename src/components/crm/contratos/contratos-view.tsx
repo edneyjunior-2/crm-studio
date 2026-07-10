@@ -49,6 +49,24 @@ export function ContratosView({
     }
   }, [templateUrl])
 
+  // Cache-bust via query param — precisa usar URLSearchParams em vez de
+  // concatenar "?v=...", pois a signed URL do Supabase Storage (white-label)
+  // já vem com "?token=..."; um "?" literal extra corrompe a assinatura do
+  // JWT (o token vira "...assinatura?v=20260626", que falha no base64url
+  // decode do lado do Storage) e o gerador quebra pra qualquer tenant que
+  // não seja o fallback legado same-origin.
+  const iframeSrc = useMemo(() => {
+    if (!templateUrl) return ''
+    if (typeof window === 'undefined') return templateUrl
+    try {
+      const u = new URL(templateUrl, window.location.origin)
+      u.searchParams.set('v', '20260626')
+      return u.toString()
+    } catch {
+      return templateUrl
+    }
+  }, [templateUrl])
+
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       // Segurança: a garantia forte é a mensagem vir do NOSSO iframe (source);
@@ -187,7 +205,7 @@ export function ContratosView({
       {/* Gerador — mantém montado para receber postMessage de re-edição */}
       <iframe
         ref={iframeRef}
-        src={`${templateUrl}?v=20260626`}
+        src={iframeSrc}
         className={`h-full w-full flex-1 border-0 ${activeTab === 'gerador' ? '' : 'hidden'}`}
         title="Gerador de Contratos"
       />

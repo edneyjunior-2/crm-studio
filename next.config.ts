@@ -45,13 +45,18 @@ const nextConfig: NextConfig = {
     return [
       { source: '/(.*)', headers: baseSecurity },
       // Gerador de contratos roda dentro de um iframe same-origin → SAMEORIGIN (não DENY).
+      // Cobre a página (/contratos/*) e o proxy que serve o template (/api/contratos/*).
       {
         source: '/contratos/:path*',
         headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }],
       },
+      {
+        source: '/api/contratos/:path*',
+        headers: [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }],
+      },
       // Todo o resto: bloqueia enquadramento por completo (anti-clickjacking).
       {
-        source: '/((?!contratos).*)',
+        source: '/((?!contratos|api/contratos).*)',
         headers: [{ key: 'X-Frame-Options', value: 'DENY' }],
       },
     ]
