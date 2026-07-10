@@ -366,3 +366,54 @@ export async function sendNovasMovimentacoesEmail({
     console.error('[email] falha ao enviar alerta de movimentação:', err)
   }
 }
+
+// ── Publicações DJEN: alerta de novas publicações vinculadas a processo ──────
+
+export async function sendNovasPublicacoesEmail({
+  to,
+  nomeAdvogado,
+  numeroProcesso,
+  assunto,
+  qtdNovas,
+  processoId,
+}: {
+  to: string
+  nomeAdvogado: string
+  numeroProcesso: string
+  assunto: string | null
+  qtdNovas: number
+  processoId: string
+}): Promise<void> {
+  if (!process.env.RESEND_API_KEY) return
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const url = `${getAppUrl()}/processos/${processoId}`
+  const safeNome = escapeHtml(stripHeaders(nomeAdvogado))
+  const safeNumero = escapeHtml(stripHeaders(numeroProcesso))
+  const label = qtdNovas === 1 ? '1 nova publicação' : `${qtdNovas} novas publicações`
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: stripHeaders(to),
+      subject: `[Processo ${numeroProcesso}] ${label} no DJEN`,
+      html: emailShell(
+        'Novas publicações no DJEN',
+        `<h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${safeNome}!</h1>
+        <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
+          O DJEN registrou <strong style="color:${NAVY};">${label}</strong> no processo abaixo.
+          Acesse o CRM para verificar os detalhes.
+        </p>
+        <div style="background:#f8f7f4;border-radius:8px;padding:16px 20px;margin:0 0 24px;">
+          <p style="margin:0 0 4px;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Número do processo</p>
+          <p style="margin:0;font-size:15px;font-weight:700;color:${NAVY};font-family:monospace;">${safeNumero}</p>
+          ${assunto ? `<p style="margin:8px 0 0;font-size:14px;color:#64748b;">${escapeHtml(stripHeaders(assunto))}</p>` : ''}
+        </div>
+        ${ctaButton(url, 'Ver publicações →')}`,
+        'CRM Studio. · alerta automático de novas publicações — DJEN',
+      ),
+    })
+  } catch (err) {
+    console.error('[email] falha ao enviar alerta de publicação DJEN:', err)
+  }
+}

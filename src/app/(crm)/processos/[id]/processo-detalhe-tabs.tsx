@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { FileText, ClipboardList, Paperclip, CalendarClock, AlertCircle } from 'lucide-react'
+import { FileText, ClipboardList, Paperclip, CalendarClock, AlertCircle, Newspaper } from 'lucide-react'
 import { MovimentacoesTimeline } from './movimentacoes-timeline'
 import { NovaMovimentacaoDialog } from './nova-movimentacao-dialog'
 import { HistoricoInterno } from './historico-interno'
 import { DocumentosSection } from './documentos-section'
 import { PrazosSection } from './prazos-section'
+import { PublicacoesSection } from './publicacoes-section'
+import { SyncDjenProvider } from '@/components/crm/sync-djen-provider'
 import type { DocItem } from './doc-actions'
 
 interface TimelineItem {
@@ -42,19 +44,33 @@ interface Membro {
   nome:  string
   email: string
 }
-
-interface Props {
-  processoId:     string
-  gruposTimeline: Grupo[]
-  recenteId:      string | null
-  totalMov:       number
-  movInternas:    MovInternaItem[]
-  documentos:     DocItem[]
-  prazos:         Prazo[]
-  membros:        Membro[]
+interface PublicacaoItem {
+  id:       string
+  tribunal: string
+  tipo:     string
+  texto:    string
+  data:     string
+  link:     string | null
+}
+interface GrupoPublicacoes {
+  mes:   string
+  itens: PublicacaoItem[]
 }
 
-type Aba = 'movimentacoes' | 'interno' | 'documentos' | 'prazos'
+interface Props {
+  processoId:        string
+  gruposTimeline:    Grupo[]
+  recenteId:         string | null
+  totalMov:          number
+  movInternas:       MovInternaItem[]
+  documentos:        DocItem[]
+  prazos:            Prazo[]
+  membros:           Membro[]
+  gruposPublicacoes: GrupoPublicacoes[]
+  totalPublicacoes:  number
+}
+
+type Aba = 'movimentacoes' | 'interno' | 'documentos' | 'prazos' | 'publicacoes'
 
 export function ProcessoDetalheTabs({
   processoId,
@@ -65,6 +81,8 @@ export function ProcessoDetalheTabs({
   documentos,
   prazos,
   membros,
+  gruposPublicacoes,
+  totalPublicacoes,
 }: Props) {
   const [aba, setAba] = useState<Aba>('movimentacoes')
 
@@ -87,6 +105,7 @@ export function ProcessoDetalheTabs({
   const prazosPendentes = prazos.filter((p) => !p.cumprido).length
 
   return (
+    <SyncDjenProvider>
     <div className="flex flex-col gap-0">
       {/* Barra de abas com scroll horizontal em mobile */}
       <div className="flex items-center gap-0 overflow-x-auto border-b border-border">
@@ -112,6 +131,12 @@ export function ProcessoDetalheTabs({
               {prazosPendentes}
             </span>
           )}
+        </button>
+
+        <button type="button" className={tabCls('publicacoes')} onClick={() => setAba('publicacoes')}>
+          <Newspaper className="size-4 shrink-0" />
+          Publicações
+          {badge(totalPublicacoes, aba === 'publicacoes')}
         </button>
 
         <button type="button" className={tabCls('documentos')} onClick={() => setAba('documentos')}>
@@ -157,6 +182,13 @@ export function ProcessoDetalheTabs({
         </div>
       )}
 
+      {/* Publicações DJEN */}
+      {aba === 'publicacoes' && (
+        <div className="pt-4">
+          <PublicacoesSection processoId={processoId} grupos={gruposPublicacoes} />
+        </div>
+      )}
+
       {/* Documentos (GED) */}
       {aba === 'documentos' && (
         <div className="pt-4">
@@ -164,5 +196,6 @@ export function ProcessoDetalheTabs({
         </div>
       )}
     </div>
+    </SyncDjenProvider>
   )
 }

@@ -121,6 +121,27 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   if (errMov) {
     console.error('[processos] erro ao carregar movimentações:', errMov.message)
   }
+
+  // Publicações do DJEN (Diário de Justiça Eletrônico Nacional) — tabela
+  // separada de movimentações (conceitos diferentes: publicação em diário
+  // oficial vs. andamento processual). fetchAllRows evita o cap de 1000.
+  let publicacoes: Record<string, unknown>[] | null = null
+  let errPub: { message: string } | null = null
+  try {
+    publicacoes = await fetchAllRows((from, to) =>
+      supabase
+        .from('publicacoes_processo')
+        .select('id, sigla_tribunal, tipo_comunicacao, texto, data_disponibilizacao, link')
+        .eq('processo_id', id)
+        .order('data_disponibilizacao', { ascending: false })
+        .range(from, to),
+    )
+  } catch (e) {
+    errPub = e as { message: string }
+  }
+  if (errPub) {
+    console.error('[processos] erro ao carregar publicações DJEN:', errPub.message)
+  }
   const podeExcluir = perfil?.role === 'admin'
   // Parceiro (externo) enxerga só o básico deste processo — sem abas de
   // documentos/prazos/honorários/partes/andamentos internos, sem ações de
@@ -221,6 +242,37 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     if (ultimo && ultimo.mes === rotulo) ultimo.itens.push(m)
     else gruposMov.push({ mes: rotulo, itens: [m] })
   }
+
+  // Agrupa publicações DJEN por mês (mesmo critério de agrupamento das
+  // movimentações — já vêm ordenadas desc por data_disponibilizacao).
+  type PubRow = {
+    id: string
+    sigla_tribunal: string | null
+    tipo_comunicacao: string | null
+    texto: string
+    data_disponibilizacao: string
+    link: string | null
+  }
+  const publicacoesTyped = (publicacoes ?? []) as PubRow[]
+  const gruposPub: { mes: string; itens: PubRow[] }[] = []
+  for (const p of publicacoesTyped) {
+    const [ano, mes] = p.data_disponibilizacao.slice(0, 10).split('-')
+    const rotulo = `${MESES[Number(mes) - 1] ?? mes} de ${ano}`
+    const ultimo = gruposPub[gruposPub.length - 1]
+    if (ultimo && ultimo.mes === rotulo) ultimo.itens.push(p)
+    else gruposPub.push({ mes: rotulo, itens: [p] })
+  }
+  const gruposPublicacoesTimeline = gruposPub.map((g) => ({
+    mes: g.mes,
+    itens: g.itens.map((p) => ({
+      id:       p.id,
+      tribunal: p.sigla_tribunal ?? 'Tribunal não informado',
+      tipo:     p.tipo_comunicacao ?? 'Comunicação',
+      texto:    p.texto,
+      data:     formatarData(p.data_disponibilizacao),
+      link:     p.link,
+    })),
+  }))
 
   // Dados prontos para o acordeão (formata data + flag de audiência aqui no server)
   // Alguns tribunais publicam movimentações com dataHora no futuro (ex.: código
@@ -532,6 +584,8 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
             } satisfies DocItem
           })}
           membros={membros}
+          gruposPublicacoes={gruposPublicacoesTimeline}
+          totalPublicacoes={publicacoes?.length ?? 0}
         />
       )}
     </div>
