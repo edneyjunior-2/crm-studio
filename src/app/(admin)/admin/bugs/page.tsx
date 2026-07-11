@@ -3,22 +3,25 @@ import { getAuthPlatformAdmin } from '@/lib/auth'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { BugDetailPanel } from './bug-detail-panel'
 import { BugsTabs } from './bugs-tabs'
+import { RelatoriosSection } from './relatorios-section'
 
-const STATUS_LABELS: Record<string, string> = {
+// Exportadas pra reaproveitamento em relatorios-section.tsx (AC5) — evita
+// duplicar label/cor num segundo arquivo.
+export const STATUS_LABELS: Record<string, string> = {
   aberto: 'Aberto',
   em_analise: 'Em análise',
   resolvido: 'Resolvido',
   ignorado: 'Ignorado',
 }
 
-const STATUS_COLORS: Record<string, string> = {
+export const STATUS_COLORS: Record<string, string> = {
   aberto:     'bg-red-50 text-red-700 border-red-200',
   em_analise: 'bg-yellow-50 text-yellow-700 border-yellow-200',
   resolvido:  'bg-green-50 text-green-700 border-green-200',
   ignorado:   'bg-muted text-muted-foreground border-border',
 }
 
-const SEV_COLORS: Record<string, string> = {
+export const SEV_COLORS: Record<string, string> = {
   critica: 'bg-red-500 text-white',
   alta:    'bg-orange-400 text-white',
   media:   'bg-yellow-400 text-foreground',
@@ -59,6 +62,7 @@ export default async function BugsPage({ searchParams }: BugsPageProps) {
 
   const { tab } = await searchParams
   const isHistorico = tab === 'historico'
+  const isRelatorios = tab === 'relatorios'
 
   let bugs: BugReport[] = []
   try {
@@ -136,17 +140,20 @@ export default async function BugsPage({ searchParams }: BugsPageProps) {
         ))}
       </div>
 
-      {/* Abas: Reports (ativos) | Histórico de resolvidos */}
+      {/* Abas: Reports (ativos) | Histórico de resolvidos | Relatórios */}
       <BugsTabs totalAtivos={bugsAtivos.length} totalResolvidos={bugsResolvidos.length} />
 
+      {/* Relatórios: estatísticas agregadas (RPC única no banco) */}
+      {isRelatorios && <RelatoriosSection />}
+
       {/* Lista */}
-      {bugsExibidos.length === 0 && (
+      {!isRelatorios && bugsExibidos.length === 0 && (
         <div className="rounded-xl border border-dashed border-border py-20 text-center text-muted-foreground">
           {isHistorico ? 'Nenhum bug resolvido ainda.' : 'Nenhum bug em aberto. 🎉'}
         </div>
       )}
 
-      {bugsExibidos.length > 0 && (
+      {!isRelatorios && bugsExibidos.length > 0 && (
         <div className="flex flex-col gap-2">
           {bugsExibidos.map((bug) => (
             <BugCard key={bug.id} bug={bug} screenshotUrl={screenshotSignedUrl(bug.screenshot_url)} />
