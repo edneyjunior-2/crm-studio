@@ -266,3 +266,97 @@ export async function deleteCalendarEvent(params: DeleteEventParams): Promise<vo
     eventId,
   })
 }
+
+/** Janela de tempo usada no full sync inicial — não traz o histórico de vida inteiro. */
+const FULL_SYNC_DIAS_PASSADO = 7
+const FULL_SYNC_DIAS_FUTURO  = 90
+
+export interface GoogleCalendarEventRaw {
+  id?: string | null
+  status?: string | null
+  summary?: string | null
+  description?: string | null
+  start?: { dateTime?: string | null; date?: string | null } | null
+  end?: { dateTime?: string | null; date?: string | null } | null
+}
+
+interface ListEventsParams {
+  userId: string
+  accessToken: string
+  refreshToken: string
+  tokenExpiry: string
+  /** syncToken salvo da última passada — omitido/undefined dispara full sync. */
+  syncToken?: string | null
+}
+
+type ListEventsResult =
+  | { ok: true; events: GoogleCalendarEventRaw[]; nextSyncToken: string | null }
+  /** syncToken inválido/expirado (410 do Google) — chamador deve limpar o token salvo e refazer full sync. */
+  | { ok: false; tokenInvalido: true }
+
+/**
+ * Lista eventos do calendário 'primary' do usuário — incremental (com
+ * syncToken) ou full sync inicial (janela de tempo, sem syncToken). Pagina
+ * até o fim e retorna o nextSyncToken pra próxima chamada incremental.
+ *
+ * No full sync inicial, o nextSyncToken vem na última página da própria
+ * consulta com janela de tempo (timeMin/timeMax) — a API do Google carrega
+ * esse mesmo filtro de tempo para as chamadas incrementais seguintes que
+ * usarem esse token, então uma segunda chamada separada não é necessária.
+ */
+export async function listGoogleCalendarEvents(
+  params: ListEventsParams,
+): Promise<ListEventsResult> {
+  const { userId, accessToken, refreshToken, tokenExpiry, syncToken } = params
+
+  const auth = await getValidAuthClient(userId, accessToken, refreshToken, tokenExpiry)
+  const calendar = google.calendar({ version: 'v3', auth })
+
+  const events: GoogleCalendarEventRaw[] = []
+  let nextSyncToken: string | null = null
+
+  try {
+    if (syncToken) {
+      // Sync incremental — Google decide o que mudou desde o token salvo.
+      let pageToken: string | undefined
+      do {
+        const res = await calendar.events.list({
+          calendarId: 'primary',
+          syncToken,
+          singleEvents: true,
+          pageToken,
+        })
+        events.push(...(res.data.items ?? []))
+        pageToken = res.data.nextPageToken ?? undefined
+        if (res.data.nextSyncToken) nextSyncToken = res.data.nextSyncToken
+      } while (pageToken)
+    } else {
+      // Full sync inicial — janela de tempo útil.
+      const timeMin = new Date(Date.now() - FULL_SYNC_DIAS_PASSADO * 24 * 60 * 60 * 1000).toISOString()
+      const timeMax = new Date(Date.now() + FULL_SYNC_DIAS_FUTURO * 24 * 60 * 60 * 1000).toISOString()
+
+      let pageToken: string | undefined
+      do {
+        const res = await calendar.events.list({
+          calendarId: 'primary',
+          timeMin,
+          timeMax,
+          singleEvents: true,
+          pageToken,
+        })
+        events.push(...(res.data.items ?? []))
+        pageToken = res.data.nextPageToken ?? undefined
+        if (res.data.nextSyncToken) nextSyncToken = res.data.nextSyncToken
+      } while (pageToken)
+    }
+
+    return { ok: true, events, nextSyncToken }
+  } catch (err) {
+    const status = (err as { code?: number; response?: { status?: number } })?.code
+      ?? (err as { response?: { status?: number } })?.response?.status
+    if (status === 410) {
+      return { ok: false, tokenInvalido: true }
+    }
+    throw err
+  }
+}

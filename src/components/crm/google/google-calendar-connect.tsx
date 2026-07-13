@@ -67,9 +67,14 @@ export function GoogleCalendarConnect({ isConnected }: GoogleCalendarConnectProp
         <div>
           <p className="text-sm font-medium text-foreground">Google Calendar</p>
           {connected ? (
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <CheckCircle2 className="size-3.5 text-emerald-600" />
-              <p className="text-xs text-emerald-700 font-medium">Conectado</p>
+            <div className="mt-0.5 flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="size-3.5 text-emerald-600" />
+                <p className="text-xs text-emerald-700 font-medium">Conectado</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Seus compromissos do Google são importados automaticamente a cada ~15 minutos — não é instantâneo.
+              </p>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground mt-0.5">

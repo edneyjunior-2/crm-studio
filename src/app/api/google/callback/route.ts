@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { exchangeCodeForTokens } from '@/lib/google/calendar'
+import { sincronizarCalendarioUsuario } from '@/lib/google/calendar-sync'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -61,6 +62,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL('/minha-conta?google=error', request.url)
       )
+    }
+
+    // Sync inicial best-effort — importa eventos existentes sem esperar o
+    // próximo ciclo do cron. Falha aqui não desfaz a conexão já salva.
+    try {
+      await sincronizarCalendarioUsuario(user.id)
+    } catch (err) {
+      console.error('[google/callback] falha no sync inicial do calendário:', err)
     }
 
     return NextResponse.redirect(

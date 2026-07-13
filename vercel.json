@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/purgar-canceladas",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/sync-google-calendar",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
