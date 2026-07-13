@@ -253,6 +253,10 @@ export default async function EmpresaDetailPage({
           !!(((empresa as Record<string, unknown>).config as Record<string, unknown> | null)
             ?.contrato_aprovado)
         }
+        nivelAssinatura={
+          ((empresa as Record<string, unknown>).config as Record<string, unknown> | null)
+            ?.contrato_nivel_assinatura as string | null ?? null
+        }
       />
 
       {/* API Keys / Integração SDR */}

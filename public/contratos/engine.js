@@ -271,6 +271,12 @@
      ===================================================================== */
   var lastBlobUrl = null;
 
+  // Captura do PDF recém-salvo p/ enviar ao CRM via postMessage (ver histAdd()
+  // mais abaixo) — preenchidos logo após doc.save(), antes de qualquer mutação
+  // futura no doc, garantindo que é exatamente o mesmo conteúdo baixado.
+  var lastPdfBase64 = '';
+  var lastPdfFileName = '';
+
   async function gerarPdfContrato(data, autoSave, minuta) {
     minuta = minuta || false;
     var jsPDF = window.jspdf.jsPDF;
@@ -410,7 +416,14 @@
     var fileName = minuta
       ? (cfg.minutaFileName || 'Minuta_Contrato.pdf')
       : ('Contrato_Parceria_' + prefixo + slug + '.pdf');
-    if (autoSave) doc.save(fileName);
+    if (autoSave) {
+      doc.save(fileName);
+      // Base64 do MESMO doc que acabou de ser salvo (nenhuma mutação depois
+      // disso) — é o que histAdd() manda pro CRM via postMessage.
+      var datauri = doc.output('datauristring');
+      lastPdfBase64 = datauri.slice(datauri.indexOf(',') + 1);
+      lastPdfFileName = fileName;
+    }
     return doc;
   }
 
@@ -898,7 +911,7 @@
     // postMessage para o CRM parent — 'aurum_contrato_gerado' é o nome
     // HISTÓRICO do protocolo, mas é genérico: TODO template usa esse mesmo
     // tipo de evento, não renomear (ver comentário no topo do arquivo).
-    try { window.parent.postMessage({ type: 'aurum_contrato_gerado', entry: { nome: entry.nomeParceiro, tipo: entry.mode.toUpperCase(), data: entry.ts }, parceiro: { mode: currentMode, fields: rawFields } }, '*'); } catch (e) {}
+    try { window.parent.postMessage({ type: 'aurum_contrato_gerado', entry: { nome: entry.nomeParceiro, tipo: entry.mode.toUpperCase(), data: entry.ts }, parceiro: { mode: currentMode, fields: rawFields }, pdfBase64: lastPdfBase64, pdfFileName: lastPdfFileName }, '*'); } catch (e) {}
   }
 
   function histDelete(id) {

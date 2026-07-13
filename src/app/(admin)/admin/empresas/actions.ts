@@ -598,6 +598,39 @@ export async function liberarModeloContrato(
   return {}
 }
 
+/**
+ * Seta config.contrato_nivel_assinatura (merge) — nível de assinatura eletrônica
+ * usado pelo ZapSign para os contratos desta empresa ('avancada' default quando
+ * ausente do jsonb). Advocacia tende a usar 'qualificada' (ônus da prova).
+ */
+export async function salvarNivelAssinatura(
+  empresaId: string,
+  nivel: 'avancada' | 'qualificada',
+): Promise<{ error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const db = createAdminClient()
+
+  const { data: emp } = await db
+    .from('empresas')
+    .select('config')
+    .eq('id', empresaId)
+    .single()
+
+  const configAtual = (emp?.config as Record<string, unknown> | null) ?? {}
+  const novoConfig = { ...configAtual, contrato_nivel_assinatura: nivel }
+
+  const { error } = await db
+    .from('empresas')
+    .update({ config: novoConfig })
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  return {}
+}
+
 // ---------------------------------------------------------------------------
 // Revogar API key
 // ---------------------------------------------------------------------------

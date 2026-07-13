@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, History, Pencil, Trash2 } from 'lucide-react'
+import { FileText, History, Pencil, Trash2, Send, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
-import { salvarContratoGerado, excluirContratoGerado } from '@/app/(crm)/contratos/actions'
+import { salvarContratoGerado, excluirContratoGerado, enviarParaAssinatura } from '@/app/(crm)/contratos/actions'
 import type { ContratoGerado } from '@/app/(crm)/contratos/actions'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 
 function formatDateTime(iso: string) {
   const d = new Date(iso)
@@ -16,6 +21,139 @@ function formatDateTime(iso: string) {
   const hh   = String(d.getHours()).padStart(2, '0')
   const min  = String(d.getMinutes()).padStart(2, '0')
   return `${dd}/${mm}/${yyyy} às ${hh}:${min}`
+}
+
+// Migration pode ainda não estar aplicada em dev (colunas ausentes do select
+// nem chegam a existir) — trata ausência de `status` como 'rascunho', o
+// default da coluna quando ela existir.
+function statusEfetivo(item: ContratoGerado): 'rascunho' | 'enviado' | 'assinado' | 'recusado' {
+  return item.status ?? 'rascunho'
+}
+
+// Reusa as variantes já existentes do StatusBadge central (não cria variante
+// nova) — mapeamento semântico: rascunho~pendente, enviado~aguardando,
+// assinado~pago (verde), recusado~atrasado (vermelho).
+const STATUS_VARIANT: Record<string, string> = {
+  rascunho: 'pendente',
+  enviado:  'aguardando',
+  assinado: 'pago',
+  recusado: 'atrasado',
+}
+const STATUS_LABEL: Record<string, string> = {
+  rascunho: 'Rascunho',
+  enviado:  'Enviado',
+  assinado: 'Assinado',
+  recusado: 'Recusado',
+}
+
+function EnviarAssinaturaDialog({
+  contrato,
+  onOpenChange,
+  onEnviado,
+}: {
+  contrato: ContratoGerado | null
+  onOpenChange: (open: boolean) => void
+  onEnviado: () => void
+}) {
+  const [nome, setNome] = useState('')
+  const [email, setEmail] = useState('')
+  const [telefone, setTelefone] = useState('')
+  const [enviando, startEnviar] = useTransition()
+
+  useEffect(() => {
+    if (contrato) {
+      setNome(contrato.parceiro_nome ?? '')
+      setEmail('')
+      setTelefone('')
+    }
+  }, [contrato])
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!contrato) return
+    if (!nome.trim()) {
+      toast.error('Informe o nome do signatário')
+      return
+    }
+
+    startEnviar(async () => {
+      const res = await enviarParaAssinatura(contrato.id, {
+        nome:     nome.trim(),
+        email:    email.trim() || undefined,
+        telefone: telefone.trim() || undefined,
+      })
+      if (res.error) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('Documento enviado para assinatura')
+      onOpenChange(false)
+      onEnviado()
+      // Nunca em iframe — evita a classe de bug do post-mortem do gerador de
+      // contratos (X-Frame-Options / CSP frame-ancestors quebrando embed).
+      if (res.linkAssinatura) {
+        window.open(res.linkAssinatura, '_blank', 'noopener')
+      }
+    })
+  }
+
+  return (
+    <Dialog open={!!contrato} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Enviar para assinatura</DialogTitle>
+          <DialogDescription>
+            O signatário recebe um link do ZapSign para assinar eletronicamente.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="signatario_nome">
+              Nome <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="signatario_nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="signatario_email">E-mail</Label>
+            <Input
+              id="signatario_email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="signatario@email.com"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="signatario_telefone">Telefone (opcional)</Label>
+            <Input
+              id="signatario_telefone"
+              value={telefone}
+              onChange={(e) => setTelefone(e.target.value)}
+              placeholder="(11) 91234-5678"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={enviando}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={enviando}>
+              {enviando ? 'Enviando…' : 'Enviar'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 export function ContratosView({
@@ -31,6 +169,7 @@ export function ContratosView({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [activeTab, setActiveTab] = useState<'gerador' | 'historico'>('gerador')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [assinaturaAlvo, setAssinaturaAlvo] = useState<ContratoGerado | null>(null)
   const [, startTransition] = useTransition()
 
   // Evita cadastrar o mesmo contrato duas vezes se o iframe disparar a mensagem repetida
@@ -109,11 +248,16 @@ export function ContratosView({
           ? (p.fields!.PF_CPF ?? null)
           : (p.fields!.PARCEIRO_CNPJ ?? null)
 
+        const pdfBase64 = typeof e.data.pdfBase64 === 'string' ? e.data.pdfBase64 : undefined
+        const pdfFileName = typeof e.data.pdfFileName === 'string' ? e.data.pdfFileName : undefined
+
         const resContrato = await salvarContratoGerado({
           parceiro_nome,
           parceiro_doc,
           tipo,
           dados: e.data.parceiro,
+          pdfBase64,
+          pdfFileName,
         })
         if (resContrato.error) {
           toast.error(`Não foi possível salvar o contrato: ${resContrato.error}`)
@@ -241,9 +385,34 @@ export function ContratosView({
                       <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium">
                         {item.tipo}
                       </span>
+                      <StatusBadge variant={STATUS_VARIANT[statusEfetivo(item)]}>
+                        {STATUS_LABEL[statusEfetivo(item)]}
+                      </StatusBadge>
                       <span className="text-xs text-muted-foreground">
                         {formatDateTime(item.created_at)}
                       </span>
+                      {statusEfetivo(item) === 'rascunho' && (
+                        <button
+                          type="button"
+                          title="Enviar para assinatura"
+                          onClick={() => setAssinaturaAlvo(item)}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                        >
+                          <Send className="size-3" />
+                          Enviar p/ assinatura
+                        </button>
+                      )}
+                      {statusEfetivo(item) === 'enviado' && item.link_assinatura && (
+                        <button
+                          type="button"
+                          title="Abrir link de assinatura"
+                          onClick={() => window.open(item.link_assinatura!, '_blank', 'noopener')}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                        >
+                          <ExternalLink className="size-3" />
+                          Abrir link
+                        </button>
+                      )}
                       <button
                         type="button"
                         title="Re-editar"
@@ -271,6 +440,12 @@ export function ContratosView({
           </div>
         </div>
       )}
+
+      <EnviarAssinaturaDialog
+        contrato={assinaturaAlvo}
+        onOpenChange={(open) => { if (!open) setAssinaturaAlvo(null) }}
+        onEnviado={() => router.refresh()}
+      />
     </div>
   )
 }
