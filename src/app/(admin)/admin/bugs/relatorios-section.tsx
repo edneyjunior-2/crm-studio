@@ -20,6 +20,7 @@ type Estatisticas = {
   por_empresa: { empresa_nome: string; total: number }[]
   por_dia: { dia: string; total: number }[]
   tempo_medio_resolucao_horas: number | null
+  tempo_resolucao_por_dia: { dia: string; horas_medias: number | null; resolvidos: number }[]
 }
 
 // dia vem como 'YYYY-MM-DD' (texto) da função SQL — parse manual, sem
@@ -54,6 +55,10 @@ export async function RelatoriosSection() {
   const maxEmpresa = Math.max(...stats.por_empresa.map((e) => e.total), 1)
   const maxDia = Math.max(...stats.por_dia.map((d) => d.total), 1)
   const tempoMedio = stats.tempo_medio_resolucao_horas
+  const maxHorasResolucao = Math.max(
+    ...stats.tempo_resolucao_por_dia.map((d) => d.horas_medias ?? 0),
+    1
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -170,6 +175,43 @@ export async function RelatoriosSection() {
             <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
               <span>{formatDia(stats.por_dia[0].dia)}</span>
               <span>{formatDia(stats.por_dia[stats.por_dia.length - 1].dia)}</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Tempo de resolução por dia */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <p className="mb-4 text-sm font-semibold text-foreground">Tempo de resolução por dia</p>
+        {stats.tempo_resolucao_por_dia.every((d) => d.horas_medias == null) ? (
+          <p className="text-sm text-muted-foreground">Nenhum bug resolvido no período.</p>
+        ) : (
+          <>
+            <div className="flex h-32 items-end gap-1">
+              {stats.tempo_resolucao_por_dia.map(({ dia, horas_medias, resolvidos }) => {
+                const alturaPct =
+                  horas_medias == null
+                    ? 2
+                    : Math.max(Math.round((horas_medias / maxHorasResolucao) * 100), 4)
+                const tooltip =
+                  horas_medias == null
+                    ? `${formatDia(dia)}: sem resolução`
+                    : `${formatDia(dia)}: ${formatHoras(horas_medias)}, ${resolvidos} resolvido${resolvidos === 1 ? '' : 's'}`
+                return (
+                  <div
+                    key={dia}
+                    title={tooltip}
+                    className={`w-full flex-1 rounded-t-sm ${horas_medias != null ? 'bg-primary' : 'bg-secondary'}`}
+                    style={{ height: `${alturaPct}%` }}
+                  />
+                )
+              })}
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
+              <span>{formatDia(stats.tempo_resolucao_por_dia[0].dia)}</span>
+              <span>
+                {formatDia(stats.tempo_resolucao_por_dia[stats.tempo_resolucao_por_dia.length - 1].dia)}
+              </span>
             </div>
           </>
         )}
