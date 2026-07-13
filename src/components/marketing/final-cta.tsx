@@ -42,7 +42,7 @@ export function FinalCta() {
           </h2>
           <p className="mx-auto mt-6 max-w-md text-[17px] leading-relaxed text-primary-foreground/70">
             14 dias grátis pra colocar toda a operação no lugar. Sem instalação,
-            sem consultor — cartão só é cobrado no 15º dia, se você não cancelar antes.
+            sem consultor — comece a vender mais hoje mesmo.
             Preço fixo por empresa quando você continuar.
           </p>
 
@@ -64,7 +64,7 @@ export function FinalCta() {
 
           {/* Sub-garantia */}
           <p className="mt-6 text-sm text-primary-foreground/50">
-            14 dias grátis · cartão só é cobrado no 15º dia · suporte em português
+            14 dias grátis · setup em 30 minutos · suporte em português
           </p>
         </motion.div>
       </div>
