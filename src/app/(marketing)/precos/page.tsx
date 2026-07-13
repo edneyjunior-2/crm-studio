@@ -4,7 +4,7 @@ import { Reveal } from '@/components/marketing/motion'
 
 export const metadata = {
   title: 'Preços · CRM Studio',
-  description: 'Preço fixo por empresa, módulos que se adaptam ao seu negócio. 14 dias grátis, sem cartão.',
+  description: 'Preço fixo por empresa, módulos que se adaptam ao seu negócio. 14 dias grátis para testar. Cartão só é cobrado no 15º dia.',
 }
 
 const PLANOS = [
@@ -119,7 +119,7 @@ const FAQ = [
   },
   {
     q: 'Preciso de cartão para testar?',
-    a: 'Não. São 14 dias grátis sem cartão. Você só decide o plano quando estiver convencido.',
+    a: 'Sim. Pedimos o cartão no cadastro para ativar os 14 dias grátis, mas você só é cobrado(a) de verdade no 15º dia — cancele antes disso e não paga nada.',
   },
   {
     q: 'Consigo migrar minha planilha?',
@@ -141,7 +141,7 @@ export default function PrecosPage() {
             Preço fixo por empresa. Módulos que se adaptam a você.
           </h1>
           <p className="mx-auto mt-6 max-w-lg text-lg text-muted-foreground">
-            14 dias grátis, sem cartão. Ative só o que faz sentido para o seu negócio.
+            14 dias grátis para testar. Cartão só é cobrado no 15º dia. Ative só o que faz sentido para o seu negócio.
           </p>
         </Reveal>
       </section>

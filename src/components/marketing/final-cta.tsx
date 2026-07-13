@@ -41,8 +41,9 @@ export function FinalCta() {
             <span className="text-accent">Abra o CRM Studio.</span>
           </h2>
           <p className="mx-auto mt-6 max-w-md text-[17px] leading-relaxed text-primary-foreground/70">
-            14 dias grátis pra colocar toda a operação no lugar. Sem cartão, sem
-            instalação, sem consultor. Preço fixo por empresa quando você continuar.
+            14 dias grátis pra colocar toda a operação no lugar. Sem instalação,
+            sem consultor — cartão só é cobrado no 15º dia, se você não cancelar antes.
+            Preço fixo por empresa quando você continuar.
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -63,7 +64,7 @@ export function FinalCta() {
 
           {/* Sub-garantia */}
           <p className="mt-6 text-sm text-primary-foreground/50">
-            14 dias grátis · sem cartão · suporte em português
+            14 dias grátis · cartão só é cobrado no 15º dia · suporte em português
           </p>
         </motion.div>
       </div>

@@ -75,7 +75,7 @@ export function Hero() {
                 href="/cadastro"
                 className="group inline-flex items-center justify-center gap-2 rounded-full bg-foreground px-8 py-4 text-[15px] font-semibold text-background shadow-[0_4px_24px_rgba(22,24,29,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(22,24,29,0.22)] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                Começar grátis — 14 dias, sem cartão
+                Começar grátis — 14 dias
                 <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
               <Link
@@ -90,7 +90,7 @@ export function Hero() {
           {/* Stat strip */}
           <Enter delay={0.64}>
             <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2">
-              {['14 dias grátis', 'Sem cartão de crédito', 'Preço fixo por empresa'].map(
+              {['14 dias grátis', 'Cartão só é cobrado no 15º dia', 'Preço fixo por empresa'].map(
                 (item, i) => (
                   <span
                     key={item}

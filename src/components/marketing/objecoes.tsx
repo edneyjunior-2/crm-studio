@@ -14,7 +14,7 @@ const OBJECOES = [
   },
   {
     q: 'Quanto custa? Vai encarecer quando meu time crescer?',
-    a: 'Preço fixo por empresa, a partir de R$ 147/mês — não por usuário. Coloque o time inteiro que a mensalidade não muda. Comece pelo teste grátis de 14 dias, sem cartão: se não fizer sentido, é só não continuar.',
+    a: 'Preço fixo por empresa, a partir de R$ 147/mês — não por usuário. Coloque o time inteiro que a mensalidade não muda. Comece pelo teste grátis de 14 dias: pedimos o cartão no cadastro, mas você só é cobrado(a) de verdade no 15º dia — cancele antes disso e não paga nada.',
     micro: 'Starter R$ 147 · Pro R$ 297 · Business R$ 497 — todos por empresa, não por usuário.',
   },
   {
