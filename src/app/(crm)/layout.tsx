@@ -51,12 +51,21 @@ export default async function CRMLayout({
       .single(),
     supabase
       .from('profiles')
-      .select('id, full_name, role, created_at')
+      .select('id, full_name, role, created_at, senha_temporaria')
       .eq('id', user.id)
       .single(),
   ])
 
   if (!profile) redirect('/login')
+
+  // Trava de completar 1º acesso (spec onboarding-senha-pos-pagamento, Parte
+  // C+D): enquanto a senha ainda for a aleatória gerada no cadastro (nunca
+  // trocada), a pessoa só pode acessar /definir-senha — nunca o CRM. Convites
+  // e contas pré-existentes têm senha_temporaria=false por padrão (a coluna
+  // só é setada true no ramo fundador do handle_new_user) e nunca caem aqui.
+  // Fora do grupo (crm) — mesmo padrão de /assinatura e /cadastro/pagamento —
+  // para não entrar em loop de redirect.
+  if (profile.senha_temporaria) redirect('/definir-senha')
 
   // Registra o primeiro acesso do cliente ao CRM (fire-and-forget, idempotente)
   if (!empresaData?.primeiro_acesso_em && empresaId) {

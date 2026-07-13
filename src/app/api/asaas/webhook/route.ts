@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cancelSubscription } from '@/lib/asaas'
-import { sendAlertaInterno } from '@/lib/email'
+import { sendAlertaInterno, sendAcessoLiberadoEmail } from '@/lib/email'
+import { appUrl } from '@/lib/site-url'
 import { timingSafeEqual, createHash } from 'crypto'
 
 const ALERTA_EMAIL = process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com'
@@ -65,6 +66,53 @@ function faturasStatusFromEvent(event: string): string | null {
     case 'PAYMENT_DELETED':              return 'removida'
     default:                             return null
   }
+}
+
+/**
+ * E-mail de acesso liberado (spec onboarding-senha-pos-pagamento.md, Parte B),
+ * disparado só na transição real pendente_cartao → trial. Best-effort: quem
+ * chama trata qualquer rejeição com `.catch()` — nunca deve derrubar o
+ * processamento do evento (mesmo padrão do sendAlertaInterno usado acima).
+ *
+ * GOTCHA confirmado ao ler o código: a view `profiles_auth` (ver
+ * 20260629160000_profiles_auth_view.sql) só expõe `id, email,
+ * last_sign_in_at` — NÃO tem `empresa_id`, `role` nem `full_name`. Por isso o
+ * fundador é resolvido em `profiles` (que tem essas colunas) primeiro, e o
+ * e-mail é lido depois na view (mesmo padrão de reenviarConviteEmail em
+ * src/app/(admin)/admin/empresas/actions.ts).
+ */
+async function enviarEmailAcessoLiberado(
+  supabase: ReturnType<typeof createAdminClient>,
+  empresaId: string,
+): Promise<void> {
+  const { data: fundador } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .eq('empresa_id', empresaId)
+    .eq('role', 'admin')
+    .maybeSingle()
+  if (!fundador) return
+
+  const { data: authRow } = await supabase
+    .from('profiles_auth')
+    .select('email')
+    .eq('id', fundador.id)
+    .maybeSingle()
+  const email = authRow?.email
+  if (!email) return
+
+  const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+    type: 'recovery',
+    email,
+    options: { redirectTo: `${appUrl()}/reset-password` },
+  })
+  const link = linkData?.properties?.action_link
+  if (linkErr || !link) {
+    console.error('[webhook] falha ao gerar link de acesso pós-pagamento:', linkErr?.message)
+    return
+  }
+
+  await sendAcessoLiberadoEmail({ to: email, nome: fundador.full_name ?? email, linkAcesso: link })
 }
 
 // ---------------------------------------------------------------------------
@@ -344,7 +392,7 @@ export async function POST(request: NextRequest) {
       // 23505) E a empresa realmente estava esperando o cartão. Condicional
       // em status='pendente_cartao' trava contra qualquer corrida que já
       // tenha mudado o status entretanto.
-      await supabase
+      const { error: updateEmpresaErr } = await supabase
         .from('empresas')
         .update({
           status:        'trial',
@@ -352,6 +400,18 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', empresaId)
         .eq('status', 'pendente_cartao')
+
+      // E-mail de acesso (spec onboarding-senha-pos-pagamento.md, Parte B) —
+      // só dispara quando o UPDATE acima teve sucesso, ou seja, só na
+      // transição real pendente→trial. Fire-and-forget: erro de e-mail nunca
+      // derruba o processamento do evento (mesmo padrão do sendAlertaInterno
+      // acima neste arquivo) — se falhar, a sessão original (Parte D) ainda
+      // permite a pessoa continuar.
+      if (!updateEmpresaErr) {
+        enviarEmailAcessoLiberado(supabase, empresaId).catch((e: unknown) => {
+          console.error('[webhook] falha ao enviar e-mail de acesso liberado:', e)
+        })
+      }
     }
   }
 

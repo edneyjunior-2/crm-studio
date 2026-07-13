@@ -1,6 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
+import { randomBytes } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { sendWelcomeEmail } from '@/lib/email'
@@ -56,10 +57,9 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
   const tipoPessoa = formData.get('tipo_pessoa') as 'pj' | 'pf'
   const nomeResponsavel = (formData.get('nome_responsavel') as string)?.trim()
   const email = (formData.get('email') as string)?.trim()
-  const senha = formData.get('senha') as string
   const aceiteTermo = formData.get('aceite_termo') === 'on'
 
-  if (!nomeResponsavel || !email || !senha) {
+  if (!nomeResponsavel || !email) {
     return { error: 'Preencha todos os campos obrigatórios.' }
   }
 
@@ -70,10 +70,6 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
 
   if (!aceiteTermo) {
     return { error: 'É necessário aceitar os Termos de Uso e o Contrato de Operador para continuar.' }
-  }
-
-  if (senha.length < 8) {
-    return { error: 'A senha deve ter pelo menos 8 caracteres.' }
   }
 
   let metadata: Record<string, string>
@@ -130,9 +126,16 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
 
   const supabase = await createClient()
 
+  // ponytail: senha aleatória forte só para satisfazer a API do Supabase Auth —
+  // a pessoa nunca escolhe nem vê essa senha. Ela define a própria senha depois
+  // (Parte C/D: /definir-senha com a sessão já ativa, ou o link do e-mail de
+  // acesso liberado — ver spec onboarding-senha-pos-pagamento.md). NUNCA logar
+  // nem devolver este valor em nenhuma resposta.
+  const senhaGerada = randomBytes(24).toString('base64url')
+
   const { error } = await supabase.auth.signUp({
     email,
-    password: senha,
+    password: senhaGerada,
     options: {
       data: metadata,
     },
@@ -142,9 +145,6 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
     // Tratar erros conhecidos do Supabase Auth
     if (error.message.includes('already registered') || error.message.includes('User already registered')) {
       return { error: 'Este e-mail já está cadastrado. Faça login ou recupere sua senha.' }
-    }
-    if (error.message.includes('Password should be')) {
-      return { error: 'A senha deve ter pelo menos 8 caracteres.' }
     }
     return { error: `Erro ao criar conta: ${error.message}` }
   }

@@ -131,6 +131,49 @@ export async function sendInviteEmail({
 }
 
 /**
+ * E-mail de acesso liberado — disparado pelo webhook do Asaas quando o cartão
+ * é confirmado (transição pendente_cartao → trial). Cobre o caso de sessão
+ * perdida/outro dispositivo (ex.: pagou via QR code do PIX no celular e fechou
+ * a aba do cadastro): o link leva a pessoa a definir a própria senha em
+ * /reset-password e cair direto no CRM. Ver spec onboarding-senha-pos-pagamento.md.
+ */
+export async function sendAcessoLiberadoEmail({
+  to,
+  nome,
+  linkAcesso,
+}: {
+  to: string
+  nome: string
+  linkAcesso: string
+}): Promise<{ sent: boolean; reason?: string }> {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[email] RESEND_API_KEY não configurada — e-mail de acesso liberado não enviado')
+    return { sent: false, reason: 'sem_api_key' }
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const safeNome = stripHeaders(nome)
+  const safeTo = stripHeaders(to)
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to: safeTo,
+      subject: 'Cartão confirmado — seu trial no CRM Studio começou!',
+      html: buildAcessoLiberadoHtml({ nome: safeNome, linkAcesso }),
+    })
+    if (error) {
+      console.error('[email] Resend recusou o e-mail de acesso liberado:', error)
+      return { sent: false, reason: error.message }
+    }
+    return { sent: true }
+  } catch (err) {
+    console.error('[email] Falha ao enviar e-mail de acesso liberado:', err)
+    return { sent: false, reason: err instanceof Error ? err.message : 'erro' }
+  }
+}
+
+/**
  * Alerta operacional INTERNO (para o dono da plataforma, não para o cliente).
  * Usado p/ avisar sobre contas perto da purga e confirmar purgas concluídas.
  */
@@ -223,6 +266,31 @@ function buildInviteHtml({
       Clique no botão abaixo para definir sua senha e começar a usar.
     </p>
     ${ctaButton(href, 'Definir minha senha →')}
+    <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">Se o botão não funcionar, copie e cole este link:</p>
+    <p style="margin:4px 0 0;font-size:12px;color:${AMBER};word-break:break-all;">${href}</p>`,
+    'Este link é pessoal e expira em 24 horas. Se você não esperava este e-mail, pode ignorá-lo com segurança.',
+  )
+}
+
+function buildAcessoLiberadoHtml({
+  nome,
+  linkAcesso,
+}: {
+  nome: string
+  linkAcesso: string
+}): string {
+  const safeName = escapeHtml(nome)
+  const href = encodeURI(linkAcesso)
+
+  return emailShell(
+    'Cartão confirmado — CRM Studio.',
+    `<h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:${NAVY};">Olá, ${safeName}!</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#64748b;line-height:1.6;">
+      Seu cartão foi confirmado e o seu <strong style="color:${NAVY};">trial de 14 dias</strong> no
+      <strong style="color:${NAVY};">CRM Studio.</strong> começou agora.<br>
+      Clique no botão abaixo para definir sua senha e acessar o CRM.
+    </p>
+    ${ctaButton(href, 'Definir minha senha e acessar →')}
     <p style="margin:16px 0 0;font-size:13px;color:#94a3b8;">Se o botão não funcionar, copie e cole este link:</p>
     <p style="margin:4px 0 0;font-size:12px;color:${AMBER};word-break:break-all;">${href}</p>`,
     'Este link é pessoal e expira em 24 horas. Se você não esperava este e-mail, pode ignorá-lo com segurança.',
