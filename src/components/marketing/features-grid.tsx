@@ -16,6 +16,7 @@ import {
   FolderArchive,
   Receipt,
   Ruler,
+  Newspaper,
   ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react'
@@ -81,6 +82,11 @@ const GRUPOS: Grupo[] = [
         title: 'Processos via DataJud',
         desc: 'Movimentações sincronizadas automaticamente pelo número CNJ. A cada andamento novo, o advogado responsável é avisado por e-mail.',
         accent: true,
+      },
+      {
+        icon: Newspaper,
+        title: 'Publicações do DJEN por OAB',
+        desc: 'O sistema busca sozinho as publicações do Diário de Justiça Eletrônico Nacional pela OAB de cada advogado e casa com o processo certo — nenhuma publicação passa despercebida.',
       },
       {
         icon: CalendarClock,

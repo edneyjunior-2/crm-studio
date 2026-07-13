@@ -31,8 +31,8 @@ const FEATURES = [
   {
     eyebrow: 'Advocacia',
     title: 'O processo se atualiza sozinho.',
-    body: 'A integração com o DataJud puxa as novas movimentações de cada processo e avisa o advogado responsável por e-mail. Os prazos avisam antes de vencer, as audiências viram evento no Google Calendar e os documentos ficam anexados ao processo. Honorários e custas viram lançamento no financeiro, sem digitar duas vezes.',
-    points: ['Movimentações automáticas via DataJud', 'Prazos e audiências com alerta', 'Honorários e guias no financeiro'],
+    body: 'O DataJud avisa quando um processo tem movimentação nova, e o DJEN avisa quando sai uma publicação — cruzando pela OAB de cada advogado e pelo número CNJ do processo, sem precisar caçar nada manualmente em diário nenhum. Os prazos avisam antes de vencer, as audiências viram evento no Google Calendar e os documentos ficam anexados ao processo. Honorários e custas viram lançamento no financeiro, sem digitar duas vezes.',
+    points: ['Movimentações (DataJud) e publicações (DJEN) automáticas', 'Prazos e audiências com alerta', 'Honorários e guias no financeiro'],
   },
   {
     eyebrow: 'Engenharia',

@@ -27,6 +27,107 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-13-calendario-sync-continua',
+    data: '2026-07-13',
+    titulo: 'Google Calendar sincroniza sozinho com o CRM',
+    tipo: 'novidade',
+    modulo: 'geral',
+    itens: [
+      'Ao conectar sua conta Google, os compromissos dos últimos 7 dias e dos próximos 90 já entram automaticamente no Calendário',
+      'Depois disso, criar, editar ou cancelar um evento no Google reflete no CRM sozinho, a cada ~15 minutos — sem precisar reconectar nada',
+    ],
+  },
+  {
+    id: '2026-07-10-djen-publicacoes',
+    data: '2026-07-10',
+    titulo: 'Publicações do Diário de Justiça direto no processo',
+    tipo: 'novidade',
+    modulo: 'advocacia',
+    itens: [
+      'Cadastre sua OAB em "Minha Conta" e o sistema passa a buscar automaticamente suas publicações no DJEN, casando cada uma com o processo certo pelo número CNJ',
+      'Nova aba "Publicações" no detalhe do processo mostra tudo o que foi encontrado, com opção de buscar manualmente a qualquer momento',
+    ],
+  },
+  {
+    id: '2026-07-10-contratos-corrigido',
+    data: '2026-07-10',
+    titulo: 'Gerador de contratos personalizados corrigido',
+    tipo: 'correcao',
+    modulo: 'geral',
+    itens: [
+      'Empresas com modelo de contrato próprio (white-label) voltam a conseguir gerar contratos normalmente',
+    ],
+  },
+  {
+    id: '2026-07-10-chamados-numeracao',
+    data: '2026-07-10',
+    titulo: 'Chamados de suporte ganham número',
+    tipo: 'melhoria',
+    modulo: 'geral',
+    itens: [
+      'Ao reportar um problema pelo botão "Teve um problema?", o chamado recebe um número (#001, #002...) pra facilitar a referência',
+    ],
+  },
+  {
+    id: '2026-07-10-clientes-tabela',
+    data: '2026-07-10',
+    titulo: 'Lista de clientes mais fácil de usar',
+    tipo: 'melhoria',
+    modulo: 'geral',
+    itens: [
+      'Clique em qualquer parte da linha do cliente para editar, sem precisar mirar no lápis',
+      'Coluna "Ações" fica fixa na tela ao rolar a tabela pros lados, em qualquer tamanho de tela',
+    ],
+  },
+  {
+    id: '2026-07-10-processos-vinculos',
+    data: '2026-07-10',
+    titulo: 'Mais controle sobre clientes e indicação nos processos',
+    tipo: 'melhoria',
+    modulo: 'advocacia',
+    itens: [
+      'Um processo pode ter mais de um cliente vinculado, além do principal',
+      'Vincule manualmente o parceiro que indicou o processo, direto no cadastro',
+      'Área do direito: ao escolher "Outro", digite livremente com sugestões das áreas já usadas na empresa',
+      'Seletor de clientes reorganizado: quem já foi selecionado fica fixo no topo, com busca separada pra adicionar mais',
+    ],
+  },
+  {
+    id: '2026-07-09-calendario-eventos',
+    data: '2026-07-09',
+    titulo: 'Eventos privados e Google Meet automático no Calendário',
+    tipo: 'novidade',
+    modulo: 'geral',
+    itens: [
+      'Novo toggle "Visível para a equipe" ao criar um evento — por padrão, só você vê',
+      'Link do Google Meet gerado automaticamente nos seus eventos',
+      'Campo de repetição (semanal, mensal, anual) volta a funcionar de verdade ao criar um evento novo',
+    ],
+  },
+  {
+    id: '2026-07-09-prazos-melhorias',
+    data: '2026-07-09',
+    titulo: 'Prazos processuais mais fáceis de acompanhar',
+    tipo: 'melhoria',
+    modulo: 'advocacia',
+    itens: [
+      'Clique em qualquer parte da linha de um prazo pra abrir o processo direto',
+      'Audiências que já aconteceram somem da lista de Prazos automaticamente',
+    ],
+  },
+  {
+    id: '2026-07-09-ajustes-diversos',
+    data: '2026-07-09',
+    titulo: 'Ajustes de estabilidade',
+    tipo: 'correcao',
+    modulo: 'geral',
+    itens: [
+      'Removidos aniversários de exemplo que apareciam no Calendário de todas as empresas',
+      'Toggle de personalizar menu (Configurações) volta a ativar/desativar módulos corretamente',
+      'Ao marcar um chamado como resolvido, quem reportou recebe um e-mail avisando',
+    ],
+  },
+  {
     id: '2026-07-08-calendario-prazos',
     data: '2026-07-08',
     titulo: 'Prazos e audiências no Calendário',

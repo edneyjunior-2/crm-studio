@@ -88,7 +88,7 @@ const VERTICAIS = [
     icon: Scale,
     setor: 'Advocacia',
     plano: 'R$ 247/mês',
-    modulos: ['CRM + Pipeline', 'Financeiro com honorários', 'Processos jurídicos / DataJud', 'Chat Inbox'],
+    modulos: ['CRM + Pipeline', 'Financeiro com honorários', 'Processos jurídicos / DataJud + DJEN', 'Chat Inbox'],
   },
   {
     icon: HardHat,
