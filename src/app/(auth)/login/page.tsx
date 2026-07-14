@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { login } from './actions'
 import { GoogleLoginButton } from './google-login-button'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,10 @@ interface LoginPageProps {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { error, cadastro, next } = await searchParams
+  // Área admin (admin.crmstudio.com.br): só e-mail/senha — sem "Entrar com
+  // Google", que sempre autentica na conta pessoal e não deve valer pra lá.
+  const host = (await headers()).get('host') ?? ''
+  const isAdminHost = host === 'admin.crmstudio.com.br'
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
@@ -62,13 +67,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </Button>
           </form>
 
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">ou</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
+          {!isAdminHost && (
+            <>
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">ou</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
 
-          <GoogleLoginButton next={next} />
+              <GoogleLoginButton next={next} />
+            </>
+          )}
         </div>
 
         <p className="mt-8 text-center text-sm text-muted-foreground">
