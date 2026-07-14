@@ -4,6 +4,7 @@ import { cancelSubscription, getCustomer } from '@/lib/asaas'
 import { sendAlertaInterno, sendAcessoLiberadoEmail } from '@/lib/email'
 import { appUrl } from '@/lib/site-url'
 import { timingSafeEqual, createHash } from 'crypto'
+import { PLANOS_VENDAVEIS, PRECO_POR_PLANO, type PlanoVendavel } from '@/lib/planos'
 
 const ALERTA_EMAIL = process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com'
 
@@ -198,6 +199,10 @@ export async function POST(request: NextRequest) {
   let empresaId: string | null = null
   let empresaPlano: string | null = null
   let empresaStatusAtual: string | null = null
+  // Escolha feita em /cadastro?plano=X (spec planos-verticais-no-checkout.md).
+  // NULL = empresa anterior a esta mudança (ou criada fora do fluxo de
+  // checkout) — trava anti-retroativo usada mais abaixo.
+  let empresaPlanoContratado: string | null = null
 
   // Se ESTA subscription específica já tem linha em `assinaturas`, ela já foi
   // registrada por alguém (o insert síncrono de assinarPlano(), ou uma entrega
@@ -227,7 +232,7 @@ export async function POST(request: NextRequest) {
   if (!empresaId && isSubscriptionEvent && subscription?.externalReference) {
     const { data: empresaPorRef, error: refErr } = await supabase
       .from('empresas')
-      .select('id, plano, status')
+      .select('id, plano, status, plano_contratado')
       .eq('id', subscription.externalReference)
       .maybeSingle()
     if (refErr) {
@@ -237,13 +242,14 @@ export async function POST(request: NextRequest) {
       empresaId = empresaPorRef.id
       empresaPlano = empresaPorRef.plano
       empresaStatusAtual = empresaPorRef.status
+      empresaPlanoContratado = empresaPorRef.plano_contratado
     }
   }
 
   if (!empresaId) {
     const { data: empresa, error: empresaErr } = await supabase
       .from('empresas')
-      .select('id, plano, status')
+      .select('id, plano, status, plano_contratado')
       .eq('asaas_customer_id', customerId ?? '')
       .maybeSingle()
     if (empresaErr) {
@@ -252,10 +258,11 @@ export async function POST(request: NextRequest) {
     empresaId = empresa?.id ?? null
     empresaPlano = empresa?.plano ?? null
     empresaStatusAtual = empresa?.status ?? null
+    empresaPlanoContratado = empresa?.plano_contratado ?? null
   } else if (empresaPlano === null) {
     const { data: empresa, error: empresaErr } = await supabase
       .from('empresas')
-      .select('plano, status')
+      .select('plano, status, plano_contratado')
       .eq('id', empresaId)
       .maybeSingle()
     if (empresaErr) {
@@ -263,6 +270,7 @@ export async function POST(request: NextRequest) {
     }
     empresaPlano = empresa?.plano ?? null
     empresaStatusAtual = empresa?.status ?? null
+    empresaPlanoContratado = empresa?.plano_contratado ?? null
   }
 
   if (!empresaId) {
@@ -300,6 +308,19 @@ export async function POST(request: NextRequest) {
       .eq('asaas_event_id', asaasEventId)
     return NextResponse.json({ ok: true, skipped: 'interno' })
   }
+
+  // Plano contratado no /cadastro (spec planos-verticais-no-checkout.md).
+  // `planoContratadoValido` preserva null — trava anti-retroativo: só
+  // aplicamos `plano` na empresa (mais abaixo, PAYMENT_CONFIRMED/RECEIVED)
+  // quando ela realmente tem um plano_contratado válido, nunca em empresas
+  // anteriores a esta mudança. `planoParaCobranca` é a versão com fallback
+  // 'starter', usada para o plano/valor gravados em `assinaturas` — mesmo
+  // comportamento de sempre quando não há plano_contratado.
+  const planoContratadoValido: PlanoVendavel | null =
+    empresaPlanoContratado && (PLANOS_VENDAVEIS as readonly string[]).includes(empresaPlanoContratado)
+      ? (empresaPlanoContratado as PlanoVendavel)
+      : null
+  const planoParaCobranca: PlanoVendavel = planoContratadoValido ?? 'starter'
 
   // Atualizar empresa_id no evento agora que resolvemos
   await supabase
@@ -349,12 +370,12 @@ export async function POST(request: NextRequest) {
   if (event === 'SUBSCRIPTION_CREATED' && subscriptionId && !assinaturaJaRegistrada) {
     const { error: insertAssinaturaErr } = await supabase.from('assinaturas').insert({
       empresa_id:            empresaId,
-      plano:                 'starter',
+      plano:                 planoParaCobranca,
       asaas_subscription_id: subscriptionId,
       status:                'trial',
       billing_type:          'CREDIT_CARD',
       cycle:                 'MONTHLY',
-      value:                 147,
+      value:                 PRECO_POR_PLANO[planoParaCobranca],
     })
 
     if (insertAssinaturaErr && insertAssinaturaErr.code === '23505') {
@@ -402,8 +423,9 @@ export async function POST(request: NextRequest) {
       const { error: updateEmpresaErr } = await supabase
         .from('empresas')
         .update({
-          status:        'trial',
-          trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          status:            'trial',
+          trial_ends_at:     new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          valor_mensalidade: PRECO_POR_PLANO[planoParaCobranca],
         })
         .eq('id', empresaId)
         .eq('status', 'pendente_cartao')
@@ -506,10 +528,19 @@ export async function POST(request: NextRequest) {
         .eq('asaas_subscription_id', subscriptionId)
     }
 
-    // Cache de status na empresa (lido pelo gate de acesso)
+    // Cache de status na empresa (lido pelo gate de acesso). Quando a cobrança
+    // confirma (novoStatus='ativo') e a empresa tem plano_contratado válido —
+    // trava anti-retroativo: NUNCA quando plano_contratado é NULL —, aplica
+    // também o plano: é a conversão do trial em plano pago que faltava (spec
+    // planos-verticais-no-checkout.md). Idempotente: reaplicar o mesmo plano
+    // em toda cobrança mensal seguinte é inofensivo.
+    const updateEmpresaStatus: Record<string, unknown> = { status: novoStatus }
+    if (novoStatus === 'ativo' && planoContratadoValido) {
+      updateEmpresaStatus.plano = planoContratadoValido
+    }
     await supabase
       .from('empresas')
-      .update({ status: novoStatus })
+      .update(updateEmpresaStatus)
       .eq('id', empresaId)
   }
 

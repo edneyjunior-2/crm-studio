@@ -3,6 +3,12 @@
 import { useState } from 'react'
 import { useActionState } from 'react'
 import { criarEmpresa } from '../actions'
+import { PLANO_LABEL, precoFormatado } from '@/lib/planos'
+
+// Só os 3 planos que criarEmpresa() aceita hoje (o Zod da action valida
+// starter/pro/business). Verticais (advocacia/engenharia) são vendidas no
+// /cadastro; aqui o admin usa "Área de atuação" para o mesmo efeito.
+const PLANOS_PAGOS = ['starter', 'pro', 'business'] as const
 
 const TIPOS_ATUACAO = [
   { value: 'vendas',     label: 'CRM de Vendas',    desc: 'Pipeline, clientes, financeiro, contratos' },
@@ -170,9 +176,12 @@ export function NovaEmpresaForm() {
             <option value="trial">Trial — 14 dias grátis</option>
           </optgroup>
           <optgroup label="Planos pagos (cobra via Asaas)">
-            <option value="starter">Starter — R$ 149/mês</option>
-            <option value="pro">Pro — R$ 449/mês</option>
-            <option value="business">Business — R$ 990/mês</option>
+            {/* Preço de src/lib/planos.ts — este select cobra de verdade. */}
+            {PLANOS_PAGOS.map((p) => (
+              <option key={p} value={p}>
+                {PLANO_LABEL[p]} — {precoFormatado(p)}/mês
+              </option>
+            ))}
           </optgroup>
         </select>
       </div>

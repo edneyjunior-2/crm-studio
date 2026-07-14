@@ -1,4 +1,5 @@
 import 'server-only'
+import { PLANOS_VENDAVEIS, PRECO_POR_PLANO, PLANO_LABEL, type PlanoVendavel } from '@/lib/planos'
 
 const USER_AGENT = 'crm-studio'
 
@@ -102,18 +103,12 @@ export async function createCustomer(
   })
 }
 
-const PLANO_VALOR: Record<string, number> = {
-  free:     0,
-  trial:    0,
-  interno:  0,
-  starter:  149,
-  pro:      449,
-  business: 990,
-}
-
 /**
  * Cria uma assinatura recorrente mensal no Asaas.
- * Plano 'free' não deve gerar subscription (valor zero) — cabe ao caller verificar.
+ *
+ * Valor e rótulo vêm SEMPRE de src/lib/planos.ts (PRECO_POR_PLANO/PLANO_LABEL)
+ * — fonte única de preço do projeto (spec planos-verticais-no-checkout.md).
+ * Plano fora da whitelist de vendáveis lança erro: nunca cobrar 0 silenciosamente.
  */
 export async function createSubscription(
   asaasCustomerId: string,
@@ -121,13 +116,18 @@ export async function createSubscription(
   nextDueDate: string,                    // ISO date string: '2026-07-17'
   billingType: string = 'UNDEFINED',
 ): Promise<AsaasSubscription> {
+  if (!(PLANOS_VENDAVEIS as readonly string[]).includes(plano)) {
+    throw new Error(`Plano desconhecido: ${plano}`)
+  }
+  const planoVendavel = plano as PlanoVendavel
+
   return asaasRequest<AsaasSubscription>('POST', '/subscriptions', {
     customer:    asaasCustomerId,
     billingType,
-    value:       PLANO_VALOR[plano] ?? 0,
+    value:       PRECO_POR_PLANO[planoVendavel],
     nextDueDate,
     cycle:       'MONTHLY',
-    description: `Assinatura CRM Studio — Plano ${plano.charAt(0).toUpperCase() + plano.slice(1)}`,
+    description: `Assinatura CRM Studio — Plano ${PLANO_LABEL[planoVendavel]}`,
   })
 }
 
@@ -205,12 +205,13 @@ export async function createCheckout(params: {
   empresaId: string
   customer?: { name: string; email?: string; cpfCnpj?: string }
   value: number
+  plano: PlanoVendavel
   nextDueDate: string    // 'YYYY-MM-DD'
   successUrl: string
   cancelUrl: string
   expiredUrl: string
 }): Promise<AsaasCheckout> {
-  const { empresaId, customer, value, nextDueDate, successUrl, cancelUrl, expiredUrl } = params
+  const { empresaId, customer, value, plano, nextDueDate, successUrl, cancelUrl, expiredUrl } = params
   const digits = customer?.cpfCnpj?.replace(/\D/g, '') ?? ''
 
   return asaasRequest<AsaasCheckout>('POST', '/checkouts', {
@@ -223,7 +224,7 @@ export async function createCheckout(params: {
     },
     items: [{
       name:        'Assinatura CRM Studio',
-      description: 'Plano Starter — cobrança mensal recorrente',
+      description: `Plano ${PLANO_LABEL[plano]} — cobrança mensal recorrente`,
       value,
       quantity:    1,
       imageBase64: PIXEL_TRANSPARENTE_BASE64,

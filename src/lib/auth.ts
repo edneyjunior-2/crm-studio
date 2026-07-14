@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 type Role = 'admin' | 'socio' | 'comercial' | 'parceiro'
-export type PlanoEmpresa = 'free' | 'trial' | 'interno' | 'starter' | 'pro' | 'business'
+export type PlanoEmpresa = 'free' | 'trial' | 'interno' | 'starter' | 'pro' | 'business' | 'advocacia' | 'engenharia'
 export type StatusEmpresa = 'pendente_cartao' | 'trial' | 'ativo' | 'pendente' | 'atrasado' | 'suspenso' | 'cancelado'
 
 export interface AuthResult {

@@ -1,19 +1,21 @@
 import Link from 'next/link'
 import { Check, Zap, Scale, HardHat } from 'lucide-react'
 import { Reveal } from '@/components/marketing/motion'
+import { PRECO_POR_PLANO } from '@/lib/planos'
 
 export const metadata = {
   title: 'Preços · CRM Studio',
   description: 'Preço fixo por empresa, módulos que se adaptam ao seu negócio. 14 dias grátis para testar. Cartão só é cobrado no 15º dia.',
 }
 
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
 const PLANOS = [
   {
+    slug: 'starter' as const,
     name: 'Starter',
-    price: 'R$ 147',
     tagline: 'Para o time pequeno organizar o funil.',
     cta: 'Começar grátis',
-    href: '/cadastro',
     featured: false,
     features: [
       'Até 3 usuários',
@@ -25,11 +27,10 @@ const PLANOS = [
     ],
   },
   {
+    slug: 'pro' as const,
     name: 'Pro',
-    price: 'R$ 297',
     tagline: 'O comercial inteiro, com financeiro nativo.',
     cta: 'Começar grátis',
-    href: '/cadastro',
     featured: true,
     features: [
       'Usuários ilimitados',
@@ -42,11 +43,10 @@ const PLANOS = [
     ],
   },
   {
+    slug: 'business' as const,
     name: 'Business',
-    price: 'R$ 497',
     tagline: 'Operação completa, sem escolher módulo.',
     cta: 'Começar grátis',
-    href: '/cadastro',
     featured: false,
     features: [
       'Usuários ilimitados',
@@ -85,21 +85,21 @@ const ADDONS = [
 
 const VERTICAIS = [
   {
+    slug: 'advocacia' as const,
     icon: Scale,
     setor: 'Advocacia',
-    plano: 'R$ 247/mês',
     modulos: ['CRM + Pipeline', 'Financeiro com honorários', 'Processos jurídicos / DataJud + DJEN', 'Chat Inbox'],
   },
   {
+    slug: 'engenharia' as const,
     icon: HardHat,
     setor: 'Engenharia e Obras',
-    plano: 'R$ 347/mês',
     modulos: ['CRM + Pipeline', 'Financeiro de obras', 'Estoque e materiais', 'Gestão de contratos'],
   },
   {
+    slug: 'pro' as const,
     icon: Zap,
     setor: 'Comercial / Vendas',
-    plano: 'A partir de R$ 147/mês',
     modulos: ['CRM + Pipeline completo', 'Financeiro integrado', 'SDR WhatsApp (add-on)', 'Comissões e parceiros'],
   },
 ]
@@ -168,11 +168,11 @@ export default function PrecosPage() {
                   {p.tagline}
                 </p>
                 <div className="mt-5 flex items-baseline gap-1">
-                  <span className="font-heading text-4xl font-bold tracking-[-0.02em] tabular-nums">{p.price}</span>
+                  <span className="font-heading text-4xl font-bold tracking-[-0.02em] tabular-nums">{BRL.format(PRECO_POR_PLANO[p.slug])}</span>
                   <span className={`text-sm ${p.featured ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>/mês</span>
                 </div>
                 <Link
-                  href={p.href}
+                  href={`/cadastro?plano=${p.slug}`}
                   className={`mt-6 rounded-full px-5 py-3 text-center text-sm font-semibold transition-opacity hover:opacity-90 ${
                     p.featured ? 'bg-accent text-accent-foreground' : 'bg-foreground text-background'
                   }`}
@@ -251,7 +251,7 @@ export default function PrecosPage() {
                       </div>
                     </div>
                     <h3 className="font-heading text-lg font-semibold">{v.setor}</h3>
-                    <p className="mt-1 text-sm font-semibold text-accent">{v.plano}</p>
+                    <p className="mt-1 text-sm font-semibold text-accent">{BRL.format(PRECO_POR_PLANO[v.slug])}/mês</p>
                     <ul className="mt-4 flex flex-col gap-2">
                       {v.modulos.map((m) => (
                         <li key={m} className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -261,10 +261,10 @@ export default function PrecosPage() {
                       ))}
                     </ul>
                     <Link
-                      href="/contato"
+                      href={`/cadastro?plano=${v.slug}`}
                       className="mt-6 rounded-full border border-border px-4 py-2.5 text-center text-sm font-semibold transition-colors hover:bg-secondary"
                     >
-                      Falar com a gente
+                      Começar grátis
                     </Link>
                   </div>
                 </Reveal>

@@ -2,12 +2,17 @@
 
 import { useActionState } from 'react'
 import { assinarPlano } from './actions'
+import { PLANO_LABEL, precoFormatado } from '@/lib/planos'
 
-const PLANOS = [
-  { value: 'starter', nome: 'Starter',  preco: 'R$ 149/mês' },
-  { value: 'pro',     nome: 'Pro',       preco: 'R$ 449/mês' },
-  { value: 'business',nome: 'Business', preco: 'R$ 990/mês' },
-]
+// Preço vem de PRECO_POR_PLANO (src/lib/planos.ts) — é ESTE formulário que
+// dispara a cobrança (assinarPlano → createSubscription). Exibia R$149/449/990
+// cravado enquanto o Asaas cobrava outro valor: o cliente escolhia um preço e
+// era cobrado outro. Exibição e cobrança agora saem da mesma fonte.
+const PLANOS = (['starter', 'pro', 'business'] as const).map((p) => ({
+  value: p,
+  nome: PLANO_LABEL[p],
+  preco: `${precoFormatado(p)}/mês`,
+}))
 
 export function AssinaturaForm() {
   const [state, action, isPending] = useActionState(assinarPlano, null)

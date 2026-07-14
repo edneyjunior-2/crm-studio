@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { ShieldCheck, CreditCard } from 'lucide-react'
 import { getAuthUser } from '@/lib/auth'
+import { PLANO_LABEL, PRECO_POR_PLANO, type PlanoVendavel } from '@/lib/planos'
 import { ContinuarButton } from './continuar-button'
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 export default async function CadastroPagamentoPage() {
-  const { status } = await getAuthUser()
+  const { status, empresaId, supabase } = await getAuthUser()
 
   // Só quem está aguardando confirmação de cartão vê esta página. Qualquer
   // outro status já passou por aqui (ou nunca precisou) — manda pro dashboard,
@@ -18,6 +19,20 @@ export default async function CadastroPagamentoPage() {
   if (status !== 'pendente_cartao') {
     redirect('/dashboard')
   }
+
+  // Plano escolhido no /cadastro (empresas.plano_contratado). NULL (empresa
+  // anterior a essa mudança) cai em 'starter' — mesmo fallback do checkout em
+  // cadastro/pagamento/actions.ts (spec planos-verticais-no-checkout.md).
+  let plano: PlanoVendavel = 'starter'
+  if (empresaId) {
+    const { data } = await supabase
+      .from('empresas')
+      .select('plano_contratado')
+      .eq('id', empresaId)
+      .maybeSingle()
+    plano = (data?.plano_contratado as PlanoVendavel | null) ?? 'starter'
+  }
+  const precoFmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(PRECO_POR_PLANO[plano])
 
   return (
     <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center overflow-hidden px-4 py-16">
@@ -41,6 +56,13 @@ export default async function CadastroPagamentoPage() {
           cobrado agora — a primeira cobrança só acontece ao final do teste,
           e você pode cancelar antes disso sem custo.
         </p>
+
+        <div className="mt-5 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-center">
+          <p className="text-xs text-muted-foreground">Plano selecionado</p>
+          <p className="text-base font-semibold text-foreground">
+            {PLANO_LABEL[plano]} — {precoFmt}/mês
+          </p>
+        </div>
 
         <div className="mt-6">
           <ContinuarButton />

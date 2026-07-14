@@ -1,5 +1,6 @@
 import { getAuthUser } from '@/lib/auth'
 import { MODULOS_POR_PLANO, LIMITES_POR_PLANO, type Modulo } from '@/lib/modulos'
+import { PLANO_LABEL, PLANO_TAGLINE, precoFormatado } from '@/lib/planos'
 import type { PlanoEmpresa, StatusEmpresa } from '@/lib/auth'
 import { CheckCircle2, XCircle, Clock, AlertTriangle, CreditCard, Check, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
@@ -12,13 +13,20 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const PLANO_ORDER: PlanoEmpresa[] = ['starter', 'pro', 'business']
 
+// Preço vem de PRECO_POR_PLANO (src/lib/planos.ts), NUNCA de string cravada
+// aqui. Esta tela exibia R$149/449/990 enquanto o site anunciava R$147/297/497
+// e o Asaas cobrava outra coisa ainda — três fontes de preço divergindo. Quem
+// visse R$297 no site e desse upgrade por aqui seria cobrado R$449. Agora
+// exibição, cobrança e vitrine saem do mesmo lugar.
 const PLANOS_CONFIG: Record<PlanoEmpresa, { label: string; price: string; tagline: string; trial?: boolean }> = {
-  free:     { label: 'Free',     price: 'Grátis',       tagline: '7 dias para explorar sem cartão de crédito.', trial: true },
-  trial:    { label: 'Trial',    price: 'Grátis',       tagline: '7 dias para explorar.', trial: true },
-  interno:  { label: 'Interno',  price: 'Sem cobrança', tagline: 'Conta interna da plataforma.' },
-  starter:  { label: 'Starter',  price: 'R$ 149/mês',  tagline: 'Para o time pequeno vender mais.' },
-  pro:      { label: 'Pro',      price: 'R$ 449/mês',  tagline: 'O comercial completo, com financeiro.' },
-  business: { label: 'Business', price: 'R$ 990/mês',  tagline: 'Para a operação que precisa de tudo.' },
+  free:       { label: 'Free',               price: 'Grátis',       tagline: '7 dias para explorar sem cartão de crédito.', trial: true },
+  trial:      { label: 'Trial',              price: 'Grátis',       tagline: '7 dias para explorar.', trial: true },
+  interno:    { label: 'Interno',            price: 'Sem cobrança', tagline: 'Conta interna da plataforma.' },
+  starter:    { label: PLANO_LABEL.starter,    price: `${precoFormatado('starter')}/mês`,    tagline: PLANO_TAGLINE.starter },
+  pro:        { label: PLANO_LABEL.pro,        price: `${precoFormatado('pro')}/mês`,        tagline: PLANO_TAGLINE.pro },
+  business:   { label: PLANO_LABEL.business,   price: `${precoFormatado('business')}/mês`,   tagline: PLANO_TAGLINE.business },
+  advocacia:  { label: PLANO_LABEL.advocacia,  price: `${precoFormatado('advocacia')}/mês`,  tagline: PLANO_TAGLINE.advocacia },
+  engenharia: { label: PLANO_LABEL.engenharia, price: `${precoFormatado('engenharia')}/mês`, tagline: PLANO_TAGLINE.engenharia },
 }
 
 const MODULO_LABEL: Record<Modulo, string> = {

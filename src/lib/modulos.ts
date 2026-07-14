@@ -134,6 +134,22 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
     'estoque', 'rh',
     // 'processos' e 'obras' são verticais: entram via modulos_ativos (Área de atuação no admin)
   ],
+  // advocacia/engenharia (spec planos-verticais-no-checkout.md): planos verticais
+  // de verdade, vendidos com preço próprio no /precos — composição = pro + o
+  // módulo do setor. modulos_ativos (setado por handle_new_user no ramo
+  // fundador) reforça o mesmo módulo, o que é redundante mas inofensivo (Set).
+  advocacia: [
+    'pipeline', 'clientes', 'solucoes', 'calendario',
+    'parceiros', 'fluxos', 'contratos',
+    'financeiro', 'comissoes', 'automacoes',
+    'processos',
+  ],
+  engenharia: [
+    'pipeline', 'clientes', 'solucoes', 'calendario',
+    'parceiros', 'fluxos', 'contratos',
+    'financeiro', 'comissoes', 'automacoes',
+    'obras', 'estoque',
+  ],
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +189,9 @@ export const LIMITES_POR_PLANO: Record<
   starter:  { usuarios: 3,  funis: 1,  solucoes: 10 },
   pro:      { usuarios: 10, funis: 3,  solucoes: -1 },
   business: { usuarios: -1, funis: -1, solucoes: -1 },
+  // Mesmos limites do pro (spec planos-verticais-no-checkout.md) — PROVISÓRIO.
+  advocacia:  { usuarios: 10, funis: 3, solucoes: -1 },
+  engenharia: { usuarios: 10, funis: 3, solucoes: -1 },
 }
 
 // ---------------------------------------------------------------------------

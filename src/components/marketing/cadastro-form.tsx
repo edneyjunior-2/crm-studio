@@ -7,13 +7,22 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cadastrar } from '@/app/(marketing)/cadastro/actions'
+import { PLANOS_VENDAVEIS, PLANO_LABEL, PLANO_TAGLINE, PRECO_POR_PLANO, type PlanoVendavel } from '@/lib/planos'
+
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function CadastroForm() {
+interface CadastroFormProps {
+  /** Plano pré-selecionado (de ?plano= no /cadastro, já validado no servidor). */
+  plano: PlanoVendavel
+}
+
+export function CadastroForm({ plano }: CadastroFormProps) {
   const [serverError, setServerError] = useState<string | null>(null)
+  const [planoSelecionado, setPlanoSelecionado] = useState<PlanoVendavel>(plano)
   const [isPending, startTransition] = useTransition()
 
   // -------------------------------------------------------------------------
@@ -57,6 +66,47 @@ export function CadastroForm() {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Seletor de plano — cada radio já carrega name="plano" pro FormData,
+              sem precisar de input hidden (spec planos-verticais-no-checkout.md). */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Plano</Label>
+            <div className="flex flex-col gap-2">
+              {PLANOS_VENDAVEIS.map((slug) => (
+                <label
+                  key={slug}
+                  className={`flex cursor-pointer items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                    planoSelecionado === slug
+                      ? 'border-foreground bg-secondary'
+                      : 'border-border hover:bg-secondary/50'
+                  }`}
+                >
+                  <span className="flex items-start gap-2.5">
+                    <input
+                      type="radio"
+                      name="plano"
+                      value={slug}
+                      defaultChecked={slug === plano}
+                      onChange={() => setPlanoSelecionado(slug)}
+                      className="mt-0.5 size-4 shrink-0 cursor-pointer accent-foreground"
+                    />
+                    <span className="flex flex-col">
+                      <span className="font-medium text-foreground">{PLANO_LABEL[slug]}</span>
+                      <span className="text-xs text-muted-foreground">{PLANO_TAGLINE[slug]}</span>
+                    </span>
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap font-semibold text-foreground">
+                    {BRL.format(PRECO_POR_PLANO[slug])}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Você contratará o <strong className="text-foreground">{PLANO_LABEL[planoSelecionado]}</strong> por{' '}
+              <strong className="text-foreground">{BRL.format(PRECO_POR_PLANO[planoSelecionado])}/mês</strong>, cobrado
+              a partir do 15º dia.
+            </p>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">
               E-mail <span className="text-destructive">*</span>

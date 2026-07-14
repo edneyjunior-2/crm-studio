@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { sendWelcomeEmail } from '@/lib/email'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
+import { planoValido } from '@/lib/planos'
 
 export async function cadastrar(formData: FormData): Promise<{ error?: string }> {
   // Anti-abuso: 5 cadastros/hora por IP. FAIL-CLOSED de propósito — criamos o
@@ -22,6 +23,11 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
 
   const email = (formData.get('email') as string)?.trim()
   const aceiteTermo = formData.get('aceite_termo') === 'on'
+  // Entrada do usuário (vem do formulário, originada de ?plano= no /precos) —
+  // nunca confiar na string crua: whitelist no servidor (spec
+  // planos-verticais-no-checkout.md). O preço em si nunca é lido daqui; sai
+  // sempre de PRECO_POR_PLANO (ver cadastro/pagamento/actions.ts e o webhook).
+  const plano = planoValido(formData.get('plano'))
 
   if (!email) {
     return { error: 'Informe seu e-mail.' }
@@ -53,6 +59,7 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
     full_name: email,
     aceite_termos_versao: '1.0',
     aceite_em: aceiteEm,
+    plano_contratado: plano,
   }
 
   // ponytail: senha aleatória forte só para satisfazer a API do Supabase Auth —

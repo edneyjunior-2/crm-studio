@@ -13,12 +13,17 @@ import Link from 'next/link'
 const PLANO_ORDER: PlanoEmpresa[] = ['free', 'starter', 'pro', 'business']
 
 const planoLabel: Record<PlanoEmpresa, string> = {
-  free:     'Free',
-  trial:    'Trial',
-  interno:  'Interno',
-  starter:  'Starter',
-  pro:      'Pro',
-  business: 'Business',
+  free:       'Free',
+  trial:      'Trial',
+  interno:    'Interno',
+  starter:    'Starter',
+  pro:        'Pro',
+  business:   'Business',
+  // advocacia/engenharia não entram na escada de upgrade (PLANO_ORDER) — fora
+  // do escopo desta página — mas o Record precisa das duas chaves (spec
+  // planos-verticais-no-checkout.md ampliou PlanoEmpresa em src/lib/auth.ts).
+  advocacia:  'Advocacia',
+  engenharia: 'Engenharia e Obras',
 }
 
 const moduloLabel: Record<Modulo, string> = {

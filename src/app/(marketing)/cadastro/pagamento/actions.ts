@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthUser } from '@/lib/auth'
 import { createCheckout } from '@/lib/asaas'
 import { appUrl } from '@/lib/site-url'
+import { PRECO_POR_PLANO, type PlanoVendavel } from '@/lib/planos'
 
 export type IniciarCheckoutState = { error?: string; checkoutUrl?: string } | null
 
@@ -73,6 +74,18 @@ export async function iniciarCheckoutCartao(
   }
 
   try {
+    // Fonte da verdade do valor cobrado: empresas.plano_contratado (escolhido
+    // em /cadastro?plano=X, gravado por handle_new_user() no ramo fundador —
+    // spec planos-verticais-no-checkout.md). NULL = empresa anterior a essa
+    // mudança → cai no comportamento de sempre (starter/R$147), sem alterar
+    // nada retroativamente.
+    const { data: empresaPlanoRow } = await db
+      .from('empresas')
+      .select('plano_contratado')
+      .eq('id', empresaId)
+      .maybeSingle()
+    const plano: PlanoVendavel = (empresaPlanoRow?.plano_contratado as PlanoVendavel | null) ?? 'starter'
+
     // nextDueDate = hoje + 14 dias — é quando a 1ª cobrança REAL acontece.
     // O cartão é validado (não cobrado) no ato pelo Asaas.
     const due = new Date()
@@ -87,7 +100,8 @@ export async function iniciarCheckoutCartao(
     // assinatura é confirmada (SUBSCRIPTION_CREATED).
     const checkout = await createCheckout({
       empresaId,
-      value: 147,
+      value: PRECO_POR_PLANO[plano],
+      plano,
       nextDueDate,
       successUrl: `${base}/cadastro/pagamento/sucesso`,
       cancelUrl:  `${base}/cadastro/pagamento`,
