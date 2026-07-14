@@ -206,7 +206,19 @@ export default async function AssinaturaPage() {
             const isAtual = plano === planoAtual
             const planoIdx = PLANO_ORDER.indexOf(plano)
             const atualIdx = PLANO_ORDER.indexOf(planoAtual)
-            const isUpgrade = planoIdx > atualIdx
+            // Dois casos distintos de plano FORA da escada (atualIdx === -1),
+            // e eles não podem ser tratados igual (revisão adversarial
+            // 2026-07-14):
+            //
+            //  • free/trial → ainda não tem plano pago: TUDO é upgrade. É o uso
+            //    principal desta tela (o cliente em trial vem aqui assinar).
+            //  • advocacia/engenharia/interno → já tem plano; a escada linear
+            //    não se aplica. Antes, `planoIdx > -1` era sempre true e um
+            //    cliente Advocacia (R$247, com Processos) via Starter, Pro e
+            //    Business todos como "upgrade" — inclusive o Starter, que não
+            //    tem processos nem financeiro. Agora nenhum card vira CTA.
+            const semPlanoPago = planoAtual === 'free' || planoAtual === 'trial'
+            const isUpgrade = atualIdx >= 0 ? planoIdx > atualIdx : semPlanoPago
             const prevModulos = planoIdx > 0 ? MODULOS_POR_PLANO[PLANO_ORDER[planoIdx - 1]] : []
             const isNovo = (m: Modulo) => planoIdx > 0 && !prevModulos.includes(m)
 

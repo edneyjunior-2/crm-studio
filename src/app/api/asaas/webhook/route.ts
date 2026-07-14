@@ -528,14 +528,28 @@ export async function POST(request: NextRequest) {
         .eq('asaas_subscription_id', subscriptionId)
     }
 
-    // Cache de status na empresa (lido pelo gate de acesso). Quando a cobrança
-    // confirma (novoStatus='ativo') e a empresa tem plano_contratado válido —
-    // trava anti-retroativo: NUNCA quando plano_contratado é NULL —, aplica
-    // também o plano: é a conversão do trial em plano pago que faltava (spec
-    // planos-verticais-no-checkout.md). Idempotente: reaplicar o mesmo plano
-    // em toda cobrança mensal seguinte é inofensivo.
+    // Cache de status na empresa (lido pelo gate de acesso). Na CONVERSÃO —
+    // e só nela — aplica também o plano contratado: é a transição do trial em
+    // plano pago que faltava (spec planos-verticais-no-checkout.md).
+    //
+    // As três condições são todas necessárias:
+    //   novoStatus === 'ativo'    → a cobrança confirmou;
+    //   planoContratadoValido     → trava anti-retroativo: NUNCA em empresa com
+    //                               plano_contratado NULL (Saturnino, Aurumtax,
+    //                               qualquer conta anterior a esta mudança);
+    //   empresaPlano === 'trial'  → é a PRIMEIRA cobrança, não uma mensalidade
+    //                               qualquer.
+    //
+    // CRÍTICO (revisão adversarial 2026-07-14): sem o `empresaPlano === 'trial'`,
+    // isto reaplicaria plano_contratado em TODA cobrança mensal, pra sempre —
+    // e plano_contratado nunca é reescrito depois do cadastro. Cliente que
+    // negocia upgrade e tem o plano trocado no admin (atualizarEmpresa) seria
+    // silenciosamente REBAIXADO de volta ao plano original na mensalidade
+    // seguinte: pagando Business e perdendo financeiro/comissoes/automacoes,
+    // com os limites de Starter. Na prática, `empresas.plano` viraria um campo
+    // que o admin não consegue mais editar de forma durável.
     const updateEmpresaStatus: Record<string, unknown> = { status: novoStatus }
-    if (novoStatus === 'ativo' && planoContratadoValido) {
+    if (novoStatus === 'ativo' && planoContratadoValido && empresaPlano === 'trial') {
       updateEmpresaStatus.plano = planoContratadoValido
     }
     await supabase

@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthUser } from '@/lib/auth'
 import { createCheckout } from '@/lib/asaas'
 import { appUrl } from '@/lib/site-url'
-import { PRECO_POR_PLANO, type PlanoVendavel } from '@/lib/planos'
+import { PLANOS_VENDAVEIS, PRECO_POR_PLANO, type PlanoVendavel } from '@/lib/planos'
 
 export type IniciarCheckoutState = { error?: string; checkoutUrl?: string } | null
 
@@ -84,7 +84,18 @@ export async function iniciarCheckoutCartao(
       .select('plano_contratado')
       .eq('id', empresaId)
       .maybeSingle()
-    const plano: PlanoVendavel = (empresaPlanoRow?.plano_contratado as PlanoVendavel | null) ?? 'starter'
+    // VALIDA, não faz cast (revisão adversarial 2026-07-14): um cast de string
+    // crua do banco pra PlanoVendavel é uma promessa que o banco não cumpre —
+    // qualquer valor fora da whitelist (SQL manual, CHECK removido) faria
+    // PRECO_POR_PLANO[plano] === undefined e mandaria `value: undefined` pro
+    // Asaas no meio do checkout, sem tratamento. Fallback 'starter' (NÃO
+    // planoValido(), que cai em 'pro'): empresa sem plano_contratado é anterior
+    // a esta mudança e deve manter o comportamento de sempre — starter/R$147.
+    const planoBruto = empresaPlanoRow?.plano_contratado
+    const plano: PlanoVendavel =
+      typeof planoBruto === 'string' && (PLANOS_VENDAVEIS as readonly string[]).includes(planoBruto)
+        ? (planoBruto as PlanoVendavel)
+        : 'starter'
 
     // nextDueDate = hoje + 14 dias — é quando a 1ª cobrança REAL acontece.
     // O cartão é validado (não cobrado) no ato pelo Asaas.
