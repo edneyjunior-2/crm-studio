@@ -233,6 +233,18 @@ export async function buscarProcessoDataJud(
     ?.hits?.hits?.[0]?._source
   if (!hit) return { ok: false, motivo: 'nao_encontrado' }
 
+  return { ok: true, processo: parseHitParaProcesso(hit, slug, numero) }
+}
+
+// Extrai um DataJudProcesso a partir de um `_source` de hit do Elasticsearch.
+// Compartilhada pela busca individual e pela busca em lote — mesmo miolo,
+// pra não duplicar o parsing de órgão/assuntos/classe/área/vara/comarca/
+// movimentos/valor em dois lugares.
+function parseHitParaProcesso(
+  hit: Record<string, unknown>,
+  slug: string,
+  numeroProcesso: string,
+): DataJudProcesso {
   const orgao    = (hit.orgaoJulgador as { nome?: string } | undefined)?.nome ?? ''
   const assuntos = (hit.assuntos as { nome?: string }[] | undefined) ?? []
   const assunto  = assuntos[0]?.nome ?? ''
@@ -257,20 +269,140 @@ export async function buscarProcessoDataJud(
   const valor = typeof valorCausaRaw === 'number' ? valorCausaRaw : null
 
   return {
-    ok: true,
-    processo: {
-      numeroProcesso:  numero,
-      tribunalSlug:    slug,
-      dataAjuizamento: (hit.dataAjuizamento as string | undefined) ?? null,
-      assunto,
-      area,
-      vara,
-      comarca,
-      valor,
-      // A API pública do DataJud não retorna 'partes' (LGPD); fica sempre vazio.
-      partes:    [],
-      movimentos,
-    },
+    numeroProcesso,
+    tribunalSlug:    slug,
+    dataAjuizamento: (hit.dataAjuizamento as string | undefined) ?? null,
+    assunto,
+    area,
+    vara,
+    comarca,
+    valor,
+    // A API pública do DataJud não retorna 'partes' (LGPD); fica sempre vazio.
+    partes:    [],
+    movimentos,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Busca em lote (vários processos do MESMO tribunal numa única requisição)
+// ---------------------------------------------------------------------------
+
+const DATAJUD_LOTE_MAX = 200 // teto conservador — ver spec (DataJud aceita até 10k/página)
+
+// 90s: separado do timeout individual (15s) e sempre MAIOR que ele — invariante
+// obrigatória (ver spec cron-datajud-em-lote.md). Query `terms` com muitos
+// processos tem payload maior e o tjba respondeu até 32s em medição real; 90s
+// dá folga generosa e ainda cabe folgado nos 800s de maxDuration do cron.
+const DATAJUD_LOTE_TIMEOUT_MS = 90_000
+
+// Throttle entre sub-lotes (só entra em jogo quando numerosCNJ.length > 200 e
+// há mais de uma requisição sequencial) — mesmo valor usado pelo cron entre
+// consultas individuais, pra não estourar o limite público (~120 req/min).
+const DATAJUD_LOTE_THROTTLE_MS = 600
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+export async function buscarProcessosLoteTribunal(
+  numerosCNJ: string[],
+  tribunalSlug: string,
+): Promise<Map<string, DataJudResult>> {
+  const resultado = new Map<string, DataJudResult>()
+  if (numerosCNJ.length === 0) return resultado
+
+  for (let i = 0; i < numerosCNJ.length; i += DATAJUD_LOTE_MAX) {
+    if (i > 0) await sleep(DATAJUD_LOTE_THROTTLE_MS)
+    const subLote = numerosCNJ.slice(i, i + DATAJUD_LOTE_MAX)
+    await buscarSubLote(subLote, tribunalSlug, resultado)
+  }
+
+  return resultado
+}
+
+// Consulta um único sub-lote (<= DATAJUD_LOTE_MAX números) e grava no Map
+// compartilhado — em caso de erro, o mesmo DataJudResult de erro é gravado
+// para TODOS os números do sub-lote (nenhum fica sem entrada).
+async function buscarSubLote(
+  numerosOriginais: string[],
+  slug: string,
+  resultado: Map<string, DataJudResult>,
+): Promise<void> {
+  const porDigitos = new Map<string, string[]>() // dígitos puros → números originais (pode repetir)
+  for (const original of numerosOriginais) {
+    const digits = original.replace(/\D/g, '')
+    const lista = porDigitos.get(digits)
+    if (lista) lista.push(original)
+    else porDigitos.set(digits, [original])
+  }
+  const numerosDigits = [...porDigitos.keys()]
+
+  const gravarErroEmTodos = (motivo: DataJudErro) => {
+    for (const original of numerosOriginais) resultado.set(original, { ok: false, motivo })
+  }
+
+  const url  = `${DATAJUD_BASE}/api_publica_${slug}/_search`
+  const body = JSON.stringify({
+    query: { terms: { numeroProcesso: numerosDigits } },
+    size:  numerosDigits.length,
+  })
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), DATAJUD_LOTE_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        'Authorization': `APIKey ${DATAJUD_KEY}`,
+        'Content-Type':  'application/json',
+      },
+      body,
+      signal: controller.signal,
+      cache:  'no-store',
+    })
+  } catch (err) {
+    console.error(`[datajud] erro de rede ao consultar lote de ${slug} (${numerosOriginais.length} processos):`, err)
+    gravarErroEmTodos('rede')
+    return
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  if (!res.ok) {
+    console.error(`[datajud] HTTP ${res.status} ao consultar lote de ${slug} (${numerosOriginais.length} processos)`)
+    if (res.status === 401 || res.status === 403) gravarErroEmTodos('auth')
+    else if (res.status === 429)                  gravarErroEmTodos('rate_limit')
+    else                                           gravarErroEmTodos('indisponivel')
+    return
+  }
+
+  let json: unknown
+  try {
+    json = await res.json()
+  } catch (err) {
+    console.error(`[datajud] resposta inválida (não-JSON) do lote de ${slug} (${numerosOriginais.length} processos):`, err)
+    gravarErroEmTodos('indisponivel')
+    return
+  }
+
+  const hits = (json as { hits?: { hits?: { _source?: Record<string, unknown> }[] } })
+    ?.hits?.hits ?? []
+
+  const digitsEncontrados = new Set<string>()
+  for (const h of hits) {
+    const source = h._source
+    if (!source) continue
+    const numeroHitDigits = String(source.numeroProcesso ?? '').replace(/\D/g, '')
+    const originais = porDigitos.get(numeroHitDigits)
+    if (!originais) continue // hit não corresponde a nenhum número pedido (não deveria acontecer)
+    digitsEncontrados.add(numeroHitDigits)
+    const processo = parseHitParaProcesso(source, slug, normalizarNumeroCNJ(numeroHitDigits))
+    for (const original of originais) resultado.set(original, { ok: true, processo })
+  }
+
+  // Números consultados que não vieram em nenhum hit → não encontrado.
+  for (const [digits, originais] of porDigitos) {
+    if (digitsEncontrados.has(digits)) continue
+    for (const original of originais) resultado.set(original, { ok: false, motivo: 'nao_encontrado' })
   }
 }
 

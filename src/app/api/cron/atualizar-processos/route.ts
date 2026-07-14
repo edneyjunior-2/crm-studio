@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { buscarProcessoDataJud } from '@/lib/datajud'
+import { buscarProcessosLoteTribunal, type DataJudResult } from '@/lib/datajud'
 import { sendNovasMovimentacoesEmail } from '@/lib/email'
 import { verificarCronSecret } from '@/lib/cron-auth'
 
 export const maxDuration = 800 // Vercel Pro c/ Fluid Compute — teto GA sem beta (2026-07)
 
-// Throttle entre consultas ao DataJud (limite público ~120 req/min → ~1 req/600ms).
+// Throttle ENTRE TRIBUNAIS (não mais entre processos individuais — desde que
+// passamos a usar a busca em lote, 1 chamada já cobre todos os processos de um
+// tribunal na rodada). Mesmo valor de antes: limite público ~120 req/min → ~1 req/600ms.
 const THROTTLE_MS = 600
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -19,6 +21,18 @@ export async function POST(req: NextRequest) {
   return handler(req)
 }
 
+type ProcessoRow = {
+  id:              string
+  numero_processo: string
+  tribunal_slug:   string
+  empresa_id:      string
+  advogado_id:     string | null
+  assunto:         string | null
+}
+
+// Acumula processos com novas movimentações para notificar ao final (evita rate-limit de e-mail no meio do loop)
+type Notificacao = { advogadoId: string; processoId: string; numero: string; assunto: string | null; qtdNovas: number }
+
 async function handler(req: NextRequest) {
   // Proteção por secret (comparação timing-safe — ver src/lib/cron-auth.ts)
   if (!verificarCronSecret(req.headers.get('authorization'))) {
@@ -27,20 +41,15 @@ async function handler(req: NextRequest) {
 
   const db = createAdminClient()
 
-  // Processa os 14 mais desatualizados por rodada (NULLS FIRST = nunca sincronizados antes).
-  // Reduzido de 18 (2026-07-08): medição real contra o TJBA mostrou latência de
-  // 7-12s por request MESMO em respostas bem-sucedidas (não é só o caso-limite de
-  // 15s do timeout) — a estimativa anterior (18 × 15,6s ≈ 281s, quase no teto de
-  // 300s do maxDuration) não tinha folga pra absorver isso mais o overhead real de
-  // parsing/upsert de dezenas de movimentos por processo. Um cluster de 44
-  // processos TJBA ficou preso há dias porque toda rodada os selecionava juntos
-  // (por serem os "mais antigos") e a função provavelmente estourava o teto e era
-  // morta pela Vercel no meio do lote, sem nunca gravar ultimo_datajud_update —
-  // reprocessando o mesmo cluster travado pra sempre. 14 × (15s timeout + 600ms
-  // throttle) ≈ 218s, com ~82s de folga real. Com cron a cada 30 min: 262
-  // processos ÷ 14 por rodada ≈ 19 rodadas → cabe no mesmo dia dentro da janela
-  // de 11h, só um pouco mais devagar que antes.
-  const LOTE_CRON = 14
+  // Com a busca EM LOTE (1 request por tribunal, em vez de 1 por processo), o
+  // custo por processo despenca — o gargalo deixa de ser N requests HTTP (cada
+  // um pagando a latência/timeout do DataJud) e passa a ser N upserts no banco,
+  // que são baratos. Subido de 14 → 300 (2026-07-14, ver spec
+  // cron-datajud-em-lote.md): 300 processos ÷ ~200 por sub-lote
+  // (DATAJUD_LOTE_MAX em datajud.ts) ≈ no máximo 2 requests por tribunal no
+  // pior caso; os upserts de movimentações de 300 processos cabem folgados nos
+  // 800s de maxDuration do cron.
+  const LOTE_CRON = 300
   const { data: processos, error } = await db
     .from('processos_juridicos')
     .select('id, numero_processo, tribunal_slug, empresa_id, advogado_id, assunto')
@@ -56,127 +65,77 @@ async function handler(req: NextRequest) {
     return NextResponse.json({ atualizados: 0, novas_movimentacoes: 0 })
   }
 
-  let atualizados    = 0
-  let novasTotais    = 0
+  let atualizados = 0
+  let novasTotais = 0
   const erros: string[] = []
-  let i = 0
-
-  // Acumula processos com novas movimentações para notificar ao final (evita rate-limit de e-mail no meio do loop)
-  type Notificacao = { advogadoId: string; processoId: string; numero: string; assunto: string | null; qtdNovas: number }
   const notificacoes: Notificacao[] = []
 
-  for (const processo of processos) {
+  // Agrupa por tribunal_slug — a busca em lote consulta todos os processos de
+  // um mesmo tribunal numa única requisição.
+  const porTribunal = new Map<string, ProcessoRow[]>()
+  for (const p of processos as ProcessoRow[]) {
+    const lista = porTribunal.get(p.tribunal_slug)
+    if (lista) lista.push(p)
+    else porTribunal.set(p.tribunal_slug, [p])
+  }
+
+  let i = 0
+  for (const [slug, procs] of porTribunal) {
     if (i > 0) await sleep(THROTTLE_MS)
     i++
 
+    const numeros = procs.map((p) => p.numero_processo)
+    let resultados: Map<string, DataJudResult>
     try {
-      const res = await buscarProcessoDataJud(
-        processo.numero_processo,
-        processo.tribunal_slug,
-      )
-
-      if (!res.ok) {
-        // auth = chave inválida/sem acesso → erro de configuração: abortar o run
-        // inteiro (não adianta consultar os demais e ainda estoura rate limit).
-        if (res.motivo === 'auth') {
-          return NextResponse.json(
-            { error: 'DataJud: falha de autenticação (verifique DATAJUD_API_KEY)', atualizados, novas_movimentacoes: novasTotais },
-            { status: 502 },
-          )
-        }
-        // rate_limit → encerrar e reportar o que já foi feito; o próximo run continua.
-        if (res.motivo === 'rate_limit') {
-          erros.push('rate_limit atingido — interrompido')
-          break
-        }
-        if (res.motivo !== 'nao_encontrado') {
-          erros.push(`${processo.numero_processo}: ${res.motivo}`)
-        } else {
-          // Processo não indexado no DataJud ainda — marca como verificado hoje
-          // para não ficar no topo da fila a cada rodada.
-          await db
-            .from('processos_juridicos')
-            .update({ ultimo_datajud_update: new Date().toISOString() })
-            .eq('id', processo.id)
-        }
-        continue
-      }
-
-      // Encontrado mas sem movimentos: marca como verificado assim mesmo
-      if (!res.processo.movimentos.length) {
-        await db
-          .from('processos_juridicos')
-          .update({ ultimo_datajud_update: new Date().toISOString() })
-          .eq('id', processo.id)
-        atualizados++
-        continue
-      }
-
-      // Mapear movimentações para inserção (datajud.ts já filtrou datas inválidas)
-      const movsRaw = res.processo.movimentos.map((m) => {
-        const d = new Date(m.dataHora)
-        const dataMovimentacao =
-          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-        return {
-          processo_id:       processo.id,
-          empresa_id:        processo.empresa_id,
-          codigo_movimento:  m.codigo,
-          descricao:         m.nome,
-          complemento:       m.complemento || null,
-          data_movimentacao: dataMovimentacao,
-          lido:              false,
-          raw_data:          m,
-        }
-      })
-
-      // Deduplica por chave composta (processo_id|codigo_movimento|data_movimentacao)
-      // para evitar "ON CONFLICT DO UPDATE command cannot affect row a second time"
-      // quando o DataJud devolve 2 movimentos do mesmo código/dia no mesmo processo.
-      const movsDedup = new Map<string, typeof movsRaw[number]>()
-      for (const mov of movsRaw) {
-        const key = `${mov.processo_id}|${mov.codigo_movimento}|${mov.data_movimentacao}`
-        movsDedup.set(key, mov)
-      }
-      const movs = Array.from(movsDedup.values())
-
-      // Upsert com ON CONFLICT DO NOTHING — só insere movimentações genuinamente novas
-      const { data: inserted, error: errMovs } = await db
-        .from('movimentacoes_processo')
-        .upsert(movs, {
-          onConflict:       'processo_id,codigo_movimento,data_movimentacao',
-          ignoreDuplicates: true,
-        })
-        .select('id')
-
-      if (errMovs) {
-        erros.push(`${processo.numero_processo}: ${errMovs.message}`)
-        continue
-      }
-
-      const qtdNovas = inserted?.length ?? 0
-      novasTotais += qtdNovas
-
-      // Registra processo com novas movimentações para e-mail ao responsável
-      if (qtdNovas > 0 && processo.advogado_id) {
-        notificacoes.push({
-          advogadoId: processo.advogado_id as string,
-          processoId: processo.id,
-          numero:     processo.numero_processo,
-          assunto:    (processo.assunto as string | null) ?? null,
-          qtdNovas,
-        })
-      }
-
-      // Atualiza timestamp de última consulta DataJud
-      await db
-        .from('processos_juridicos')
-        .update({ ultimo_datajud_update: new Date().toISOString() })
-        .eq('id', processo.id)
-
-      atualizados++
+      resultados = await buscarProcessosLoteTribunal(numeros, slug)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      erros.push(`${processo.numero_processo}: ${msg}`)
+      erros.push(`${slug}: ${msg}`)
+      continue
+    }
+
+    // buscarSubLote (em datajud.ts) propaga o MESMO DataJudResult de erro pra
+    // todos os números de um sub-lote em caso de falha. Se todo o tribunal
+    // veio com o mesmo motivo auth/rate_limit, é o run inteiro que está com
+    // problema (erro de configuração ou limite global), não os processos —
+    // mesmo tratamento de hoje.
+    const motivos = new Set(
+      procs.map((p) => {
+        const r = resultados.get(p.numero_processo)
+        return r && !r.ok ? r.motivo : null
+      }),
+    )
+    const motivoUniforme = motivos.size === 1 ? [...motivos][0] : null
+
+    if (motivoUniforme === 'auth') {
+      // auth = chave inválida/sem acesso → erro de configuração: abortar o run
+      // inteiro (não adianta consultar os demais tribunais e ainda estoura rate limit).
+      return NextResponse.json(
+        { error: 'DataJud: falha de autenticação (verifique DATAJUD_API_KEY)', atualizados, novas_movimentacoes: novasTotais },
+        { status: 502 },
+      )
+    }
+    if (motivoUniforme === 'rate_limit') {
+      // rate_limit → encerrar e reportar o que já foi feito; o próximo run continua.
+      erros.push('rate_limit atingido — interrompido')
+      break
+    }
+
+    for (const processo of procs) {
+      const res = resultados.get(processo.numero_processo)
+      if (!res) {
+        erros.push(`${processo.numero_processo}: sem resultado do lote`)
+        continue
+      }
+      try {
+        const r = await processarResultado(db, processo, res, notificacoes)
+        if (r.atualizado) atualizados++
+        if (r.erro) erros.push(r.erro)
+        novasTotais += r.qtdNovas
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        erros.push(`${processo.numero_processo}: ${msg}`)
+      }
     }
   }
 
@@ -231,4 +190,100 @@ async function handler(req: NextRequest) {
     novas_movimentacoes: novasTotais,
     ...(erros.length ? { erros } : {}),
   })
+}
+
+// Processa o DataJudResult de UM processo: carimba ultimo_datajud_update
+// quando aplicável, mapeia/dedupe movimentos e faz o upsert. Extraída do loop
+// que hoje é por-tribunal (ver spec cron-datajud-em-lote.md) — mesma lógica
+// que já existia inline, só isolada pra não duplicar entre tribunais.
+async function processarResultado(
+  db: ReturnType<typeof createAdminClient>,
+  processo: ProcessoRow,
+  res: DataJudResult,
+  notificacoes: Notificacao[],
+): Promise<{ atualizado: boolean; erro: string | null; qtdNovas: number }> {
+  if (!res.ok) {
+    if (res.motivo === 'nao_encontrado') {
+      // Processo não indexado no DataJud ainda — marca como verificado hoje
+      // para não ficar no topo da fila a cada rodada.
+      await db
+        .from('processos_juridicos')
+        .update({ ultimo_datajud_update: new Date().toISOString() })
+        .eq('id', processo.id)
+      return { atualizado: false, erro: null, qtdNovas: 0 }
+    }
+    // rede/indisponivel (auth/rate_limit uniformes já tratados no chamador,
+    // por tribunal) — NÃO carimba, pra não mascarar; próxima rodada tenta de novo.
+    return { atualizado: false, erro: `${processo.numero_processo}: ${res.motivo}`, qtdNovas: 0 }
+  }
+
+  // Encontrado mas sem movimentos: marca como verificado assim mesmo
+  if (!res.processo.movimentos.length) {
+    await db
+      .from('processos_juridicos')
+      .update({ ultimo_datajud_update: new Date().toISOString() })
+      .eq('id', processo.id)
+    return { atualizado: true, erro: null, qtdNovas: 0 }
+  }
+
+  // Mapear movimentações para inserção (datajud.ts já filtrou datas inválidas)
+  const movsRaw = res.processo.movimentos.map((m) => {
+    const d = new Date(m.dataHora)
+    const dataMovimentacao =
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return {
+      processo_id:       processo.id,
+      empresa_id:        processo.empresa_id,
+      codigo_movimento:  m.codigo,
+      descricao:         m.nome,
+      complemento:       m.complemento || null,
+      data_movimentacao: dataMovimentacao,
+      lido:              false,
+      raw_data:          m,
+    }
+  })
+
+  // Deduplica por chave composta (processo_id|codigo_movimento|data_movimentacao)
+  // para evitar "ON CONFLICT DO UPDATE command cannot affect row a second time"
+  // quando o DataJud devolve 2 movimentos do mesmo código/dia no mesmo processo.
+  const movsDedup = new Map<string, typeof movsRaw[number]>()
+  for (const mov of movsRaw) {
+    const key = `${mov.processo_id}|${mov.codigo_movimento}|${mov.data_movimentacao}`
+    movsDedup.set(key, mov)
+  }
+  const movs = Array.from(movsDedup.values())
+
+  // Upsert com ON CONFLICT DO NOTHING — só insere movimentações genuinamente novas
+  const { data: inserted, error: errMovs } = await db
+    .from('movimentacoes_processo')
+    .upsert(movs, {
+      onConflict:       'processo_id,codigo_movimento,data_movimentacao',
+      ignoreDuplicates: true,
+    })
+    .select('id')
+
+  if (errMovs) {
+    return { atualizado: false, erro: `${processo.numero_processo}: ${errMovs.message}`, qtdNovas: 0 }
+  }
+
+  const qtdNovas = inserted?.length ?? 0
+
+  // Registra processo com novas movimentações para e-mail ao responsável
+  if (qtdNovas > 0 && processo.advogado_id) {
+    notificacoes.push({
+      advogadoId: processo.advogado_id,
+      processoId: processo.id,
+      numero:     processo.numero_processo,
+      assunto:    processo.assunto,
+      qtdNovas,
+    })
+  }
+
+  // Atualiza timestamp de última consulta DataJud
+  await db
+    .from('processos_juridicos')
+    .update({ ultimo_datajud_update: new Date().toISOString() })
+    .eq('id', processo.id)
+
+  return { atualizado: true, erro: null, qtdNovas }
 }
