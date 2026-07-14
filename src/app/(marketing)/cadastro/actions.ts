@@ -3,14 +3,20 @@
 import { headers } from 'next/headers'
 import { randomBytes } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { sendWelcomeEmail } from '@/lib/email'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
 
 export async function cadastrar(formData: FormData): Promise<{ error?: string }> {
-  // Anti-abuso: 5 cadastros/hora por IP
+  // Anti-abuso: 5 cadastros/hora por IP. FAIL-CLOSED de propósito — criamos o
+  // usuário pela Admin API (ver abaixo), o que contorna o rate limit nativo do
+  // signup público do Supabase. Este limiter é a ÚNICA barreira, e cada cadastro
+  // dispara handle_new_user (auth.users + empresas + profiles). Se ele abrisse
+  // na falha do banco, um atacante que satura o Postgres derrubaria justamente a
+  // trava que deveria contê-lo.
   const ip = clientIp(await headers())
-  if (!(await rateLimit(`cadastro:${ip}`, 5, 3600))) {
+  if (!(await rateLimit(`cadastro:${ip}`, 5, 3600, { failClosed: true }))) {
     return { error: 'Muitas tentativas de cadastro. Aguarde alguns minutos e tente novamente.' }
   }
 
@@ -49,8 +55,6 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
     aceite_em: aceiteEm,
   }
 
-  const supabase = await createClient()
-
   // ponytail: senha aleatória forte só para satisfazer a API do Supabase Auth —
   // a pessoa nunca escolhe nem vê essa senha. Ela define a própria senha depois
   // (Parte C/D: /definir-senha com a sessão já ativa, ou o link do e-mail de
@@ -58,20 +62,59 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
   // nem devolver este valor em nenhuma resposta.
   const senhaGerada = randomBytes(24).toString('base64url')
 
-  const { error } = await supabase.auth.signUp({
+  // Admin API (não signUp): com mailer_autoconfirm=false na instância, signUp()
+  // cria o usuário mas NÃO devolve sessão (a pessoa precisaria clicar num link
+  // de confirmação primeiro) — era isso que jogava todo mundo de volta pro
+  // login depois do cadastro (ver spec fix-cadastro-sem-sessao.md). createUser
+  // com email_confirm:true marca o e-mail como confirmado de forma
+  // determinística, sem depender daquela chave de config do painel, e evita
+  // que o Supabase mande o e-mail de confirmação dele (a pessoa já recebe o
+  // nosso). É a API oficial — cria a identity corretamente; nunca inserir em
+  // auth.users por SQL cru (identity sem provider_id/iss quebra a API admin
+  // do GoTrue inteira).
+  const admin = createAdminClient()
+  const { error: createError } = await admin.auth.admin.createUser({
     email,
     password: senhaGerada,
-    options: {
-      data: metadata,
-    },
+    email_confirm: true,
+    user_metadata: metadata,
   })
 
-  if (error) {
-    // Tratar erros conhecidos do Supabase Auth
-    if (error.message.includes('already registered') || error.message.includes('User already registered')) {
+  if (createError) {
+    // E-mail duplicado: a Admin API devolve code 'email_exists' (ou mensagem
+    // "already been registered"), diferente do "User already registered" do
+    // signUp público — cobrimos as duas formas para não quebrar se o texto mudar.
+    if (
+      createError.code === 'email_exists' ||
+      /already (been )?registered|already exists/i.test(createError.message)
+    ) {
       return { error: 'Este e-mail já está cadastrado. Faça login ou recupere sua senha.' }
     }
-    return { error: `Erro ao criar conta: ${error.message}` }
+    console.error('[cadastrar] erro ao criar usuário:', createError.message)
+    return { error: `Erro ao criar conta: ${createError.message}` }
+  }
+
+  // Estabelece a sessão (grava os cookies via client SSR) — sem isso,
+  // /cadastro/pagamento não encontra usuário autenticado e cai no loop
+  // silencioso pro /login. Fail-loud: só seguimos pro pagamento com sessão real.
+  const supabase = await createClient()
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password: senhaGerada,
+  })
+
+  if (signInError || !signInData.session) {
+    console.error(
+      '[cadastrar] conta criada mas sessão não foi estabelecida:',
+      signInError?.message ?? 'sessão ausente na resposta'
+    )
+    // NÃO mandar pra tela de login: a senha desta conta é aleatória e a pessoa
+    // nunca a viu — "faça login" seria uma porta trancada. O caminho aberto é
+    // definir a senha por "Esqueci minha senha"; depois disso o gate do CRM já
+    // a leva pro /cadastro/pagamento (status pendente_cartao).
+    return {
+      error: 'Sua conta foi criada, mas não conseguimos iniciar sua sessão. Acesse "Esqueci minha senha" com este e-mail para definir uma senha e continuar de onde parou.',
+    }
   }
 
   // sendWelcomeEmail swallows seus próprios erros — await seguro, não bloqueia se Resend falhar
