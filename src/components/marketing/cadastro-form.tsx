@@ -106,7 +106,7 @@ export function CadastroForm() {
             {isPending ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Criando conta...
+                Continuando...
               </>
             ) : (
               'Continuar para o pagamento'
