@@ -633,6 +633,58 @@ export async function salvarNivelAssinatura(
   return {}
 }
 
+/**
+ * Seta config.contrato_signatario_nome/_email (merge) — quem assina os
+ * contratos EM NOME DESTA EMPRESA (o CONTRATADO). O contrato tem linha de
+ * assinatura pros dois lados, então essa pessoa é adicionada como signatário
+ * em todo envio pro ZapSign, junto com a contraparte, e recebe o próprio link
+ * por e-mail (ver enviarParaAssinatura em src/app/(crm)/contratos/actions.ts).
+ * Ambos vazios = só a contraparte assina eletronicamente.
+ */
+export async function salvarSignatarioEmpresa(
+  empresaId: string,
+  signatario: { nome: string; email: string },
+): Promise<{ error?: string }> {
+  await getAuthPlatformAdmin()
+
+  const nome  = signatario.nome.trim()
+  const email = signatario.email.trim()
+
+  // Os dois juntos ou nenhum: um signatário sem e-mail não recebe o link de
+  // assinatura, e um e-mail sem nome não identifica quem assinou no documento.
+  if ((nome && !email) || (!nome && email)) {
+    return { error: 'Informe nome e e-mail do signatário — ou deixe os dois em branco.' }
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: 'E-mail do signatário inválido.' }
+  }
+
+  const db = createAdminClient()
+
+  const { data: emp } = await db
+    .from('empresas')
+    .select('config')
+    .eq('id', empresaId)
+    .single()
+
+  const configAtual = (emp?.config as Record<string, unknown> | null) ?? {}
+  const novoConfig = {
+    ...configAtual,
+    contrato_signatario_nome:  nome || null,
+    contrato_signatario_email: email || null,
+  }
+
+  const { error } = await db
+    .from('empresas')
+    .update({ config: novoConfig })
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/empresas/${empresaId}`)
+  return {}
+}
+
 // ---------------------------------------------------------------------------
 // Revogar API key
 // ---------------------------------------------------------------------------

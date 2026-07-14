@@ -597,9 +597,36 @@
         btn.title = 'Reativar este campo';
       }
       schedulePreview();
+      // Desativar/reativar um nome ou e-mail muda QUEM assina — o botão de
+      // assinatura tem que reavaliar (ver signatariosSemEmail).
+      atualizarEstadoBtnDocusign();
     });
   }
   document.querySelectorAll('.field-toggle').forEach(wireFieldToggle);
+
+  /* Restaura o estado "desativado" de um conjunto de campos (ao reabrir um
+     contrato salvo). Chamar DEPOIS de os grupos de sócio extra existirem no
+     DOM — senão os campos deles não recebem o estado visual. */
+  function aplicarDisabledFields(lista) {
+    disabledFields.clear();
+    (lista || []).forEach(function (f) { disabledFields.add(f); });
+    document.querySelectorAll('.field').forEach(function (fieldEl) {
+      var name = fieldEl.dataset.name;
+      var toggle = fieldEl.querySelector('.field-toggle');
+      if (!name || !toggle) return;
+      if (disabledFields.has(name)) {
+        fieldEl.classList.add('disabled');
+        toggle.classList.add('off');
+        toggle.textContent = '✓';
+        toggle.title = 'Reativar este campo';
+      } else {
+        fieldEl.classList.remove('disabled');
+        toggle.classList.remove('off');
+        toggle.textContent = '×';
+        toggle.title = 'Desativar este campo';
+      }
+    });
+  }
 
   /* =====================================================================
      "+ Adicionar responsável" — clona o bloco "Representante Legal" (grupo
@@ -648,14 +675,24 @@
       btnRemover.className = 'btn-remover-socio';
       btnRemover.textContent = '✕ Remover';
       btnRemover.addEventListener('click', function () {
+        // Tira os campos deste grupo do Set de desativados ANTES de remover do
+        // DOM. Sem isso, o índice é reciclado (remover o grupo 2 e adicionar
+        // outro devolve o índice 2) e o grupo NOVO herdaria a desativação do
+        // antigo: o campo apareceria ativo na tela, mas o sócio sumiria do PDF
+        // e da lista de signatários, sem erro nenhum.
+        clone.querySelectorAll('[data-field]').forEach(function (el) {
+          disabledFields.delete(el.dataset.field);
+        });
         clone.remove();
         schedulePreview();
+        atualizarEstadoBtnDocusign();
       });
       titulo.appendChild(btnRemover);
     }
 
     repsExtraContainer.appendChild(clone);
     schedulePreview();
+    atualizarEstadoBtnDocusign();
   }
 
   var btnAddSocio = document.getElementById('btn-add-socio');
@@ -812,42 +849,82 @@
   }
 
   /* =====================================================================
-     ASSINATURA ELETRÔNICA (ZapSign) — botão fica desabilitado até o e-mail
-     do signatário (PF_EMAIL no modo PF, REP_EMAIL no modo PJ) ser
-     preenchido. Habilitado, o clique gera o PDF (igual "Exportar PDF"),
-     salva no histórico E já dispara o envio pra assinatura num passo só —
-     o CRM (parent) que recebe o postMessage com autoEnviarAssinatura=true
-     é quem de fato chama a API do ZapSign (ver contratos-view.tsx).
+     ASSINATURA ELETRÔNICA (ZapSign) — o botão só habilita quando TODO
+     signatário que vai aparecer no documento tem e-mail: no modo PF, o
+     cliente (PF_EMAIL); no PJ, o representante legal (REP_EMAIL) e cada
+     responsável adicional preenchido (REP2_EMAIL, REP3_EMAIL, ...). Cada um
+     recebe o SEU link individual por e-mail, então quem não tem e-mail
+     simplesmente não conseguiria assinar.
+     Habilitado, o clique gera o PDF (igual "Exportar PDF"), salva no
+     histórico E pede pro CRM disparar o envio num passo só. Quem assina é
+     derivado no servidor a partir do próprio contrato salvo (ver
+     extrairSignatariosDaContraparte em (crm)/contratos/actions.ts) + o
+     signatário da empresa configurado no admin — o motor não monta essa
+     lista nem fala com a API do ZapSign.
      ===================================================================== */
   var btnDocusign = document.getElementById('btn-docusign');
 
-  function emailAssinaturaAtual() {
-    var campo = currentMode === 'pf' ? 'PF_EMAIL' : 'REP_EMAIL';
+  // Valor de um campo COMO ELE SAI NO PDF: campo desativado (botão ×) conta
+  // como vazio — quem foi desativado não aparece no documento e, portanto, não
+  // é signatário. Mesma regra que getFieldValues() aplica pro PDF e que o
+  // servidor aplica pra montar a lista de signatários.
+  function valorEfetivo(campo) {
+    if (disabledFields.has(campo)) return '';
     var el = document.querySelector('[data-field="' + campo + '"]');
     return el ? el.value.trim() : '';
   }
 
+  // Devolve os nomes de quem VAI ASSINAR mas está sem e-mail. Vazio = pode
+  // enviar. Espelha a validação do servidor (que é a que vale de fato).
+  function signatariosSemEmail() {
+    function faltando(campoNome, campoEmail) {
+      var nome = valorEfetivo(campoNome);
+      if (!nome) return null;                             // não é signatário
+      return valorEfetivo(campoEmail) ? null : nome;      // signatário sem e-mail
+    }
+
+    if (currentMode === 'pf') {
+      // Sem nome não há signatário nenhum — não dá pra enviar.
+      if (!valorEfetivo('PF_NOME')) return ['(cliente)'];
+      var pf = faltando('PF_NOME', 'PF_EMAIL');
+      return pf ? [pf] : [];
+    }
+
+    if (!valorEfetivo('REP_NOME')) return ['(representante legal)'];
+    var pendentes = [];
+    var principal = faltando('REP_NOME', 'REP_EMAIL');
+    if (principal) pendentes.push(principal);
+    indicesRepExtras().forEach(function (i) {
+      var extra = faltando('REP' + i + '_NOME', 'REP' + i + '_EMAIL');
+      if (extra) pendentes.push(extra);
+    });
+    return pendentes;
+  }
+
   function atualizarEstadoBtnDocusign() {
     if (!btnDocusign) return;
-    var habilitado = !!emailAssinaturaAtual();
+    var pendentes = signatariosSemEmail();
+    var habilitado = pendentes.length === 0;
     btnDocusign.disabled = !habilitado;
     btnDocusign.classList.toggle('btn-disabled', !habilitado);
     btnDocusign.title = habilitado
-      ? 'Salva o contrato e envia para assinatura eletrônica'
-      : 'Preencha o e-mail do signatário para habilitar o envio para assinatura';
+      ? 'Salva o contrato e envia o link de assinatura por e-mail para cada signatário'
+      : 'Sem e-mail para: ' + pendentes.join(', ') + ' — cada signatário recebe o link no próprio e-mail.';
   }
 
   if (btnDocusign) {
     btnDocusign.addEventListener('click', async function () {
       if (btnDocusign.disabled) return;
       if (!validarAntesDeExportar()) return;
-      var data = getFieldValues();
-      var email = emailAssinaturaAtual();
-      if (!email) { atualizarEstadoBtnDocusign(); return; }
-      var nome = currentMode === 'pf' ? (data.PF_NOME || '') : (data.REP_NOME || '');
+      var pendentes = signatariosSemEmail();
+      if (pendentes.length > 0) {
+        atualizarEstadoBtnDocusign();
+        toast('⚠ Sem e-mail para: ' + pendentes.join(', '));
+        return;
+      }
       try {
-        await gerarPdfContrato(data, true);
-        histAdd({ autoEnviarAssinatura: true, signatario: { nome: nome, email: email } });
+        await gerarPdfContrato(getFieldValues(), true);
+        histAdd({ autoEnviarAssinatura: true });
         toast('Gerando e enviando para assinatura eletrônica…');
       } catch (e) {
         console.error(e);
@@ -1097,14 +1174,19 @@
     // postMessage para o CRM parent — 'aurum_contrato_gerado' é o nome
     // HISTÓRICO do protocolo, mas é genérico: TODO template usa esse mesmo
     // tipo de evento, não renomear (ver comentário no topo do arquivo).
-    var payload = { type: 'aurum_contrato_gerado', entry: { nome: entry.nomeParceiro, tipo: entry.mode.toUpperCase(), data: entry.ts }, parceiro: { mode: currentMode, fields: rawFields }, pdfBase64: lastPdfBase64, pdfFileName: lastPdfFileName };
+    // `disabled` vai junto de propósito: o servidor usa a MESMA regra do PDF pra
+    // saber quem assina (ver extrairSignatariosDaContraparte em
+    // (crm)/contratos/actions.ts). Sem isso, alguém cujo campo foi DESATIVADO
+    // (botão ×) some do documento mas continuaria em `fields` com nome/e-mail
+    // — e receberia um link real de assinatura de um contrato onde não aparece.
+    var payload = { type: 'aurum_contrato_gerado', entry: { nome: entry.nomeParceiro, tipo: entry.mode.toUpperCase(), data: entry.ts }, parceiro: { mode: currentMode, fields: rawFields, disabled: [...disabledFields] }, pdfBase64: lastPdfBase64, pdfFileName: lastPdfFileName };
     // Botão "Assinatura eletrônica" (ver atualizarEstadoBtnDocusign): pede
-    // pro CRM, além de salvar, já disparar o envio pra assinatura — o motor
-    // não fala com a API do ZapSign diretamente (isso é server-side).
-    if (opts.autoEnviarAssinatura && opts.signatario) {
-      payload.autoEnviarAssinatura = true;
-      payload.signatario = opts.signatario;
-    }
+    // pro CRM, além de salvar, já disparar o envio pra assinatura. Não manda
+    // signatário: o servidor deriva a lista dos próprios campos do contrato
+    // (que vão em `parceiro.fields` acima) + o signatário da empresa — assim
+    // quem assina no ZapSign é exatamente quem está nas linhas de assinatura
+    // do PDF, sem chance de divergir.
+    if (opts.autoEnviarAssinatura) payload.autoEnviarAssinatura = true;
     try { window.parent.postMessage(payload, '*'); } catch (e) {}
   }
 
@@ -1127,25 +1209,7 @@
     // 1. Modo PJ/PF
     setModo(entry.mode);
 
-    // 2. Campos desativados
-    disabledFields.clear();
-    (entry.disabledFields || []).forEach(function (f) { disabledFields.add(f); });
-    document.querySelectorAll('.field').forEach(function (fieldEl) {
-      var name = fieldEl.dataset.name;
-      var toggle = fieldEl.querySelector('.field-toggle');
-      if (!name || !toggle) return;
-      if (disabledFields.has(name)) {
-        fieldEl.classList.add('disabled');
-        toggle.classList.add('off');
-        toggle.textContent = '✕';
-      } else {
-        fieldEl.classList.remove('disabled');
-        toggle.classList.remove('off');
-        toggle.textContent = '×';
-      }
-    });
-
-    // 3. Valores dos campos (garante os grupos de sócio extra ANTES de
+    // 2. Valores dos campos (garante os grupos de sócio extra ANTES de
     //    restaurar valores — ver garantirGruposRepExtrasParaCampos)
     garantirGruposRepExtrasParaCampos(entry.fields);
     document.querySelectorAll('[data-field]').forEach(function (input) {
@@ -1153,9 +1217,15 @@
       if (entry.fields && name in entry.fields) input.value = entry.fields[name];
     });
 
+    // 3. Campos desativados — DEPOIS de criar os grupos extras, senão os campos
+    //    deles (REP2_*, ...) ainda não existem no DOM e ficariam visualmente
+    //    ativos mesmo estando desativados na lógica.
+    aplicarDisabledFields(entry.disabledFields || []);
+
     atualizarHintExtenso();
     histClose();
     schedulePreview();
+    atualizarEstadoBtnDocusign();
     toast('✓ Contrato carregado — edite e exporte novamente se necessário.');
   }
 
@@ -1172,8 +1242,13 @@
       var name = input.dataset.field;
       if (name in fields) input.value = fields[name];
     });
+    // Restaura quais campos estavam DESATIVADOS (botão ×) — sem isso, reabrir
+    // um contrato "ressuscitaria" no PDF (e na lista de signatários) alguém que
+    // tinha sido deliberadamente tirado dele.
+    try { aplicarDisabledFields(d.dados.disabled || []); } catch (e) {}
     try { atualizarHintExtenso(); } catch (e) {}
     try { schedulePreview(); } catch (e) {}
+    try { atualizarEstadoBtnDocusign(); } catch (e) {}
     try { toast('✓ Contrato carregado — edite e exporte novamente.'); } catch (e) {}
   });
 

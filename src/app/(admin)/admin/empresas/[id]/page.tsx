@@ -257,6 +257,14 @@ export default async function EmpresaDetailPage({
           ((empresa as Record<string, unknown>).config as Record<string, unknown> | null)
             ?.contrato_nivel_assinatura as string | null ?? null
         }
+        signatarioNome={
+          ((empresa as Record<string, unknown>).config as Record<string, unknown> | null)
+            ?.contrato_signatario_nome as string | null ?? null
+        }
+        signatarioEmail={
+          ((empresa as Record<string, unknown>).config as Record<string, unknown> | null)
+            ?.contrato_signatario_email as string | null ?? null
+        }
       />
 
       {/* API Keys / Integração SDR */}

@@ -118,6 +118,12 @@ export async function criarDocumentoAssinatura(params: {
     signers: params.signatarios.map((s) => mapearSignatario(s, params.modalidade)),
   })
 
+  // NOTA: assinatura em PARALELO (todos recebem o link de uma vez, assinam em
+  // qualquer ordem) — é o default do ZapSign. Para exigir ordem (ex.: cliente
+  // primeiro, empresa depois) seria preciso `signature_order_active: true` no
+  // documento + `order_group` em cada signatário. Decisão do dono (2026-07-14):
+  // paralelo.
+
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), ZAPSIGN_TIMEOUT_MS)
 
@@ -160,6 +166,12 @@ export async function criarDocumentoAssinatura(params: {
   }
 
   const doc = json as { token?: string; signers?: Array<{ sign_url?: string }> }
+  // Cada signatário tem seu PRÓPRIO sign_url e já recebeu por e-mail
+  // (send_automatic_email). Guardamos o link do 1º (a contraparte) só como
+  // recurso de reenvio manual — ex.: o cliente diz que não recebeu o e-mail e
+  // o usuário reencaminha o link por WhatsApp. NÃO abrir esse link
+  // automaticamente no navegador de quem enviou: é o link pessoal de
+  // assinatura da contraparte.
   const linkAssinatura = doc.signers?.[0]?.sign_url
 
   if (!doc.token || !linkAssinatura) {
@@ -176,12 +188,21 @@ export async function criarDocumentoAssinatura(params: {
 
 function mapearSignatario(signatario: ZapSignSignatario, modalidade: ModalidadeAssinatura) {
   const { phone_country, phone_number } = separarTelefone(signatario.telefone)
+  if (!signatario.email) {
+    throw new Error(`Informe o e-mail de "${signatario.nome}" — cada signatário recebe o link de assinatura no próprio e-mail.`)
+  }
   return {
     name:          signatario.nome,
     email:         signatario.email,
     phone_country,
     phone_number,
     auth_mode:     resolverAuthMode(modalidade, signatario),
+    // CRÍTICO: o default do ZapSign é `false` — sem isso, o documento é criado
+    // e NINGUÉM é avisado (o link teria que ser entregue por fora, na mão).
+    // Com `true`, cada signatário recebe no PRÓPRIO e-mail o SEU link
+    // individual de assinatura. Confirmado na doc oficial (docs.zapsign.com.br,
+    // seção "Configurando signatários").
+    send_automatic_email: true,
   }
 }
 

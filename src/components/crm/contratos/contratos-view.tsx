@@ -8,10 +8,6 @@ import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
 import { salvarContratoGerado, excluirContratoGerado, enviarParaAssinatura } from '@/app/(crm)/contratos/actions'
 import type { ContratoGerado } from '@/app/(crm)/contratos/actions'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 
 function formatDateTime(iso: string) {
   const d = new Date(iso)
@@ -46,122 +42,15 @@ const STATUS_LABEL: Record<string, string> = {
   recusado: 'Recusado',
 }
 
-// Nunca em iframe — evita a classe de bug do post-mortem do gerador de
-// contratos (X-Frame-Options / CSP frame-ancestors quebrando embed).
-// window.open pode ser bloqueado pelo navegador quando roda depois de um
-// await de rede (não mais "colado" ao clique síncrono) — nesse caso avisa
-// que o link continua disponível pelo botão "Abrir link" da lista.
-function abrirLinkAssinatura(url: string) {
-  const aberto = window.open(url, '_blank', 'noopener')
-  if (!aberto) {
-    toast.info('O navegador bloqueou a nova aba — use o botão "Abrir link" na lista para acessar o link de assinatura.')
+// Toast de sucesso, listando quem recebeu o link. Cada signatário (contraparte,
+// responsáveis adicionais e quem assina pela empresa) recebe o SEU link
+// individual por e-mail — ver `send_automatic_email` em src/lib/zapsign.ts.
+function toastEnviado(signatarios?: string[]) {
+  if (signatarios?.length) {
+    toast.success(`Enviado para assinatura — link por e-mail para: ${signatarios.join(', ')}`)
+  } else {
+    toast.success('Enviado para assinatura — cada signatário recebeu o link por e-mail')
   }
-}
-
-function EnviarAssinaturaDialog({
-  contrato,
-  onOpenChange,
-  onEnviado,
-}: {
-  contrato: ContratoGerado | null
-  onOpenChange: (open: boolean) => void
-  onEnviado: () => void
-}) {
-  const [nome, setNome] = useState('')
-  const [email, setEmail] = useState('')
-  const [telefone, setTelefone] = useState('')
-  const [enviando, startEnviar] = useTransition()
-
-  useEffect(() => {
-    if (contrato) {
-      setNome(contrato.parceiro_nome ?? '')
-      setEmail('')
-      setTelefone('')
-    }
-  }, [contrato])
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!contrato) return
-    if (!nome.trim()) {
-      toast.error('Informe o nome do signatário')
-      return
-    }
-
-    startEnviar(async () => {
-      const res = await enviarParaAssinatura(contrato.id, {
-        nome:     nome.trim(),
-        email:    email.trim() || undefined,
-        telefone: telefone.trim() || undefined,
-      })
-      if (res.error) {
-        toast.error(res.error)
-        return
-      }
-      toast.success('Documento enviado para assinatura')
-      onOpenChange(false)
-      onEnviado()
-      if (res.linkAssinatura) abrirLinkAssinatura(res.linkAssinatura)
-    })
-  }
-
-  return (
-    <Dialog open={!!contrato} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Enviar para assinatura</DialogTitle>
-          <DialogDescription>
-            O signatário recebe um link do ZapSign para assinar eletronicamente.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="signatario_nome">
-              Nome <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="signatario_nome"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="signatario_email">E-mail</Label>
-            <Input
-              id="signatario_email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="signatario@email.com"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="signatario_telefone">Telefone (opcional)</Label>
-            <Input
-              id="signatario_telefone"
-              value={telefone}
-              onChange={(e) => setTelefone(e.target.value)}
-              placeholder="(11) 91234-5678"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={enviando}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={enviando}>
-              {enviando ? 'Enviando…' : 'Enviar'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
 }
 
 export function ContratosView({
@@ -177,7 +66,7 @@ export function ContratosView({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [activeTab, setActiveTab] = useState<'gerador' | 'historico'>('gerador')
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [assinaturaAlvo, setAssinaturaAlvo] = useState<ContratoGerado | null>(null)
+  const [enviandoId, setEnviandoId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   // Evita cadastrar o mesmo contrato duas vezes se o iframe disparar a mensagem repetida
@@ -279,21 +168,15 @@ export function ContratosView({
         // pra assinatura assim que o contrato terminar de salvar, sem passar
         // pela aba Histórico. Só dispara se o upload do PDF deu certo
         // (resContrato.avisoUpload ausente) — sem PDF no Storage não tem o
-        // que enviar pro ZapSign.
-        const autoEnviar = e.data?.autoEnviarAssinatura === true
-          ? (e.data.signatario as { nome?: string; email?: string; telefone?: string } | undefined)
-          : undefined
-        if (autoEnviar?.nome && resContrato.id && !resContrato.avisoUpload) {
-          const resAssinatura = await enviarParaAssinatura(resContrato.id, {
-            nome:     autoEnviar.nome,
-            email:    autoEnviar.email || undefined,
-            telefone: autoEnviar.telefone || undefined,
-          })
+        // que enviar pro ZapSign. Quem assina sai do próprio contrato salvo
+        // (ver extrairSignatariosDaContraparte no actions.ts), não de um campo
+        // digitado à parte.
+        if (e.data?.autoEnviarAssinatura === true && resContrato.id && !resContrato.avisoUpload) {
+          const resAssinatura = await enviarParaAssinatura(resContrato.id)
           if (resAssinatura.error) {
             toast.error(resAssinatura.error)
           } else {
-            toast.success('Contrato salvo e enviado para assinatura')
-            if (resAssinatura.linkAssinatura) abrirLinkAssinatura(resAssinatura.linkAssinatura)
+            toastEnviado(resAssinatura.signatarios)
           }
         } else {
           toast.success('Contrato salvo no histórico')
@@ -326,6 +209,24 @@ export function ContratosView({
         toast.error(`Não foi possível excluir: ${res.error}`)
       } else {
         toast.success('Contrato excluído')
+        router.refresh()
+      }
+    })
+  }
+
+  // Envio pela lista do Histórico (o gerador tem o próprio botão, que envia
+  // no mesmo passo da geração). Não pede nada: os signatários saem do próprio
+  // contrato salvo + do signatário da empresa configurado no admin — se faltar
+  // e-mail de alguém, a action devolve um erro dizendo de quem.
+  function enviarAssinatura(id: string) {
+    setEnviandoId(id)
+    startTransition(async () => {
+      const res = await enviarParaAssinatura(id)
+      setEnviandoId(null)
+      if (res.error) {
+        toast.error(res.error)
+      } else {
+        toastEnviado(res.signatarios)
         router.refresh()
       }
     })
@@ -428,23 +329,29 @@ export function ContratosView({
                       {statusEfetivo(item) === 'rascunho' && (
                         <button
                           type="button"
-                          title="Enviar para assinatura"
-                          onClick={() => setAssinaturaAlvo(item)}
-                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                          title="Envia o link de assinatura por e-mail para cada signatário do contrato"
+                          disabled={enviandoId === item.id}
+                          onClick={() => enviarAssinatura(item.id)}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
                         >
                           <Send className="size-3" />
-                          Enviar p/ assinatura
+                          {enviandoId === item.id ? 'Enviando…' : 'Enviar p/ assinatura'}
                         </button>
                       )}
                       {statusEfetivo(item) === 'enviado' && item.link_assinatura && (
                         <button
                           type="button"
-                          title="Abrir link de assinatura"
+                          // ATENÇÃO: é o link PESSOAL do 1º signatário (a contraparte principal).
+                          // Cada signatário — sócios adicionais e quem assina pela empresa — tem
+                          // o SEU próprio link, já enviado por e-mail. Reenviar ESTE link a outra
+                          // pessoa faria ela assinar no lugar da contraparte principal. Para
+                          // reenviar a um dos demais, usar o painel do ZapSign.
+                          title="Link do 1º signatário (contraparte principal) — só para reenviar a ELE, se não recebeu o e-mail. Os demais têm links próprios."
                           onClick={() => window.open(item.link_assinatura!, '_blank', 'noopener')}
                           className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
                         >
                           <ExternalLink className="size-3" />
-                          Abrir link
+                          Link do 1º signatário
                         </button>
                       )}
                       <button
@@ -475,11 +382,6 @@ export function ContratosView({
         </div>
       )}
 
-      <EnviarAssinaturaDialog
-        contrato={assinaturaAlvo}
-        onOpenChange={(open) => { if (!open) setAssinaturaAlvo(null) }}
-        onEnviado={() => router.refresh()}
-      />
     </div>
   )
 }

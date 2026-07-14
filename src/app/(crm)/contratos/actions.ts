@@ -132,30 +132,78 @@ export async function excluirContratoGerado(id: string): Promise<{ error?: strin
 }
 
 /**
+ * Extrai TODOS os signatários da contraparte a partir dos campos do contrato
+ * (`contratos_gerados.dados`, o `{ mode, fields, disabled }` que o gerador
+ * manda): no modo PF é o próprio cliente; no PJ é o representante legal + cada
+ * responsável adicional (REP2_*, REP3_*, ... — ver "+ Adicionar responsável"
+ * em public/contratos/engine.js). É o formulário do contrato a fonte da
+ * verdade de quem assina — não um campo digitado à parte, que poderia
+ * contradizer as linhas de assinatura impressas no PDF.
+ *
+ * `disabled` é a lista de campos que o usuário DESATIVOU no gerador (botão ×).
+ * Campo desativado não sai no PDF, logo quem foi desativado NÃO é signatário —
+ * mandar link de assinatura pra alguém que não consta no documento seria grave.
+ * Contratos antigos (salvos antes de o gerador mandar `disabled`) simplesmente
+ * não têm a chave: aí a lista vem vazia e nada é filtrado, que é o
+ * comportamento correto pra eles (não havia como desativar sem isso refletir).
+ */
+function extrairSignatariosDaContraparte(dados: unknown): Array<{ nome: string; email?: string }> {
+  const d = dados as { mode?: string; fields?: Record<string, string>; disabled?: string[] } | null
+  const fields = d?.fields
+  if (!fields) return []
+
+  const desativados = new Set(d?.disabled ?? [])
+  // Valor "como sai no PDF": campo desativado conta como vazio.
+  const valor = (campo: string) => (desativados.has(campo) ? '' : fields[campo]?.trim() || '')
+
+  if (d?.mode === 'pf') {
+    const nome = valor('PF_NOME')
+    return nome ? [{ nome, email: valor('PF_EMAIL') || undefined }] : []
+  }
+
+  const signatarios: Array<{ nome: string; email?: string }> = []
+  const principal = valor('REP_NOME')
+  if (principal) signatarios.push({ nome: principal, email: valor('REP_EMAIL') || undefined })
+
+  // Responsáveis adicionais, na ordem do índice (REP2_, REP3_, ...)
+  const indices = new Set<number>()
+  for (const chave of Object.keys(fields)) {
+    const m = /^REP(\d+)_NOME$/.exec(chave)
+    if (m) indices.add(Number(m[1]))
+  }
+  for (const i of [...indices].sort((a, b) => a - b)) {
+    const nome = valor(`REP${i}_NOME`)
+    if (nome) signatarios.push({ nome, email: valor(`REP${i}_EMAIL`) || undefined })
+  }
+
+  return signatarios
+}
+
+/**
  * Envia um contrato já gerado (com PDF no Storage) pra assinatura eletrônica
  * via ZapSign. Fluxo: valida o dono do contrato com o client de sessão (RLS),
- * baixa o PDF do Storage com o client admin, chama a API do ZapSign e grava
- * o resultado (token/link/nível) no registro.
+ * baixa o PDF do Storage com o client admin, monta a lista de signatários
+ * (contraparte + signatário da própria empresa, configurado no admin), chama
+ * a API do ZapSign e grava o resultado (token/link/modalidade) no registro.
+ *
+ * Cada signatário recebe o SEU link individual por e-mail (ver
+ * `send_automatic_email` em src/lib/zapsign.ts) — inclusive quem assina pela
+ * empresa. Todos assinam em paralelo, sem ordem imposta.
  */
 export async function enviarParaAssinatura(
   contratoId: string,
-  signatario: { nome: string; email?: string; telefone?: string },
-): Promise<{ error?: string; linkAssinatura?: string }> {
+): Promise<{ error?: string; linkAssinatura?: string; signatarios?: string[] }> {
   const { supabase, empresaId } = await getAuthUser()
   if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const erroModulo = await assertModulo('contratos')
   if (erroModulo) return { error: erroModulo }
 
-  if (!signatario.nome?.trim()) {
-    return { error: 'Informe o nome do signatário.' }
-  }
-
   // 1. Busca o contrato com o client de sessão — RLS garante que só um
   //    contrato da própria empresa é retornado.
   const { data: contrato, error: fetchErr } = await supabase
     .from('contratos_gerados')
-    .select('id, parceiro_nome, storage_path')
+    .select('id, parceiro_nome, storage_path, dados')
     .eq('id', contratoId)
     .maybeSingle()
 
@@ -194,7 +242,30 @@ export async function enviarParaAssinatura(
     ? modalidadeConfig
     : 'simples') as ModalidadeAssinatura
 
-  // 4. Chama o ZapSign. Erros (chave ausente, falha da API, ou dado de
+  // 4. Monta a lista de signatários: a contraparte (cliente/representante +
+  //    responsáveis adicionais, tirados do próprio formulário do contrato) e,
+  //    se configurado no admin, quem assina em nome da própria empresa — o
+  //    contrato tem linha de assinatura pros dois lados, então os dois lados
+  //    precisam receber o link.
+  const signatarios = extrairSignatariosDaContraparte(contrato.dados)
+  if (signatarios.length === 0) {
+    return { error: 'O contrato não tem nenhum signatário preenchido. Edite o contrato e informe ao menos o nome da contraparte.' }
+  }
+
+  const empresaNome  = (config.contrato_signatario_nome as string | undefined)?.trim()
+  const empresaEmail = (config.contrato_signatario_email as string | undefined)?.trim()
+  if (empresaNome && empresaEmail) {
+    signatarios.push({ nome: empresaNome, email: empresaEmail })
+  }
+
+  const semEmail = signatarios.filter((s) => !s.email).map((s) => s.nome)
+  if (semEmail.length > 0) {
+    return {
+      error: `Sem e-mail para: ${semEmail.join(', ')}. Cada signatário recebe o link no próprio e-mail — edite o contrato e preencha o e-mail de todos.`,
+    }
+  }
+
+  // 5. Chama o ZapSign. Erros (chave ausente, falha da API, ou dado de
   //    contato faltando pra modalidade escolhida) viram { error } tratável
   //    como toast pelo caller — criarDocumentoAssinatura já lança mensagens
   //    legíveis, nunca o corpo cru da resposta.
@@ -204,7 +275,7 @@ export async function enviarParaAssinatura(
     resultado = await criarDocumentoAssinatura({
       pdfBase64,
       nomeArquivo,
-      signatarios: [signatario],
+      signatarios,
       modalidade,
     })
   } catch (err) {
@@ -212,7 +283,7 @@ export async function enviarParaAssinatura(
     return { error: err instanceof Error ? err.message : 'Não foi possível enviar o documento para assinatura.' }
   }
 
-  // 5. Grava o resultado. Client admin: a RLS de UPDATE já escopa por
+  // 6. Grava o resultado. Client admin: a RLS de UPDATE já escopa por
   //    empresa, mas a Server Action já validou o dono do contrato acima via
   //    select com o client de sessão — usar admin aqui evita depender de a
   //    policy de UPDATE já estar recarregada no schema cache do PostgREST.
@@ -232,5 +303,8 @@ export async function enviarParaAssinatura(
   }
 
   revalidatePath('/contratos')
-  return { linkAssinatura: resultado.linkAssinatura }
+  return {
+    linkAssinatura: resultado.linkAssinatura,
+    signatarios: signatarios.map((s) => s.nome),
+  }
 }

@@ -3,8 +3,11 @@
 import { useRef, useState, useTransition } from 'react'
 import { FileText, Upload, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
-import { salvarModeloContrato, liberarModeloContrato, salvarNivelAssinatura } from '../actions'
+import { salvarModeloContrato, liberarModeloContrato, salvarNivelAssinatura, salvarSignatarioEmpresa } from '../actions'
 
+// 'sms' existe no banco/lib mas NÃO é oferecido: o gerador de contratos não
+// coleta telefone de signatário em lugar nenhum, então escolher SMS faria todo
+// envio falhar. Só reintroduzir junto com um campo de telefone no formulário.
 const NIVEL_LABEL: Record<string, string> = {
   simples: 'Simples (nome na tela)',
   email: 'Confirmação por e-mail',
@@ -27,9 +30,19 @@ interface Props {
    * usado no backend quando a chave está ausente do jsonb).
    */
   nivelAssinatura?: string | null
+  /** Quem assina os contratos em nome DESTA empresa (o CONTRATADO). */
+  signatarioNome?: string | null
+  signatarioEmail?: string | null
 }
 
-export function ModeloContratoSection({ empresaId, templatePath, aprovado, nivelAssinatura }: Props) {
+export function ModeloContratoSection({
+  empresaId,
+  templatePath,
+  aprovado,
+  nivelAssinatura,
+  signatarioNome,
+  signatarioEmail,
+}: Props) {
   const fileRef  = useRef<HTMLInputElement>(null)
   const [erro, setErro]     = useState<string | null>(null)
   const [ok,   setOk]       = useState<string | null>(null)
@@ -37,6 +50,9 @@ export function ModeloContratoSection({ empresaId, templatePath, aprovado, nivel
   const [toggling,  startToggle]   = useTransition()
   const [nivel, setNivel]          = useState(nivelAssinatura ?? 'simples')
   const [savingNivel, startNivel]  = useTransition()
+  const [sigNome,  setSigNome]     = useState(signatarioNome ?? '')
+  const [sigEmail, setSigEmail]    = useState(signatarioEmail ?? '')
+  const [savingSig, startSig]      = useTransition()
 
   function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -70,6 +86,17 @@ export function ModeloContratoSection({ empresaId, templatePath, aprovado, nivel
       const res = await salvarNivelAssinatura(empresaId, v as 'simples' | 'email' | 'sms' | 'qualificada')
       if (res.error) { setErro(res.error); setNivel(anterior); return }
       setOk('Nível de assinatura atualizado!')
+      setTimeout(() => setOk(null), 3000)
+    })
+  }
+
+  function handleSignatarioSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setErro(null); setOk(null)
+    startSig(async () => {
+      const res = await salvarSignatarioEmpresa(empresaId, { nome: sigNome, email: sigEmail })
+      if (res.error) { setErro(res.error); return }
+      setOk('Signatário da empresa salvo!')
       setTimeout(() => setOk(null), 3000)
     })
   }
@@ -180,11 +207,48 @@ export function ModeloContratoSection({ empresaId, templatePath, aprovado, nivel
           <SelectContent>
             <SelectItem value="simples">Simples (nome na tela)</SelectItem>
             <SelectItem value="email">Confirmação por e-mail</SelectItem>
-            <SelectItem value="sms">Confirmação por SMS</SelectItem>
             <SelectItem value="qualificada">Qualificada (ICP-Brasil) — paga</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {/* Signatário da própria empresa (o CONTRATADO) */}
+      <form onSubmit={handleSignatarioSubmit} className="flex flex-col gap-3 border-t border-border pt-4">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">
+            Quem assina pela empresa
+          </label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            O contrato tem assinatura dos dois lados. Esta pessoa é incluída como signatária em
+            todo contrato enviado e recebe o próprio link por e-mail. Deixe em branco se só a
+            contraparte assina.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <input
+            type="text"
+            value={sigNome}
+            onChange={(e) => setSigNome(e.target.value)}
+            placeholder="Nome completo"
+            className="w-56 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          />
+          <input
+            type="email"
+            value={sigEmail}
+            onChange={(e) => setSigEmail(e.target.value)}
+            placeholder="email@empresa.com.br"
+            className="w-64 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            disabled={savingSig}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90 disabled:opacity-60"
+          >
+            {savingSig && <Loader2 className="size-4 animate-spin" />}
+            Salvar
+          </button>
+        </div>
+      </form>
 
       {/* Feedback */}
       {erro && <p className="text-xs text-destructive">{erro}</p>}
