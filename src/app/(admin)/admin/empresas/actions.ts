@@ -599,13 +599,15 @@ export async function liberarModeloContrato(
 }
 
 /**
- * Seta config.contrato_nivel_assinatura (merge) — nível de assinatura eletrônica
- * usado pelo ZapSign para os contratos desta empresa ('avancada' default quando
- * ausente do jsonb). Advocacia tende a usar 'qualificada' (ônus da prova).
+ * Seta config.contrato_nivel_assinatura (merge) — modalidade de assinatura
+ * eletrônica usada pelo ZapSign para os contratos desta empresa ('simples'
+ * default quando ausente do jsonb). Só modalidades gratuitas (simples/email/
+ * sms) + qualificada (paga, deliberada) são aceitas — nunca WhatsApp/biometria.
+ * Advocacia tende a usar 'qualificada' (ônus da prova).
  */
 export async function salvarNivelAssinatura(
   empresaId: string,
-  nivel: 'avancada' | 'qualificada',
+  nivel: 'simples' | 'email' | 'sms' | 'qualificada',
 ): Promise<{ error?: string }> {
   await getAuthPlatformAdmin()
 

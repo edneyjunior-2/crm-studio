@@ -6,7 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { salvarModeloContrato, liberarModeloContrato, salvarNivelAssinatura } from '../actions'
 
 const NIVEL_LABEL: Record<string, string> = {
-  avancada: 'Avançada',
+  simples: 'Simples (nome na tela)',
+  email: 'Confirmação por e-mail',
+  sms: 'Confirmação por SMS',
   qualificada: 'Qualificada (ICP-Brasil)',
 }
 
@@ -17,10 +19,12 @@ interface Props {
   /** true = liberado para o cliente, false/null = em revisão. */
   aprovado: boolean
   /**
-   * 'avancada' | 'qualificada' — nível de assinatura eletrônica (ZapSign) desta
-   * empresa. Opcional: enquanto a página não repassar `empresas.config
-   * .contrato_nivel_assinatura`, cai no default 'avancada' (mesmo default usado
-   * no backend quando a chave está ausente do jsonb).
+   * 'simples' | 'email' | 'sms' | 'qualificada' — modalidade de assinatura
+   * eletrônica (ZapSign) desta empresa. Só modalidades gratuitas + qualificada
+   * (paga, deliberada) são oferecidas — nunca WhatsApp/biometria (consomem
+   * crédito). Opcional: enquanto a página não repassar `empresas.config
+   * .contrato_nivel_assinatura`, cai no default 'simples' (mesmo default
+   * usado no backend quando a chave está ausente do jsonb).
    */
   nivelAssinatura?: string | null
 }
@@ -31,7 +35,7 @@ export function ModeloContratoSection({ empresaId, templatePath, aprovado, nivel
   const [ok,   setOk]       = useState<string | null>(null)
   const [uploading, startUpload]   = useTransition()
   const [toggling,  startToggle]   = useTransition()
-  const [nivel, setNivel]          = useState(nivelAssinatura ?? 'avancada')
+  const [nivel, setNivel]          = useState(nivelAssinatura ?? 'simples')
   const [savingNivel, startNivel]  = useTransition()
 
   function handleUpload(e: React.FormEvent<HTMLFormElement>) {
@@ -63,7 +67,7 @@ export function ModeloContratoSection({ empresaId, templatePath, aprovado, nivel
     setErro(null); setOk(null)
     setNivel(v)
     startNivel(async () => {
-      const res = await salvarNivelAssinatura(empresaId, v as 'avancada' | 'qualificada')
+      const res = await salvarNivelAssinatura(empresaId, v as 'simples' | 'email' | 'sms' | 'qualificada')
       if (res.error) { setErro(res.error); setNivel(anterior); return }
       setOk('Nível de assinatura atualizado!')
       setTimeout(() => setOk(null), 3000)
@@ -155,14 +159,15 @@ export function ModeloContratoSection({ empresaId, templatePath, aprovado, nivel
         </div>
       )}
 
-      {/* Nível de assinatura eletrônica (ZapSign) */}
+      {/* Modalidade de assinatura eletrônica (ZapSign) */}
       <div className="flex flex-col gap-3 border-t border-border pt-4">
         <div>
           <label className="text-xs font-medium text-muted-foreground">
-            Nível de assinatura eletrônica
+            Modalidade de assinatura eletrônica
           </label>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Qualificada (ICP-Brasil) tem mais força probatória; avançada é mais rápida e barata.
+            Simples/e-mail/SMS não têm custo adicional. Qualificada (ICP-Brasil) tem mais força
+            probatória, mas consome crédito ZapSign por assinatura.
           </p>
         </div>
         <Select value={nivel} onValueChange={handleNivelChange}>
@@ -173,8 +178,10 @@ export function ModeloContratoSection({ empresaId, templatePath, aprovado, nivel
             </span>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="avancada">Avançada</SelectItem>
-            <SelectItem value="qualificada">Qualificada (ICP-Brasil)</SelectItem>
+            <SelectItem value="simples">Simples (nome na tela)</SelectItem>
+            <SelectItem value="email">Confirmação por e-mail</SelectItem>
+            <SelectItem value="sms">Confirmação por SMS</SelectItem>
+            <SelectItem value="qualificada">Qualificada (ICP-Brasil) — paga</SelectItem>
           </SelectContent>
         </Select>
       </div>

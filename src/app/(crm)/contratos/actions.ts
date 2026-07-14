@@ -4,7 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { assertModulo } from '@/lib/gating'
-import { criarDocumentoAssinatura } from '@/lib/zapsign'
+import { criarDocumentoAssinatura, type ModalidadeAssinatura } from '@/lib/zapsign'
+
+const MODALIDADES_VALIDAS: ModalidadeAssinatura[] = ['simples', 'email', 'sms', 'qualificada']
 
 const BUCKET_CONTRATOS_GERADOS = 'contratos-gerados'
 
@@ -23,7 +25,7 @@ export interface ContratoGerado {
   // 'rascunho'/null (ver contratos-view.tsx).
   status?: 'rascunho' | 'enviado' | 'assinado' | 'recusado' | null
   zapsign_doc_token?: string | null
-  zapsign_nivel?: 'avancada' | 'qualificada' | null
+  zapsign_nivel?: 'simples' | 'email' | 'sms' | 'qualificada' | null
   link_assinatura?: string | null
   signed_at?: string | null
   signed_storage_path?: string | null
@@ -177,7 +179,9 @@ export async function enviarParaAssinatura(
 
   const pdfBase64 = Buffer.from(await pdfBlob.arrayBuffer()).toString('base64')
 
-  // 3. Nível de assinatura configurado pra empresa (default 'avancada').
+  // 3. Modalidade de assinatura configurada pra empresa (default 'simples').
+  //    Só modalidades gratuitas + qualificada (paga, deliberada) são aceitas
+  //    — ver src/lib/zapsign.ts.
   const { data: empresa } = await supabase
     .from('empresas')
     .select('config')
@@ -185,13 +189,15 @@ export async function enviarParaAssinatura(
     .maybeSingle()
 
   const config = (empresa?.config as Record<string, unknown> | null) ?? {}
-  const nivel = ((config.contrato_nivel_assinatura as string | undefined) === 'qualificada'
-    ? 'qualificada'
-    : 'avancada') as 'avancada' | 'qualificada'
+  const modalidadeConfig = config.contrato_nivel_assinatura as string | undefined
+  const modalidade = (MODALIDADES_VALIDAS.includes(modalidadeConfig as ModalidadeAssinatura)
+    ? modalidadeConfig
+    : 'simples') as ModalidadeAssinatura
 
-  // 4. Chama o ZapSign. Erros (chave ausente, falha da API) viram { error }
-  //    tratável como toast pelo caller — criarDocumentoAssinatura já lança
-  //    mensagens legíveis, nunca o corpo cru da resposta.
+  // 4. Chama o ZapSign. Erros (chave ausente, falha da API, ou dado de
+  //    contato faltando pra modalidade escolhida) viram { error } tratável
+  //    como toast pelo caller — criarDocumentoAssinatura já lança mensagens
+  //    legíveis, nunca o corpo cru da resposta.
   const nomeArquivo = `Contrato - ${(contrato.parceiro_nome ?? contrato.id).slice(0, 200)}.pdf`
   let resultado: { token: string; linkAssinatura: string }
   try {
@@ -199,7 +205,7 @@ export async function enviarParaAssinatura(
       pdfBase64,
       nomeArquivo,
       signatarios: [signatario],
-      nivel,
+      modalidade,
     })
   } catch (err) {
     console.error('[enviarParaAssinatura] erro ao criar documento no ZapSign:', err)
@@ -215,7 +221,7 @@ export async function enviarParaAssinatura(
     .update({
       status:             'enviado',
       zapsign_doc_token:  resultado.token,
-      zapsign_nivel:      nivel,
+      zapsign_nivel:      modalidade,
       link_assinatura:    resultado.linkAssinatura,
     })
     .eq('id', contratoId)

@@ -38,15 +38,23 @@
  * - Autenticação da API: header `Authorization: Bearer <ZAPSIGN_API_KEY>`
  *   (confirmado no exemplo da doc de criar-documento).
  *
- * NÍVEL DE ASSINATURA (avançada vs. qualificada): a API do ZapSign NÃO tem um
- * campo dedicado tipo "nível" ou "força" — é controlado indiretamente pelo
- * `auth_mode` de cada signatário. `auth_mode: "certificadoDigital"` é a
- * assinatura com certificado digital no padrão ICP-Brasil (qualificada, tem
- * custo adicional por signatário segundo a doc). Qualquer outro `auth_mode`
- * (assinaturaTela, tokenEmail, tokenSms, tokenWhatsApp e combinações) é
- * assinatura avançada. Mapeamos `nivel: 'qualificada'` → sempre
- * `certificadoDigital`; `nivel: 'avancada'` → escolhe o canal com base no que
- * o signatário tem cadastrado (ver `resolverAuthMode` abaixo).
+ * MODALIDADE DE ASSINATURA: a API do ZapSign NÃO tem um campo dedicado tipo
+ * "nível" ou "força" — é controlado indiretamente pelo `auth_mode` de cada
+ * signatário. O admin escolhe a modalidade por empresa (ver
+ * `modelo-contrato-section.tsx`), entre 4 opções — decisão do dono em
+ * 2026-07-14: só expor modalidades SEM custo extra (simples/email/sms) mais a
+ * qualificada (paga, mantida de propósito pra advocacia — ônus da prova).
+ * Nunca expor tokenWhatsApp nem `selfie_validation_type` (biometria) como
+ * opção — ambos consomem crédito ZapSign e não fazem parte do escopo atual:
+ *
+ *   - 'simples'    → auth_mode "assinaturaTela" (só o nome na tela, sem 2º fator)
+ *   - 'email'      → auth_mode "assinaturaTela-tokenEmail" (exige e-mail do signatário)
+ *   - 'sms'        → auth_mode "assinaturaTela-tokenSms" (exige telefone do signatário)
+ *   - 'qualificada'→ auth_mode "certificadoDigital" (ICP-Brasil, paga)
+ *
+ * 'email'/'sms' exigem o dado de contato correspondente no signatário —
+ * `resolverAuthMode` lança erro claro se faltar, em vez de silenciosamente
+ * cair pra outra modalidade (o admin escolheu essa modalidade de propósito).
  *
  * WEBHOOK (para o agente que vai construir `src/app/api/webhooks/zapsign/route.ts`):
  * - https://docs.zapsign.com.br/webhooks/criar-webhook (e a versão em inglês)
@@ -86,11 +94,13 @@ export interface ZapSignSignatario {
   telefone?: string
 }
 
+export type ModalidadeAssinatura = 'simples' | 'email' | 'sms' | 'qualificada'
+
 export async function criarDocumentoAssinatura(params: {
   pdfBase64: string
   nomeArquivo: string
   signatarios: Array<{ nome: string; email?: string; telefone?: string }>
-  nivel: 'avancada' | 'qualificada'
+  modalidade: ModalidadeAssinatura
 }): Promise<{ token: string; linkAssinatura: string }> {
   const apiKey = process.env.ZAPSIGN_API_KEY
   if (!apiKey) {
@@ -105,7 +115,7 @@ export async function criarDocumentoAssinatura(params: {
     name: params.nomeArquivo,
     base64_pdf: params.pdfBase64,
     lang: 'pt-br',
-    signers: params.signatarios.map((s) => mapearSignatario(s, params.nivel)),
+    signers: params.signatarios.map((s) => mapearSignatario(s, params.modalidade)),
   })
 
   const controller = new AbortController()
@@ -164,27 +174,31 @@ export async function criarDocumentoAssinatura(params: {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function mapearSignatario(signatario: ZapSignSignatario, nivel: 'avancada' | 'qualificada') {
+function mapearSignatario(signatario: ZapSignSignatario, modalidade: ModalidadeAssinatura) {
   const { phone_country, phone_number } = separarTelefone(signatario.telefone)
   return {
     name:          signatario.nome,
     email:         signatario.email,
     phone_country,
     phone_number,
-    auth_mode:     resolverAuthMode(nivel, signatario),
+    auth_mode:     resolverAuthMode(modalidade, signatario),
   }
 }
 
-// `certificadoDigital` é o único auth_mode do ZapSign que representa a
-// assinatura qualificada (certificado ICP-Brasil) — ver nota no topo do
-// arquivo. Para "avançada", escolhe o canal de autenticação com base no que o
-// signatário tem cadastrado: e-mail é o canal mais comum e barato; telefone
-// vira SMS quando não há e-mail; sem nenhum dos dois, cai na assinatura em
-// tela pura (o signatário assina direto pelo link, sem 2º fator).
-function resolverAuthMode(nivel: 'avancada' | 'qualificada', signatario: ZapSignSignatario): string {
-  if (nivel === 'qualificada') return 'certificadoDigital'
-  if (signatario.email) return 'assinaturaTela-tokenEmail'
-  if (signatario.telefone) return 'assinaturaTela-tokenSms'
+// Mapeamento direto modalidade → auth_mode (ver nota no topo do arquivo).
+// 'email'/'sms' exigem o dado de contato correspondente — o admin escolheu
+// essa modalidade de propósito, então a ausência do dado vira erro claro em
+// vez de silenciosamente cair pra outra modalidade.
+function resolverAuthMode(modalidade: ModalidadeAssinatura, signatario: ZapSignSignatario): string {
+  if (modalidade === 'qualificada') return 'certificadoDigital'
+  if (modalidade === 'email') {
+    if (!signatario.email) throw new Error(`Informe o e-mail do signatário "${signatario.nome}" — a empresa exige confirmação por e-mail.`)
+    return 'assinaturaTela-tokenEmail'
+  }
+  if (modalidade === 'sms') {
+    if (!signatario.telefone) throw new Error(`Informe o telefone do signatário "${signatario.nome}" — a empresa exige confirmação por SMS.`)
+    return 'assinaturaTela-tokenSms'
+  }
   return 'assinaturaTela'
 }
 
