@@ -38,7 +38,7 @@ export async function salvarContratoGerado(input: {
    *  porque o engine.js antigo (sem essa mudança) ainda não manda o campo. */
   pdfBase64?: string
   pdfFileName?: string
-}): Promise<{ error?: string }> {
+}): Promise<{ error?: string; avisoUpload?: string }> {
   const { supabase, user, empresaId } = await getAuthUser()
   if (!empresaId) return { error: 'Empresa não encontrada.' }
 
@@ -64,8 +64,10 @@ export async function salvarContratoGerado(input: {
   // Upload do PDF pro Storage — best-effort. O registro do contrato já foi
   // salvo acima; se o upload falhar (hiccup transitório de Storage), não
   // derruba o fluxo inteiro (o parceiro e os dados já foram persistidos) —
-  // só loga. storage_path fica '' (mesmo comportamento de antes) e o usuário
-  // não consegue enviar pra assinatura até gerar de novo.
+  // só loga e devolve um aviso pro caller sinalizar (em vez de deixar o
+  // usuário descobrir só depois, ao tentar "Enviar para assinatura").
+  // storage_path fica '' (mesmo comportamento de antes) até gerar de novo.
+  let avisoUpload: string | undefined
   if (input.pdfBase64) {
     try {
       const buffer = Buffer.from(input.pdfBase64, 'base64')
@@ -77,6 +79,7 @@ export async function salvarContratoGerado(input: {
 
       if (upErr) {
         console.error('[salvarContratoGerado] falha ao subir PDF para o Storage:', upErr.message)
+        avisoUpload = 'O contrato foi salvo, mas o PDF não anexou — gere novamente antes de enviar para assinatura.'
       } else {
         const { error: updErr } = await supabase
           .from('contratos_gerados')
@@ -84,15 +87,17 @@ export async function salvarContratoGerado(input: {
           .eq('id', contrato.id)
         if (updErr) {
           console.error('[salvarContratoGerado] falha ao gravar storage_path:', updErr.message)
+          avisoUpload = 'O contrato foi salvo, mas o PDF não anexou — gere novamente antes de enviar para assinatura.'
         }
       }
     } catch (err) {
       console.error('[salvarContratoGerado] erro ao processar PDF base64:', err)
+      avisoUpload = 'O contrato foi salvo, mas o PDF não anexou — gere novamente antes de enviar para assinatura.'
     }
   }
 
   revalidatePath('/contratos')
-  return {}
+  return avisoUpload ? { avisoUpload } : {}
 }
 
 export async function listarContratosGerados(): Promise<ContratoGerado[]> {

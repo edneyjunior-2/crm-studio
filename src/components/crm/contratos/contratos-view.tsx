@@ -91,8 +91,14 @@ function EnviarAssinaturaDialog({
       onEnviado()
       // Nunca em iframe — evita a classe de bug do post-mortem do gerador de
       // contratos (X-Frame-Options / CSP frame-ancestors quebrando embed).
+      // window.open pode ser bloqueado pelo navegador aqui (roda depois de um
+      // await de rede, não mais "colado" ao clique síncrono) — nesse caso
+      // avisa que o link continua disponível pelo botão "Abrir link".
       if (res.linkAssinatura) {
-        window.open(res.linkAssinatura, '_blank', 'noopener')
+        const aberto = window.open(res.linkAssinatura, '_blank', 'noopener')
+        if (!aberto) {
+          toast.info('O navegador bloqueou a nova aba — use o botão "Abrir link" na lista para acessar o link de assinatura.')
+        }
       }
     })
   }
@@ -261,6 +267,9 @@ export function ContratosView({
         })
         if (resContrato.error) {
           toast.error(`Não foi possível salvar o contrato: ${resContrato.error}`)
+        } else if (resContrato.avisoUpload) {
+          toast.warning(resContrato.avisoUpload)
+          router.refresh()
         } else {
           toast.success('Contrato salvo no histórico')
           router.refresh()
