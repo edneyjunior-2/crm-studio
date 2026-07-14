@@ -1,11 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
+import { sanitizeNextPath } from '@/lib/safe-next'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
-  const rawNext = url.searchParams.get('next') ?? '/dashboard'
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/dashboard'
+  const next = sanitizeNextPath(url.searchParams.get('next'), url.origin)
 
   // O provedor (Supabase/Google) pode voltar com um erro em vez de code — nesse
   // caso o motivo real vem em ?error / ?error_description / ?error_code.

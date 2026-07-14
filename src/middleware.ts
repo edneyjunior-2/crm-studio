@@ -113,6 +113,12 @@ export async function middleware(request: NextRequest) {
       ? new URL(`https://app.crmstudio.com.br/login`)
       : request.nextUrl.clone()
     if (!isApp) loginUrl.pathname = '/login'
+    // Preserva a rota que o usuário tentou acessar (ex.: /admin) pra devolvê-lo
+    // pra lá depois do login — sem isso o Google sempre cai no /dashboard.
+    if (pathname !== '/') {
+      loginUrl.search = ''
+      loginUrl.searchParams.set('next', pathname)
+    }
     return NextResponse.redirect(loginUrl)
   }
 

@@ -3,20 +3,22 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { sanitizeNextPath } from '@/lib/safe-next'
 
 /** Botão "Entrar com Google" — disponível para todos os tenants. O acesso aos
  * dados continua gateado por convite/perfil (RLS), então logar com Google só dá
  * sessão; sem perfil/empresa o usuário não acessa nenhum tenant. */
-export function GoogleLoginButton() {
+export function GoogleLoginButton({ next }: { next?: string }) {
   const [carregando, setCarregando] = useState(false)
 
   async function entrarComGoogle() {
     setCarregando(true)
     const supabase = createClient()
+    const destino = encodeURIComponent(sanitizeNextPath(next, window.location.origin))
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/api/auth/callback?next=${destino}`,
       },
     })
     if (error) {

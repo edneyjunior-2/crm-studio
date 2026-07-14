@@ -6,11 +6,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 interface LoginPageProps {
-  searchParams: Promise<{ error?: string; cadastro?: string }>
+  searchParams: Promise<{ error?: string; cadastro?: string; next?: string }>
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { error, cadastro } = await searchParams
+  const { error, cadastro, next } = await searchParams
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
@@ -68,7 +68,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          <GoogleLoginButton />
+          <GoogleLoginButton next={next} />
         </div>
 
         <p className="mt-8 text-center text-sm text-muted-foreground">
