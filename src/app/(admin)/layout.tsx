@@ -1,6 +1,7 @@
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import Link from 'next/link'
 import { Building2, LayoutDashboard, Bug, Calculator, Megaphone } from 'lucide-react'
+import { Toaster } from '@/components/ui/sonner'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await getAuthPlatformAdmin()
@@ -58,6 +59,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <main className="flex-1 overflow-auto px-8 py-8">
         {children}
       </main>
+
+      {/* Toaster: o admin não montava — toasts (ex.: botão Sincronizar, Reanalisar) não apareciam */}
+      <Toaster richColors position="top-right" />
     </div>
   )
 }

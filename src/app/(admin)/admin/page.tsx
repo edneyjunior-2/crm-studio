@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { DollarSign, Building2, CheckCircle2, Users, Clock, ArrowRight, HardHat } from 'lucide-react'
+import { DollarSign, Building2, CheckCircle2, Users, Clock, ArrowRight, HardHat, Wrench } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { SincronizarProcessosButton } from '@/components/admin/sincronizar-processos-button'
 
 const STATUS_LABELS: Record<string, string> = {
   pendente_cartao: 'Aguardando cartão', trial: 'Trial', ativo: 'Ativo', pendente: 'Pendente',
@@ -107,6 +108,20 @@ export default async function AdminDashboardPage() {
           Visão geral da plataforma · {total} empresa{total !== 1 ? 's' : ''}
         </p>
       </div>
+
+      {/* Operação — ações manuais que normalmente só a Vercel dispara */}
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Wrench className="size-4 text-muted-foreground" />
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Operação</h2>
+            <p className="text-xs text-muted-foreground">
+              Roda a sincronização de processos (DataJud + DJEN) de todos os clientes agora, sem esperar o cron noturno.
+            </p>
+          </div>
+        </div>
+        <SincronizarProcessosButton />
+      </section>
 
       {/* KPIs principais */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
