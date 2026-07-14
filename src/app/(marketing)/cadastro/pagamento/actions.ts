@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthUser } from '@/lib/auth'
-import { createCustomer, createCheckout } from '@/lib/asaas'
+import { createCheckout } from '@/lib/asaas'
 import { appUrl } from '@/lib/site-url'
 
 export type IniciarCheckoutState = { error?: string; checkoutUrl?: string } | null
@@ -20,7 +20,7 @@ export async function iniciarCheckoutCartao(
   _prev: IniciarCheckoutState,
   _formData: FormData,
 ): Promise<IniciarCheckoutState> {
-  const { user, empresaId, status, role } = await getAuthUser()
+  const { empresaId, status, role } = await getAuthUser()
 
   if (role === 'parceiro') return { error: 'Acesso negado.' }
   if (!empresaId) return { error: 'Conta sem empresa vinculada.' }
@@ -54,7 +54,7 @@ export async function iniciarCheckoutCartao(
     .eq('id', empresaId)
     .eq('status', 'pendente_cartao')
     .or(`asaas_checkout_criado_em.is.null,asaas_checkout_criado_em.lt.${cutoffIso}`)
-    .select('nome, cnpj, cpf, asaas_customer_id')
+    .select('id')
     .maybeSingle()
 
   if (!claim) {
@@ -72,21 +72,7 @@ export async function iniciarCheckoutCartao(
     return { error: 'Já iniciamos seu checkout há poucos instantes. Aguarde alguns segundos e tente novamente.' }
   }
 
-  const email = user.email ?? ''
-  const cpfCnpj = (claim.cnpj as string | null) || (claim.cpf as string | null) || undefined
-  const nome = (claim.nome as string | null) ?? ''
-
   try {
-    let customerId = claim.asaas_customer_id as string | null
-
-    // Cria customer no Asaas somente se ainda não existir (reconciliação —
-    // salvo para o fallback de resolução do webhook por asaas_customer_id).
-    if (!customerId) {
-      const customer = await createCustomer(empresaId, nome, email, cpfCnpj)
-      customerId = customer.id
-      await db.from('empresas').update({ asaas_customer_id: customerId }).eq('id', empresaId)
-    }
-
     // nextDueDate = hoje + 14 dias — é quando a 1ª cobrança REAL acontece.
     // O cartão é validado (não cobrado) no ato pelo Asaas.
     const due = new Date()
@@ -94,9 +80,13 @@ export async function iniciarCheckoutCartao(
     const nextDueDate = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`
 
     const base = appUrl()
+    // Sem customer/customerData: nome, CPF/CNPJ e e-mail são preenchidos pela
+    // própria pessoa na página hospedada do Checkout Asaas (ver spec
+    // checkout-email-unico-asaas-coleta-dados.md). O webhook faz o backfill
+    // desses dados reais em `empresas` via GET /customers/{id} depois que a
+    // assinatura é confirmada (SUBSCRIPTION_CREATED).
     const checkout = await createCheckout({
       empresaId,
-      customer: { name: nome, email, cpfCnpj },
       value: 147,
       nextDueDate,
       successUrl: `${base}/cadastro/pagamento/sucesso`,

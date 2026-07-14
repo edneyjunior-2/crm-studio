@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { cancelSubscription } from '@/lib/asaas'
+import { cancelSubscription, getCustomer } from '@/lib/asaas'
 import { sendAlertaInterno, sendAcessoLiberadoEmail } from '@/lib/email'
 import { appUrl } from '@/lib/site-url'
 import { timingSafeEqual, createHash } from 'crypto'
@@ -80,10 +80,17 @@ function faturasStatusFromEvent(event: string): string | null {
  * fundador é resolvido em `profiles` (que tem essas colunas) primeiro, e o
  * e-mail é lido depois na view (mesmo padrão de reenviarConviteEmail em
  * src/app/(admin)/admin/empresas/actions.ts).
+ *
+ * `nomeReal`, quando informado, é o nome que a pessoa digitou de verdade no
+ * Checkout Asaas (ver backfill em SUBSCRIPTION_CREATED) — sobrepõe o
+ * `profiles.full_name` (que até esse ponto ainda é o placeholder de e-mail
+ * gravado por handle_new_user() no /cadastro reduzido). Sem `nomeReal`
+ * (getCustomer falhou), cai no fallback de sempre.
  */
 async function enviarEmailAcessoLiberado(
   supabase: ReturnType<typeof createAdminClient>,
   empresaId: string,
+  nomeReal?: string,
 ): Promise<void> {
   const { data: fundador } = await supabase
     .from('profiles')
@@ -112,7 +119,7 @@ async function enviarEmailAcessoLiberado(
     return
   }
 
-  await sendAcessoLiberadoEmail({ to: email, nome: fundador.full_name ?? email, linkAcesso: link })
+  await sendAcessoLiberadoEmail({ to: email, nome: nomeReal ?? fundador.full_name ?? email, linkAcesso: link })
 }
 
 // ---------------------------------------------------------------------------
@@ -401,14 +408,49 @@ export async function POST(request: NextRequest) {
         .eq('id', empresaId)
         .eq('status', 'pendente_cartao')
 
-      // E-mail de acesso (spec onboarding-senha-pos-pagamento.md, Parte B) —
-      // só dispara quando o UPDATE acima teve sucesso, ou seja, só na
-      // transição real pendente→trial. Fire-and-forget: erro de e-mail nunca
-      // derruba o processamento do evento (mesmo padrão do sendAlertaInterno
-      // acima neste arquivo) — se falhar, a sessão original (Parte D) ainda
-      // permite a pessoa continuar.
       if (!updateEmpresaErr) {
-        enviarEmailAcessoLiberado(supabase, empresaId).catch((e: unknown) => {
+        // Backfill dos dados reais do pagador — coletados na própria tela do
+        // Checkout Asaas, já que /cadastro/pagamento não pré-cria customer
+        // nem manda customerData (ver spec
+        // checkout-email-unico-asaas-coleta-dados.md e iniciarCheckoutCartao).
+        // Até aqui empresas.nome/... ainda tem o placeholder (e-mail) gravado
+        // por handle_new_user(). Buscamos ANTES do e-mail de acesso pra poder
+        // usar o nome real nele também. Falha aqui (getCustomer indisponível)
+        // NÃO derruba o processamento do evento — a empresa fica com o
+        // placeholder até reconciliação manual (pior caso aceitável, não
+        // bloqueia o acesso da pessoa ao CRM).
+        let nomeReal: string | undefined
+        if (customerId) {
+          try {
+            const customer = await getCustomer(customerId)
+            if (customer.name) {
+              nomeReal = customer.name
+              const digits = (customer.cpfCnpj ?? '').replace(/\D/g, '')
+              const isPf = digits.length === 11
+              const isPj = digits.length === 14
+              const updateCustomerData: Record<string, unknown> = {
+                nome:         customer.name,
+                razao_social: isPj ? customer.name : null,
+                cnpj:         isPj ? digits : null,
+                cpf:          isPf ? digits : null,
+              }
+              if (isPf) updateCustomerData.tipo_pessoa = 'pf'
+              if (isPj) updateCustomerData.tipo_pessoa = 'pj'
+
+              await supabase.from('empresas').update(updateCustomerData).eq('id', empresaId)
+            }
+          } catch (e) {
+            console.error('[webhook] falha ao buscar/gravar dados reais do customer Asaas:', e)
+          }
+        }
+
+        // E-mail de acesso (spec onboarding-senha-pos-pagamento.md, Parte B) —
+        // só dispara quando o UPDATE acima teve sucesso, ou seja, só na
+        // transição real pendente→trial. Fire-and-forget: erro de e-mail nunca
+        // derruba o processamento do evento (mesmo padrão do sendAlertaInterno
+        // acima neste arquivo) — se falhar, a sessão original (Parte D) ainda
+        // permite a pessoa continuar.
+        enviarEmailAcessoLiberado(supabase, empresaId, nomeReal).catch((e: unknown) => {
           console.error('[webhook] falha ao enviar e-mail de acesso liberado:', e)
         })
       }

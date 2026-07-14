@@ -138,6 +138,16 @@ export async function getPayment(paymentId: string): Promise<AsaasPayment> {
   return asaasRequest<AsaasPayment>('GET', `/payments/${paymentId}`)
 }
 
+/**
+ * Busca os dados de um cliente específico — nome/CPF-CNPJ/e-mail reais que a
+ * pessoa informou na tela do Checkout hospedado. O payload do webhook não
+ * traz esses dados de volta (só o id do customer), por isso o backfill em
+ * SUBSCRIPTION_CREATED busca aqui (ver src/app/api/asaas/webhook/route.ts).
+ */
+export async function getCustomer(customerId: string): Promise<AsaasCustomer> {
+  return asaasRequest<AsaasCustomer>('GET', `/customers/${customerId}`)
+}
+
 export interface AsaasDeletedSubscription {
   id: string
   deleted: boolean
@@ -180,16 +190,20 @@ const PIXEL_TRANSPARENTE_BASE64 =
  *
  * Nota de schema (verificado na doc oficial em 2026-07):
  *  - NÃO existe campo `customer` (id de cliente já existente) no body deste
- *    endpoint — só `customerData` (dados soltos). Por isso recebemos os dados
- *    do pagador aqui, mesmo que a empresa já tenha um `asaas_customer_id`
- *    salvo (criado antes, via createCustomer, só para reconciliação —
- *    ver iniciarCheckoutCartao).
+ *    endpoint — só `customerData` (dados soltos).
+ *  - `customer` é opcional aqui: quando omitido, `customerData` não é enviado
+ *    e a própria Asaas deixa a pessoa preencher nome/CPF-CNPJ/e-mail na
+ *    página hospedada do Checkout (doc oficial:
+ *    https://docs.asaas.com/docs/how-to-provide-customer-data). Os dados
+ *    reais informados são recuperados depois via `getCustomer()` no webhook
+ *    (SUBSCRIPTION_CREATED) e gravados em `empresas` — ver
+ *    src/app/api/asaas/webhook/route.ts.
  *  - O valor da cobrança vem de `items[].value` (não existe `subscription.value`
  *    no schema real) — `subscription` só carrega `cycle`/`nextDueDate`/`endDate`.
  */
 export async function createCheckout(params: {
   empresaId: string
-  customer: { name: string; email?: string; cpfCnpj?: string }
+  customer?: { name: string; email?: string; cpfCnpj?: string }
   value: number
   nextDueDate: string    // 'YYYY-MM-DD'
   successUrl: string
@@ -197,7 +211,7 @@ export async function createCheckout(params: {
   expiredUrl: string
 }): Promise<AsaasCheckout> {
   const { empresaId, customer, value, nextDueDate, successUrl, cancelUrl, expiredUrl } = params
-  const digits = customer.cpfCnpj?.replace(/\D/g, '') ?? ''
+  const digits = customer?.cpfCnpj?.replace(/\D/g, '') ?? ''
 
   return asaasRequest<AsaasCheckout>('POST', '/checkouts', {
     billingTypes: ['CREDIT_CARD'],
@@ -214,11 +228,13 @@ export async function createCheckout(params: {
       quantity:    1,
       imageBase64: PIXEL_TRANSPARENTE_BASE64,
     }],
-    customerData: {
-      name:  customer.name,
-      ...(customer.email ? { email: customer.email } : {}),
-      ...(digits ? { cpfCnpj: digits } : {}),
-    },
+    ...(customer ? {
+      customerData: {
+        name:  customer.name,
+        ...(customer.email ? { email: customer.email } : {}),
+        ...(digits ? { cpfCnpj: digits } : {}),
+      },
+    } : {}),
     subscription: {
       cycle: 'MONTHLY',
       nextDueDate,
