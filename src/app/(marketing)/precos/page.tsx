@@ -18,12 +18,15 @@ const PLANOS = [
     cta: 'Começar grátis',
     featured: false,
     features: [
-      'Até 3 usuários',
       'Pipeline de vendas',
       'Gestão de clientes',
       'Financeiro básico',
       'Calendário Google',
       'Suporte por e-mail',
+      // O teto de usuários aparece no site (tem que aparecer), mas nunca em
+      // evidência: último item da lista, e detalhado no FAQ — que é onde a
+      // pessoa efetivamente pergunta. O card vende benefício, não ressalva.
+      'Time de até 20 pessoas',
     ],
   },
   {
@@ -33,27 +36,30 @@ const PLANOS = [
     cta: 'Começar grátis',
     featured: true,
     features: [
-      'Usuários ilimitados',
       'Tudo do Starter',
       'Financeiro completo',
-      'Contratos e assinatura eletrônica',
+      'Gerador de contratos',
       'Chat Inbox (WhatsApp)',
       'Comissões e parceiros',
       'Módulos add-on disponíveis',
+      'Time de até 20 pessoas',
     ],
   },
   {
     slug: 'business' as const,
     name: 'Business',
-    tagline: 'Operação completa, sem escolher módulo.',
+    tagline: 'Sem teto. Cresça o time sem olhar a conta.',
     cta: 'Começar grátis',
     featured: false,
     features: [
+      // Aqui o "sem limite" É o argumento de venda — é o único motivo racional
+      // de escolher o Business (os 2 módulos extras saem por R$2 a menos como
+      // add-ons avulsos). Então vai no topo, ao contrário dos outros cards.
       'Usuários ilimitados',
+      'Funis e soluções ilimitados',
       'Tudo do Pro',
       'Módulo Estoque incluso',
       'Módulo RH leve incluso',
-      'Relatórios avançados',
       'Suporte prioritário',
     ],
   },
@@ -106,8 +112,16 @@ const VERTICAIS = [
 
 const FAQ = [
   {
+    // Lugar OBRIGATÓRIO: é aqui que a pessoa pergunta, então aqui a resposta tem
+    // que ser inteira. O texto anterior dizia "independente de quantas pessoas
+    // usam" enquanto o código barrava o convite no 3º usuário do Starter — a
+    // vitrine prometia e o produto negava.
     q: 'O preço é por usuário?',
-    a: 'Não. O valor é fixo por empresa, independente de quantas pessoas usam. Sem surpresa na conta quando o time cresce.',
+    // NÃO prometer aqui os "blocos de 10 usuários por R$50" enquanto o add-on
+    // não estiver no ar: seria a mesma classe de furo que este texto acabou de
+    // corrigir (vitrine prometendo o que o produto não entrega). Quando o
+    // bloco existir, ele entra nesta resposta.
+    a: 'Não. O valor é fixo por empresa: qualquer plano já inclui o time de até 20 pessoas, sem cobrar por cabeça — o time cresce e a conta não muda. Precisa de mais gente? O Business não tem teto de usuários.',
   },
   {
     q: 'Os módulos podem ser adaptados para o meu tipo de negócio?',

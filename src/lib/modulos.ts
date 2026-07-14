@@ -179,19 +179,33 @@ export const ADDON_MODULOS: Record<string, Modulo[]> = {
  * ⚠️  PROVISÓRIO — valores a confirmar com produto.
  * A checagem roda nas Server Actions de criação (convidar usuário, criar funil, etc.).
  */
+export const USUARIOS_INCLUSOS = 20
+
 export const LIMITES_POR_PLANO: Record<
   PlanoEmpresa,
   { usuarios: number; funis: number; solucoes: number }
 > = {
   free:     { usuarios: 1,  funis: 1,  solucoes: 3  },
-  trial:    { usuarios: -1, funis: -1, solucoes: -1 },
+  // Trial cobra o mesmo teto dos planos pagos DE PROPÓSITO: quem precisa de mais
+  // de 20 pessoas descobre isso durante a avaliação (quando ainda pode escolher o
+  // Business), não no 15º dia, depois de já ter posto o cartão.
+  trial:    { usuarios: USUARIOS_INCLUSOS, funis: -1, solucoes: -1 },
   interno:  { usuarios: -1, funis: -1, solucoes: -1 },
-  starter:  { usuarios: 3,  funis: 1,  solucoes: 10 },
-  pro:      { usuarios: 10, funis: 3,  solucoes: -1 },
+  // Os planos se diferenciam por MÓDULO, não por assento: 20 usuários em todos.
+  // Antes: starter 3 e pro 10 — enquanto o /precos anunciava "usuários ilimitados"
+  // no card do Pro e o FAQ prometia "independente de quantas pessoas usam". A
+  // vitrine mentia e o código barrava o convite. Agora batem.
+  starter:  { usuarios: USUARIOS_INCLUSOS, funis: 1, solucoes: 10 },
+  pro:      { usuarios: USUARIOS_INCLUSOS, funis: 3, solucoes: -1 },
+  // Business é o plano SEM TETO — é esse o motivo de comprá-lo (não os módulos
+  // extras, que saem por R$2 a menos como add-ons avulsos).
   business: { usuarios: -1, funis: -1, solucoes: -1 },
-  // Mesmos limites do pro (spec planos-verticais-no-checkout.md) — PROVISÓRIO.
-  advocacia:  { usuarios: 10, funis: 3, solucoes: -1 },
-  engenharia: { usuarios: 10, funis: 3, solucoes: -1 },
+  // Verticais: mesmo teto dos demais. NUNCA incluem o vertical do outro
+  // (processos e obras não se misturam) — nem o Business os inclui, então um
+  // escritório que passe de 20 cresce por blocos de usuário (add-on) ou vira
+  // conta negociada ('interno').
+  advocacia:  { usuarios: USUARIOS_INCLUSOS, funis: 3, solucoes: -1 },
+  engenharia: { usuarios: USUARIOS_INCLUSOS, funis: 3, solucoes: -1 },
 }
 
 // ---------------------------------------------------------------------------

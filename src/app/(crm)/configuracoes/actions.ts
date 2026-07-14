@@ -236,8 +236,10 @@ export async function createUser(
       .eq('empresa_id', empresaId)
     if (countError) return { error: countError.message }
     if ((count ?? 0) >= limiteUsuarios) {
+      // Mensagem tem que dizer PARA ONDE ir — "faça upgrade" sozinho manda a
+      // pessoa procurar. O Business é o único plano sem teto de usuários.
       return {
-        error: `Limite de ${limiteUsuarios} usuário(s) do seu plano atingido. Faça upgrade para convidar mais pessoas.`,
+        error: `Seu plano inclui ${limiteUsuarios} usuários e eles já estão todos ocupados. Para crescer o time, mude para o Business (usuários ilimitados) em Configurações › Assinatura.`,
       }
     }
   }

@@ -46,7 +46,7 @@ export function precoFormatado(plano: PlanoVendavel): string {
 export const PLANO_TAGLINE: Record<PlanoVendavel, string> = {
   starter:    'Para o time pequeno organizar o funil.',
   pro:        'O comercial inteiro, com financeiro nativo.',
-  business:   'Operação completa, sem escolher módulo.',
+  business:   'Sem teto: usuários, funis e soluções ilimitados.',
   advocacia:  'CRM + Processos jurídicos com DataJud e DJEN.',
   engenharia: 'CRM + Obras, estoque e materiais.',
 }
