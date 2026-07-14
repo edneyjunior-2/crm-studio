@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getAuthAdmin, getAuthUser } from '@/lib/auth'
+import { getAuthAdmin, getAuthFinanceiro, getAuthUser } from '@/lib/auth'
 import type { StatusEmpresa } from '@/lib/auth'
 import { cancelSubscription } from '@/lib/asaas'
 import { encarregadoSchema } from '@/lib/schemas'
@@ -714,6 +714,74 @@ export async function salvarEncarregado(
   if (error) return { error: error.message }
 
   revalidatePath('/configuracoes')
+  return {}
+}
+
+// ---------------------------------------------------------------------------
+// Responsável pela assinatura dos contratos da empresa
+// ---------------------------------------------------------------------------
+
+/**
+ * Quem assina os contratos EM NOME DESTA EMPRESA (o CONTRATADO). O contrato tem
+ * linha de assinatura dos dois lados, então essa pessoa entra como signatária em
+ * todo envio pro ZapSign, junto com a contraparte, e recebe o próprio link de
+ * assinatura por e-mail (ver `enviarParaAssinatura` em (crm)/contratos/actions.ts,
+ * que BLOQUEIA o envio enquanto isso não estiver cadastrado).
+ *
+ * Gated por admin OU sócio da própria empresa (getAuthFinanceiro) — não é
+ * exclusivo do platform admin. Existe uma action irmã em
+ * (admin)/admin/empresas/actions.ts (`salvarSignatarioEmpresa`) que faz o mesmo
+ * para QUALQUER tenant, gated por platform admin; esta aqui só escreve na
+ * empresa do próprio usuário autenticado.
+ *
+ * GOTCHA billing: `UPDATE` em `empresas` foi revogado de `authenticated`
+ * (20260703130000_protege_billing_empresas.sql) — grava via service-role, com o
+ * escopo multi-tenant vindo de `empresaId` (tenant efetivo), nunca do cliente.
+ */
+export async function salvarSignatarioContratos(dados: {
+  nome: string
+  email: string
+}): Promise<{ error?: string }> {
+  const { empresaId } = await getAuthFinanceiro()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const nome  = dados.nome.trim()
+  const email = dados.email.trim()
+
+  // Os dois juntos ou nenhum: signatário sem e-mail não recebe o link (não
+  // assina), e e-mail sem nome não identifica quem assinou.
+  if ((nome && !email) || (!nome && email)) {
+    return { error: 'Informe nome e e-mail — ou deixe os dois em branco.' }
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: 'E-mail inválido.' }
+  }
+
+  const db = createAdminClient()
+
+  const { data: emp } = await db
+    .from('empresas')
+    .select('config')
+    .eq('id', empresaId)
+    .single()
+
+  const configAtual = (emp?.config as Record<string, unknown> | null) ?? {}
+
+  const { error } = await db
+    .from('empresas')
+    .update({
+      config: {
+        ...configAtual,
+        contrato_signatario_nome:  nome || null,
+        contrato_signatario_email: email || null,
+      },
+    })
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/configuracoes')
+  revalidatePath('/contratos')
   return {}
 }
 

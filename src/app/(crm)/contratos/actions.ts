@@ -252,11 +252,18 @@ export async function enviarParaAssinatura(
     return { error: 'O contrato não tem nenhum signatário preenchido. Edite o contrato e informe ao menos o nome da contraparte.' }
   }
 
+  // O responsável pela assinatura da empresa é OBRIGATÓRIO: o contrato tem
+  // linha de assinatura pros dois lados, então enviar sem ele produziria um
+  // documento que o ZapSign fecha como "assinado" sem a empresa ter assinado.
+  // Admin ou sócio cadastra em Configurações (salvarSignatarioContratos).
   const empresaNome  = (config.contrato_signatario_nome as string | undefined)?.trim()
   const empresaEmail = (config.contrato_signatario_email as string | undefined)?.trim()
-  if (empresaNome && empresaEmail) {
-    signatarios.push({ nome: empresaNome, email: empresaEmail })
+  if (!empresaNome || !empresaEmail) {
+    return {
+      error: 'Cadastre quem assina os contratos pela empresa (Configurações → Assinatura de contratos) antes de enviar para assinatura eletrônica.',
+    }
   }
+  signatarios.push({ nome: empresaNome, email: empresaEmail })
 
   const semEmail = signatarios.filter((s) => !s.email).map((s) => s.nome)
   if (semEmail.length > 0) {

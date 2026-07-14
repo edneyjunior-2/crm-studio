@@ -4,10 +4,16 @@ import { ContratosView } from '@/components/crm/contratos/contratos-view'
 import { listarContratosGerados } from './actions'
 
 export default async function ContratosPage() {
-  const { empresaId } = await getAuthUser()
+  const { empresaId, role } = await getAuthUser()
 
   let templateUrl: string | null = null
   let emRevisao = false
+  // Sem responsável pela assinatura cadastrado, o envio pro ZapSign é bloqueado
+  // (ver enviarParaAssinatura em ./actions.ts) — a view avisa antes de o usuário
+  // perder tempo preenchendo o contrato.
+  let assinaturaConfigurada = false
+  let signatarioNome  = ''
+  let signatarioEmail = ''
 
   if (empresaId) {
     const db = createAdminClient()
@@ -20,6 +26,9 @@ export default async function ContratosPage() {
     const config = (empresa?.config as Record<string, unknown> | null) ?? {}
     const templatePath = config.contrato_template_path as string | undefined
     const aprovado     = config.contrato_aprovado as boolean | undefined
+    signatarioNome  = (config.contrato_signatario_nome  as string | undefined)?.trim() ?? ''
+    signatarioEmail = (config.contrato_signatario_email as string | undefined)?.trim() ?? ''
+    assinaturaConfigurada = !!(signatarioNome && signatarioEmail)
 
     if (templatePath && aprovado) {
       // Proxy same-origin autenticado (/api/contratos/template) em vez de signed
@@ -39,5 +48,15 @@ export default async function ContratosPage() {
 
   const historico = await listarContratosGerados()
 
-  return <ContratosView templateUrl={templateUrl} emRevisao={emRevisao} historico={historico} />
+  return (
+    <ContratosView
+      templateUrl={templateUrl}
+      emRevisao={emRevisao}
+      historico={historico}
+      assinaturaConfigurada={assinaturaConfigurada}
+      podeConfigurarAssinatura={role === 'admin' || role === 'socio'}
+      signatarioNome={signatarioNome}
+      signatarioEmail={signatarioEmail}
+    />
+  )
 }

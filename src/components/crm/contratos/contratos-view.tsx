@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, History, Pencil, Trash2, Send, ExternalLink } from 'lucide-react'
+import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine } from 'lucide-react'
 import { toast } from 'sonner'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
 import { salvarContratoGerado, excluirContratoGerado, enviarParaAssinatura } from '@/app/(crm)/contratos/actions'
 import type { ContratoGerado } from '@/app/(crm)/contratos/actions'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { salvarSignatarioContratos } from '@/app/(crm)/configuracoes/actions'
 
 function formatDateTime(iso: string) {
   const d = new Date(iso)
@@ -53,20 +58,117 @@ function toastEnviado(signatarios?: string[]) {
   }
 }
 
+/**
+ * Cadastro de quem assina os contratos EM NOME DA EMPRESA. Fica aqui, dentro do
+ * módulo de Contratos, e não em /configuracoes de propósito: aquela página é
+ * admin-only (redireciona sócio), e a regra é que admin OU sócio possa cadastrar.
+ */
+function SignatarioEmpresaDialog({
+  open,
+  onOpenChange,
+  nomeAtual,
+  emailAtual,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  nomeAtual: string
+  emailAtual: string
+}) {
+  const router = useRouter()
+  const [nome, setNome]   = useState(nomeAtual)
+  const [email, setEmail] = useState(emailAtual)
+  const [salvando, startSalvar] = useTransition()
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    startSalvar(async () => {
+      const res = await salvarSignatarioContratos({ nome, email })
+      if (res.error) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('Responsável pela assinatura salvo')
+      onOpenChange(false)
+      router.refresh()
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Quem assina pela empresa</DialogTitle>
+          <DialogDescription>
+            O contrato tem assinatura dos dois lados. Esta pessoa entra como signatária em todo
+            contrato enviado e recebe o próprio link de assinatura por e-mail.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sig_nome">
+              Nome completo <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="sig_nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Ex: Maria Souza"
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sig_email">
+              E-mail <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="sig_email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="maria@empresa.com.br"
+              required
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={salvando}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvando}>
+              {salvando ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function ContratosView({
   templateUrl,
   emRevisao = false,
   historico: historicoProp = [],
+  assinaturaConfigurada = false,
+  podeConfigurarAssinatura = false,
+  signatarioNome = '',
+  signatarioEmail = '',
 }: {
   templateUrl?: string | null
   emRevisao?: boolean
   historico?: ContratoGerado[]
+  /** Empresa já cadastrou quem assina os contratos por ela. Sem isso, o envio
+   *  para assinatura eletrônica é bloqueado no servidor (ver enviarParaAssinatura). */
+  assinaturaConfigurada?: boolean
+  /** Só admin/sócio consegue cadastrar — pros demais, o aviso não oferece a ação. */
+  podeConfigurarAssinatura?: boolean
+  signatarioNome?: string
+  signatarioEmail?: string
 }) {
   const router = useRouter()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [activeTab, setActiveTab] = useState<'gerador' | 'historico'>('gerador')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [enviandoId, setEnviandoId] = useState<string | null>(null)
+  const [signatarioOpen, setSignatarioOpen] = useState(false)
   const [, startTransition] = useTransition()
 
   // Evita cadastrar o mesmo contrato duas vezes se o iframe disparar a mensagem repetida
@@ -258,26 +360,62 @@ export function ContratosView({
 
   return (
     <div className="-m-6 flex h-[calc(100vh-56px)] flex-col">
+      {/* Assinatura eletrônica bloqueada até cadastrar quem assina pela empresa */}
+      {!assinaturaConfigurada && (
+        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-amber-200 bg-amber-50 px-6 py-2.5 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
+          <AlertTriangle className="size-3.5 shrink-0" />
+          <span>
+            <strong className="font-semibold">Assinatura eletrônica indisponível:</strong>{' '}
+            cadastre quem assina os contratos pela empresa. Gerar e baixar o PDF continua funcionando.
+          </span>
+          {podeConfigurarAssinatura ? (
+            <button
+              type="button"
+              onClick={() => setSignatarioOpen(true)}
+              className="font-semibold underline underline-offset-2"
+            >
+              Cadastrar agora
+            </button>
+          ) : (
+            <span className="opacity-80">Peça a um admin ou sócio para cadastrar.</span>
+          )}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="shrink-0 border-b border-border bg-background px-6 pt-3">
-        <div className="flex gap-1">
-          {(['gerador', 'historico'] as const).map((tab) => (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-1">
+            {(['gerador', 'historico'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === tab
+                    ? 'border-foreground text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab === 'gerador' ? <FileText className="size-3.5" /> : <History className="size-3.5" />}
+                {tab === 'gerador'
+                  ? 'Gerador'
+                  : `Histórico${historicoProp.length > 0 ? ` (${historicoProp.length})` : ''}`}
+              </button>
+            ))}
+          </div>
+
+          {podeConfigurarAssinatura && assinaturaConfigurada && (
             <button
-              key={tab}
               type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab
-                  ? 'border-foreground text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
+              onClick={() => setSignatarioOpen(true)}
+              title={`Assina pela empresa: ${signatarioNome} (${signatarioEmail})`}
+              className="mb-1 flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
             >
-              {tab === 'gerador' ? <FileText className="size-3.5" /> : <History className="size-3.5" />}
-              {tab === 'gerador'
-                ? 'Gerador'
-                : `Histórico${historicoProp.length > 0 ? ` (${historicoProp.length})` : ''}`}
+              <PenLine className="size-3" />
+              <span className="max-w-[14rem] truncate">Assina: {signatarioNome}</span>
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -329,10 +467,14 @@ export function ContratosView({
                       {statusEfetivo(item) === 'rascunho' && (
                         <button
                           type="button"
-                          title="Envia o link de assinatura por e-mail para cada signatário do contrato"
-                          disabled={enviandoId === item.id}
+                          title={
+                            assinaturaConfigurada
+                              ? 'Envia o link de assinatura por e-mail para cada signatário do contrato'
+                              : 'Cadastre quem assina os contratos pela empresa (Configurações) para habilitar'
+                          }
+                          disabled={enviandoId === item.id || !assinaturaConfigurada}
                           onClick={() => enviarAssinatura(item.id)}
-                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Send className="size-3" />
                           {enviandoId === item.id ? 'Enviando…' : 'Enviar p/ assinatura'}
@@ -382,6 +524,14 @@ export function ContratosView({
         </div>
       )}
 
+      {podeConfigurarAssinatura && (
+        <SignatarioEmpresaDialog
+          open={signatarioOpen}
+          onOpenChange={setSignatarioOpen}
+          nomeAtual={signatarioNome}
+          emailAtual={signatarioEmail}
+        />
+      )}
     </div>
   )
 }
