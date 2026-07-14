@@ -46,6 +46,18 @@ const STATUS_LABEL: Record<string, string> = {
   recusado: 'Recusado',
 }
 
+// Nunca em iframe — evita a classe de bug do post-mortem do gerador de
+// contratos (X-Frame-Options / CSP frame-ancestors quebrando embed).
+// window.open pode ser bloqueado pelo navegador quando roda depois de um
+// await de rede (não mais "colado" ao clique síncrono) — nesse caso avisa
+// que o link continua disponível pelo botão "Abrir link" da lista.
+function abrirLinkAssinatura(url: string) {
+  const aberto = window.open(url, '_blank', 'noopener')
+  if (!aberto) {
+    toast.info('O navegador bloqueou a nova aba — use o botão "Abrir link" na lista para acessar o link de assinatura.')
+  }
+}
+
 function EnviarAssinaturaDialog({
   contrato,
   onOpenChange,
@@ -89,17 +101,7 @@ function EnviarAssinaturaDialog({
       toast.success('Documento enviado para assinatura')
       onOpenChange(false)
       onEnviado()
-      // Nunca em iframe — evita a classe de bug do post-mortem do gerador de
-      // contratos (X-Frame-Options / CSP frame-ancestors quebrando embed).
-      // window.open pode ser bloqueado pelo navegador aqui (roda depois de um
-      // await de rede, não mais "colado" ao clique síncrono) — nesse caso
-      // avisa que o link continua disponível pelo botão "Abrir link".
-      if (res.linkAssinatura) {
-        const aberto = window.open(res.linkAssinatura, '_blank', 'noopener')
-        if (!aberto) {
-          toast.info('O navegador bloqueou a nova aba — use o botão "Abrir link" na lista para acessar o link de assinatura.')
-        }
-      }
+      if (res.linkAssinatura) abrirLinkAssinatura(res.linkAssinatura)
     })
   }
 
@@ -267,13 +269,36 @@ export function ContratosView({
         })
         if (resContrato.error) {
           toast.error(`Não foi possível salvar o contrato: ${resContrato.error}`)
-        } else if (resContrato.avisoUpload) {
-          toast.warning(resContrato.avisoUpload)
           router.refresh()
+          return
+        }
+        if (resContrato.avisoUpload) toast.warning(resContrato.avisoUpload)
+
+        // Botão "Assinatura eletrônica" do gerador (ver engine.js,
+        // atualizarEstadoBtnDocusign/histAdd): pede pra já disparar o envio
+        // pra assinatura assim que o contrato terminar de salvar, sem passar
+        // pela aba Histórico. Só dispara se o upload do PDF deu certo
+        // (resContrato.avisoUpload ausente) — sem PDF no Storage não tem o
+        // que enviar pro ZapSign.
+        const autoEnviar = e.data?.autoEnviarAssinatura === true
+          ? (e.data.signatario as { nome?: string; email?: string; telefone?: string } | undefined)
+          : undefined
+        if (autoEnviar?.nome && resContrato.id && !resContrato.avisoUpload) {
+          const resAssinatura = await enviarParaAssinatura(resContrato.id, {
+            nome:     autoEnviar.nome,
+            email:    autoEnviar.email || undefined,
+            telefone: autoEnviar.telefone || undefined,
+          })
+          if (resAssinatura.error) {
+            toast.error(resAssinatura.error)
+          } else {
+            toast.success('Contrato salvo e enviado para assinatura')
+            if (resAssinatura.linkAssinatura) abrirLinkAssinatura(resAssinatura.linkAssinatura)
+          }
         } else {
           toast.success('Contrato salvo no histórico')
-          router.refresh()
         }
+        router.refresh()
       })
     }
 

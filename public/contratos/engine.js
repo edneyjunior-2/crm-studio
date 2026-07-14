@@ -99,6 +99,7 @@
     if (btnPJ) btnPJ.classList.toggle('active', modo === 'pj');
     if (btnPF) btnPF.classList.toggle('active', modo === 'pf');
     schedulePreview();
+    atualizarEstadoBtnDocusign();
   }
 
   /* =====================================================================
@@ -191,11 +192,17 @@
     var d = getFieldValues();
     var camposParceiro = [
       'PARCEIRO_RAZAO','PARCEIRO_CNPJ','PARCEIRO_ENDERECO',
-      'REP_CARGO','REP_NOME','REP_NACIONALIDADE','REP_CPF','REP_RG',
+      'REP_CARGO','REP_NOME','REP_NACIONALIDADE','REP_CPF','REP_RG','REP_EMAIL',
       'PF_NOME','PF_NACIONALIDADE','PF_ESTADO_CIVIL','PF_PROFISSAO',
-      'PF_CPF','PF_RG','PF_ENDERECO',
+      'PF_CPF','PF_RG','PF_ENDERECO','PF_EMAIL',
     ];
     camposParceiro.forEach(function (k) { d[k] = ''; });
+    // Sócios/responsáveis adicionais (REP2_*, REP3_*, ...) — zera por padrão
+    // de nome de campo, já que a quantidade é dinâmica (ver criarGrupoRepExtra)
+    // e não dá pra listar um por um como os campos fixos acima.
+    Object.keys(d).forEach(function (k) {
+      if (/^REP\d+_/.test(k)) d[k] = '';
+    });
     d.DATA_ASSINATURA = ''; d.DATA_ASSINATURA_EXT = '';
     return d;
   }
@@ -244,16 +251,69 @@
     return text;
   }
 
-  /* filtra os blocos pelo modo PJ/PF atual */
-  function activeBlocks(src) {
+  /* filtra os blocos pelo modo PJ/PF atual; se `data` for passado, também
+     expande os marcadores de sócio adicional (ver expandirBlocosComSocios) —
+     sem `data` (ex.: editor de cláusulas, que edita o molde bruto), pula a
+     expansão e devolve os blocos como estão. */
+  function activeBlocks(src, data) {
     src = src || CONTRACT_BLOCKS;
-    return src.filter(function (b) { return !b.mode || b.mode === currentMode; });
+    var filtrados = src.filter(function (b) { return !b.mode || b.mode === currentMode; });
+    return data ? expandirBlocosComSocios(filtrados, data) : filtrados;
+  }
+
+  /* =====================================================================
+     SÓCIOS/RESPONSÁVEIS ADICIONAIS — expansão dinâmica de blocos
+     O template declara UMA VEZ, por modelo de contrato, um par de blocos
+     marcadores logo após o parágrafo/assinatura do representante principal:
+       { type: 'rep-extra-qualificacao', mode: 'pj', text: '...{{CARGO}} {{NOME}}...' }
+       { type: 'rep-extra-sign',         mode: 'pj', text: '[{{NOME}} ](CONTRATANTE)' }
+     Os placeholders desses blocos usam nomes GENÉRICOS ({{NOME}}, {{CARGO}},
+     ...) porque o índice do sócio só se sabe em tempo de geração. Pra cada
+     grupo "Representante Legal" extra (clonado via criarGrupoRepExtra, com
+     `data-rep-group="N"`, N > 1) que tiver o NOME preenchido, o marcador vira
+     um bloco real (`type: 'p'`/`'sign'`) com os placeholders remapeados pra
+     REP{N}_CARGO, REP{N}_NOME etc. — que `getFieldValues()` já coleta de
+     forma genérica, sem precisar de nenhuma mudança na coleta de campos.
+     Sem nenhum sócio extra preenchido, os marcadores somem silenciosamente
+     (PDF sai idêntico ao de hoje, com só o representante principal). */
+  function indicesRepExtras() {
+    var indices = [];
+    document.querySelectorAll('[data-rep-group]').forEach(function (el) {
+      var idx = parseInt(el.dataset.repGroup, 10);
+      if (idx > 1) indices.push(idx);
+    });
+    indices.sort(function (a, b) { return a - b; });
+    return indices;
+  }
+
+  function remapPlaceholdersParaIndice(text, idx) {
+    return text.replace(/\{\{([A-Z_0-9]+)\}\}/g, function (m, key) {
+      return '{{REP' + idx + '_' + key + '}}';
+    });
+  }
+
+  function expandirBlocosComSocios(blocks, data) {
+    var indicesPreenchidos = indicesRepExtras().filter(function (idx) {
+      return !!(data['REP' + idx + '_NOME'] && data['REP' + idx + '_NOME'].trim());
+    });
+    var out = [];
+    blocks.forEach(function (b) {
+      if (b.type === 'rep-extra-qualificacao' || b.type === 'rep-extra-sign') {
+        var tipoReal = b.type === 'rep-extra-sign' ? 'sign' : 'p';
+        indicesPreenchidos.forEach(function (idx) {
+          out.push({ type: tipoReal, mode: b.mode, text: remapPlaceholdersParaIndice(b.text, idx) });
+        });
+        return;
+      }
+      out.push(b);
+    });
+    return out;
   }
 
   function countPendentes(data) {
     var count = 0;
     var seen = new Set();
-    activeBlocks().forEach(function (b) {
+    activeBlocks(undefined, data).forEach(function (b) {
       var resolved = substitute(b.text, data);
       var ms = resolved.match(/\{\{([A-Z_0-9]+)\}\}/g);
       if (ms) ms.forEach(function (k) {
@@ -407,7 +467,7 @@
     var minutaKey = (cfg.minutaModelKey && CONTRACT_MODELS[cfg.minutaModelKey])
       ? cfg.minutaModelKey
       : currentContract;
-    var blocks = activeBlocks(minuta ? clausulasDoModelo(minutaKey) : CONTRACT_BLOCKS);
+    var blocks = activeBlocks(minuta ? clausulasDoModelo(minutaKey) : CONTRACT_BLOCKS, data);
     blocks.forEach(function (b, i, all) { drawBlock(b, i, all); });
 
     var nomeParceiro = currentMode === 'pf' ? data.PF_NOME : data.PARCEIRO_RAZAO;
@@ -514,8 +574,12 @@
 
   /* =====================================================================
      TOGGLES de campos (ativar/desativar)
+     Extraída em função nomeada porque grupos de sócio clonados dinamicamente
+     (ver criarGrupoRepExtra) precisam religar o mesmo comportamento nos seus
+     próprios botões — o querySelectorAll abaixo só alcança o DOM que já
+     existia no carregamento da página.
      ===================================================================== */
-  document.querySelectorAll('.field-toggle').forEach(function (btn) {
+  function wireFieldToggle(btn) {
     btn.addEventListener('click', function () {
       var fieldEl = btn.closest('.field');
       var name = fieldEl.dataset.name;
@@ -534,13 +598,94 @@
       }
       schedulePreview();
     });
-  });
+  }
+  document.querySelectorAll('.field-toggle').forEach(wireFieldToggle);
+
+  /* =====================================================================
+     "+ Adicionar responsável" — clona o bloco "Representante Legal" (grupo
+     data-rep-group="1") pra qualificar mais de um sócio no contrato PJ. Os
+     nomes de campo do clone viram REP{N}_* (N = próximo índice livre); a
+     coleta de campos (getFieldValues) e o histórico (postMessage) já
+     enxergam esses nomes de forma genérica, sem mudança nenhuma. A expansão
+     das cláusulas (parágrafo de qualificação + linha de assinatura extra por
+     sócio) está em expandirBlocosComSocios, mais acima.
+     ===================================================================== */
+  var repsExtraContainer = document.getElementById('reps-extra-container');
+  var repGroupTemplate = document.querySelector('[data-rep-group="1"]');
+
+  function criarGrupoRepExtra() {
+    if (!repGroupTemplate || !repsExtraContainer) return;
+    var indicesAtuais = indicesRepExtras();
+    var maiorIndice = indicesAtuais.length ? indicesAtuais[indicesAtuais.length - 1] : 1;
+    var novoIndice = maiorIndice + 1;
+
+    var clone = repGroupTemplate.cloneNode(true);
+    clone.dataset.repGroup = String(novoIndice);
+
+    clone.querySelectorAll('[data-field]').forEach(function (el) {
+      el.dataset.field = el.dataset.field.replace(/^REP_/, 'REP' + novoIndice + '_');
+      if (el.tagName === 'SELECT') { el.selectedIndex = 0; } else { el.value = el.defaultValue || ''; }
+    });
+    clone.querySelectorAll('[data-name]').forEach(function (el) {
+      el.dataset.name = el.dataset.name.replace(/^REP_/, 'REP' + novoIndice + '_');
+    });
+    // Nenhum campo clonado nasce desativado, mesmo que o original (grupo 1)
+    // tivesse algum campo desativado no momento do clique.
+    clone.querySelectorAll('.field').forEach(function (el) { el.classList.remove('disabled'); });
+    clone.querySelectorAll('.field-toggle').forEach(function (btn) {
+      btn.classList.remove('off');
+      btn.textContent = '×';
+      btn.title = 'Desativar este campo';
+      wireFieldToggle(btn);
+    });
+
+    // Título + botão "Remover" (só nos grupos extras — o grupo 1 é sempre obrigatório)
+    var titulo = clone.querySelector('h3');
+    if (titulo) {
+      titulo.textContent = 'Responsável adicional ' + (novoIndice - 1);
+      var btnRemover = document.createElement('button');
+      btnRemover.type = 'button';
+      btnRemover.className = 'btn-remover-socio';
+      btnRemover.textContent = '✕ Remover';
+      btnRemover.addEventListener('click', function () {
+        clone.remove();
+        schedulePreview();
+      });
+      titulo.appendChild(btnRemover);
+    }
+
+    repsExtraContainer.appendChild(clone);
+    schedulePreview();
+  }
+
+  var btnAddSocio = document.getElementById('btn-add-socio');
+  if (btnAddSocio) btnAddSocio.addEventListener('click', criarGrupoRepExtra);
+
+  // Re-abrir um contrato salvo (histórico local OU "Re-editar" do CRM) só
+  // preenche campos que já EXISTEM no DOM — sócios extras (REP2_*, REP3_*...)
+  // não existem até alguém clicar "+ Adicionar responsável". Antes de
+  // restaurar os valores, recria os grupos extras necessários a partir das
+  // chaves presentes em `fields` (limpa e recria do zero pra não duplicar
+  // caso o contrato já tenha sido reaberto antes nesta mesma sessão).
+  function garantirGruposRepExtrasParaCampos(fields) {
+    if (!repsExtraContainer) return;
+    repsExtraContainer.innerHTML = '';
+    var maiorIndice = 1;
+    Object.keys(fields || {}).forEach(function (k) {
+      var m = /^REP(\d+)_/.exec(k);
+      if (m) { var n = parseInt(m[1], 10); if (n > maiorIndice) maiorIndice = n; }
+    });
+    for (var i = 1; i < maiorIndice; i++) criarGrupoRepExtra();
+  }
 
   /* =====================================================================
      Form events
      ===================================================================== */
   var formEl = document.getElementById('form-parceiro');
-  if (formEl) formEl.addEventListener('input', schedulePreview);
+  if (formEl) {
+    formEl.addEventListener('input', schedulePreview);
+    formEl.addEventListener('input', atualizarEstadoBtnDocusign);
+  }
 
   var btnClear = document.getElementById('btn-clear');
   if (btnClear) {
@@ -562,6 +707,10 @@
       var visible = input.offsetParent !== null;
       if (!visible) return;                       // campo escondido pelo modo PJ/PF
       if (disabledFields.has(name)) return;       // desativado pelo usuario
+      // E-mail (PF_EMAIL/REP_EMAIL/REP{N}_EMAIL) não entra na cláusula do
+      // contrato — só habilita o botão "Assinatura eletrônica" (ver
+      // atualizarEstadoBtnDocusign). "Exportar PDF" não deve exigi-lo.
+      if (/_EMAIL$/.test(name)) return;
       if (!input.value.trim()) {
         var labelNode = fieldEl && fieldEl.querySelector('label');
         var label = (labelNode && labelNode.childNodes[0] && labelNode.childNodes[0].textContent.trim()) || name;
@@ -663,14 +812,50 @@
   }
 
   /* =====================================================================
-     DOCUSIGN — fase 2
+     ASSINATURA ELETRÔNICA (ZapSign) — botão fica desabilitado até o e-mail
+     do signatário (PF_EMAIL no modo PF, REP_EMAIL no modo PJ) ser
+     preenchido. Habilitado, o clique gera o PDF (igual "Exportar PDF"),
+     salva no histórico E já dispara o envio pra assinatura num passo só —
+     o CRM (parent) que recebe o postMessage com autoEnviarAssinatura=true
+     é quem de fato chama a API do ZapSign (ver contratos-view.tsx).
      ===================================================================== */
   var btnDocusign = document.getElementById('btn-docusign');
+
+  function emailAssinaturaAtual() {
+    var campo = currentMode === 'pf' ? 'PF_EMAIL' : 'REP_EMAIL';
+    var el = document.querySelector('[data-field="' + campo + '"]');
+    return el ? el.value.trim() : '';
+  }
+
+  function atualizarEstadoBtnDocusign() {
+    if (!btnDocusign) return;
+    var habilitado = !!emailAssinaturaAtual();
+    btnDocusign.disabled = !habilitado;
+    btnDocusign.classList.toggle('btn-disabled', !habilitado);
+    btnDocusign.title = habilitado
+      ? 'Salva o contrato e envia para assinatura eletrônica'
+      : 'Preencha o e-mail do signatário para habilitar o envio para assinatura';
+  }
+
   if (btnDocusign) {
-    btnDocusign.addEventListener('click', function () {
-      toast('Integração com DocuSign será ativada na fase 2.');
+    btnDocusign.addEventListener('click', async function () {
+      if (btnDocusign.disabled) return;
+      if (!validarAntesDeExportar()) return;
+      var data = getFieldValues();
+      var email = emailAssinaturaAtual();
+      if (!email) { atualizarEstadoBtnDocusign(); return; }
+      var nome = currentMode === 'pf' ? (data.PF_NOME || '') : (data.REP_NOME || '');
+      try {
+        await gerarPdfContrato(data, true);
+        histAdd({ autoEnviarAssinatura: true, signatario: { nome: nome, email: email } });
+        toast('Gerando e enviando para assinatura eletrônica…');
+      } catch (e) {
+        console.error(e);
+        toast('Erro ao gerar PDF: ' + e.message);
+      }
     });
   }
+  atualizarEstadoBtnDocusign();
 
   /* =====================================================================
      Toast helper
@@ -886,7 +1071,8 @@
     catch (e) { toast('Histórico: erro ao salvar — localStorage cheio?'); }
   }
 
-  function histAdd() {
+  function histAdd(opts) {
+    opts = opts || {};
     var rawFields = {};
     document.querySelectorAll('[data-field]').forEach(function (inp) {
       rawFields[inp.dataset.field] = inp.value;
@@ -911,7 +1097,15 @@
     // postMessage para o CRM parent — 'aurum_contrato_gerado' é o nome
     // HISTÓRICO do protocolo, mas é genérico: TODO template usa esse mesmo
     // tipo de evento, não renomear (ver comentário no topo do arquivo).
-    try { window.parent.postMessage({ type: 'aurum_contrato_gerado', entry: { nome: entry.nomeParceiro, tipo: entry.mode.toUpperCase(), data: entry.ts }, parceiro: { mode: currentMode, fields: rawFields }, pdfBase64: lastPdfBase64, pdfFileName: lastPdfFileName }, '*'); } catch (e) {}
+    var payload = { type: 'aurum_contrato_gerado', entry: { nome: entry.nomeParceiro, tipo: entry.mode.toUpperCase(), data: entry.ts }, parceiro: { mode: currentMode, fields: rawFields }, pdfBase64: lastPdfBase64, pdfFileName: lastPdfFileName };
+    // Botão "Assinatura eletrônica" (ver atualizarEstadoBtnDocusign): pede
+    // pro CRM, além de salvar, já disparar o envio pra assinatura — o motor
+    // não fala com a API do ZapSign diretamente (isso é server-side).
+    if (opts.autoEnviarAssinatura && opts.signatario) {
+      payload.autoEnviarAssinatura = true;
+      payload.signatario = opts.signatario;
+    }
+    try { window.parent.postMessage(payload, '*'); } catch (e) {}
   }
 
   function histDelete(id) {
@@ -951,7 +1145,9 @@
       }
     });
 
-    // 3. Valores dos campos
+    // 3. Valores dos campos (garante os grupos de sócio extra ANTES de
+    //    restaurar valores — ver garantirGruposRepExtrasParaCampos)
+    garantirGruposRepExtrasParaCampos(entry.fields);
     document.querySelectorAll('[data-field]').forEach(function (input) {
       var name = input.dataset.field;
       if (entry.fields && name in entry.fields) input.value = entry.fields[name];
@@ -971,6 +1167,7 @@
     if (!d || d.type !== 'contrato_carregar' || !d.dados) return;
     var fields = d.dados.fields || {};
     try { setModo(d.dados.mode || 'pj'); } catch (e) {}
+    try { garantirGruposRepExtrasParaCampos(fields); } catch (e) {}
     document.querySelectorAll('[data-field]').forEach(function (input) {
       var name = input.dataset.field;
       if (name in fields) input.value = fields[name];

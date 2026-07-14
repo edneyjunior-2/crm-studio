@@ -351,11 +351,17 @@
     .btn-outline:hover { background: #F9FAFB; }
     .btn-disabled { background: #E5E7EB; color: #9CA3AF; cursor: not-allowed; position: relative; }
     .btn-disabled::after {
-      content: 'EM BREVE';
+      content: 'FALTA E-MAIL';
       position: absolute; top: -8px; right: -8px;
       background: var(--aurum-reserva); color: var(--aurum-precisao);
       font-size: 8px; padding: 2px 5px; border-radius: 3px; font-weight: 700;
     }
+    .btn-remover-socio {
+      background: none; border: none; cursor: pointer;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+      color: #B91C1C; text-transform: none; padding: 0;
+    }
+    .btn-remover-socio:hover { text-decoration: underline; }
 
     /* PREVIEW = iframe com o PDF real */
     .preview-wrap {
@@ -753,7 +759,7 @@
       </div>
 
       <!-- ============== REPRESENTANTE LEGAL — só PJ ============== -->
-      <div class="form-section pj-only">
+      <div class="form-section pj-only" data-rep-group="1">
         <h3>Representante Legal</h3>
 
         <div class="row">
@@ -811,6 +817,11 @@
           </div>
           <input type="email" data-field="REP_EMAIL" placeholder="parceiro@email.com" />
         </div>
+      </div>
+
+      <div class="form-section pj-only">
+        <button type="button" id="btn-add-socio" class="btn btn-outline">+ Adicionar responsável</button>
+        <div id="reps-extra-container"></div>
       </div>
 
       <div class="form-section">
@@ -873,7 +884,7 @@
       <button class="btn btn-outline" id="btn-minuta" type="button" title="Baixa uma minuta genérica (sem dados do parceiro) para revisão prévia">📋 Minuta de Contrato</button>
       <button class="btn btn-primary" id="btn-pdf" type="button">📄 Exportar PDF</button>
       <button class="btn btn-accent" id="btn-email" type="button">✉ Enviar por E-mail</button>
-      <button class="btn btn-disabled" id="btn-docusign" type="button" title="Em breve — fase 2">📝 DocuSign</button>
+      <button class="btn btn-accent" id="btn-docusign" type="button">📝 Assinatura eletrônica</button>
     </div>
 
     <div class="preview-wrap">
@@ -958,6 +969,8 @@
       { type: 'p', text: 'e, de outro lado,' },
 
       { type: 'p', mode: 'pj', text: '{{PARCEIRO_RAZAO}}, pessoa jurídica de direito privado[, inscrita no CNPJ sob o nº {{PARCEIRO_CNPJ}}][, com sede na {{PARCEIRO_ENDERECO}}], neste ato representada por[ seu {{REP_CARGO}},] {{REP_NOME}}[, {{REP_NACIONALIDADE}}][, inscrito no CPF sob o nº {{REP_CPF}}][ e RG nº {{REP_RG}}], doravante denominada simplesmente PARCEIRO.' },
+
+      { type: 'rep-extra-qualificacao', mode: 'pj', text: 'Também representada por seu(sua) {{CARGO}} {{NOME}}[, {{NACIONALIDADE}}][, inscrito no CPF sob o nº {{CPF}}][ e RG nº {{RG}}].' },
 
       { type: 'p', mode: 'pf', text: '{{PF_NOME}}[, {{PF_NACIONALIDADE}}][, {{PF_ESTADO_CIVIL}}][, {{PF_PROFISSAO}}], {{PF_INSCRITO}} no CPF sob o nº {{PF_CPF}}[ e RG nº {{PF_RG}}], residente e {{PF_DOMICILIADO}} na {{PF_ENDERECO}}, doravante {{PF_DENOMINADO}} simplesmente PARCEIRO.' },
 
@@ -1046,6 +1059,7 @@
 
       { type: 'sign', text: 'AURUM EFICIÊNCIA FISCAL LTDA (Edney Viana Paixão)' },
       { type: 'sign', mode: 'pj', text: '[{{REP_NOME}} ](Parceiro)' },
+      { type: 'rep-extra-sign', mode: 'pj', text: '[{{NOME}} ](Parceiro)' },
       { type: 'sign', mode: 'pf', text: '[{{PF_NOME}} ](Parceiro)' }
     ];
 
@@ -1055,6 +1069,8 @@
       { type: 'p', text: 'SÓCIA: AURUM EFICIÊNCIA FISCAL LTDA (AURUM TAX ADVISORY), pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 53.322.759/0001-57, com sede na Av. Luís Viana Filho, 13223, Bloco 6, Sala 101, São Cristóvão, Salvador/BA, CEP: 41.500-300, neste ato representada por seu sócio-diretor, EDNEY VIANA PAIXÃO, inscrito no CPF sob o nº 489.837.215-53, doravante denominada simplesmente AURUM.' },
 
       { type: 'p', mode: 'pj', text: 'PARCEIRO: {{PARCEIRO_RAZAO}}, pessoa jurídica de direito privado[, inscrita no CNPJ sob o nº {{PARCEIRO_CNPJ}}][, com sede na {{PARCEIRO_ENDERECO}}], neste ato representada por[ seu {{REP_CARGO}},] {{REP_NOME}}[, {{REP_NACIONALIDADE}}][, inscrito no CPF sob o nº {{REP_CPF}}][ e RG nº {{REP_RG}}], doravante denominado simplesmente PARCEIRO.' },
+
+      { type: 'rep-extra-qualificacao', mode: 'pj', text: 'Também representada por seu(sua) {{CARGO}} {{NOME}}[, {{NACIONALIDADE}}][, inscrito no CPF sob o nº {{CPF}}][ e RG nº {{RG}}].' },
 
       { type: 'p', mode: 'pf', text: 'PARCEIRO: {{PF_NOME}}[, {{PF_NACIONALIDADE}}][, {{PF_ESTADO_CIVIL}}][, {{PF_PROFISSAO}}], {{PF_INSCRITO}} no CPF sob o nº {{PF_CPF}}[ e RG nº {{PF_RG}}], residente e {{PF_DOMICILIADO}} na {{PF_ENDERECO}}, doravante {{PF_DENOMINADO}} simplesmente PARCEIRO.' },
 
@@ -1091,6 +1107,7 @@
 
       { type: 'sign', text: 'AURUM EFICIÊNCIA FISCAL LTDA (Edney Viana Paixão)' },
       { type: 'sign', mode: 'pj', text: '[{{REP_NOME}} ](Parceiro)' },
+      { type: 'rep-extra-sign', mode: 'pj', text: '[{{NOME}} ](Parceiro)' },
       { type: 'sign', mode: 'pf', text: '[{{PF_NOME}} ](Parceiro)' }
     ];
 
@@ -1148,6 +1165,6 @@
   <!-- Motor genérico compartilhado por todos os tenants — URL absoluta de
        produção (necessária p/ templates white-label servidos de outra origem
        via signed URL do Supabase Storage) + cache-bust ?v=. -->
-  <script src="https://app.crmstudio.com.br/contratos/engine.js?v=1"></script>
+  <script src="https://app.crmstudio.com.br/contratos/engine.js?v=2"></script>
 </body>
 </html>

@@ -40,7 +40,7 @@ export async function salvarContratoGerado(input: {
    *  porque o engine.js antigo (sem essa mudança) ainda não manda o campo. */
   pdfBase64?: string
   pdfFileName?: string
-}): Promise<{ error?: string; avisoUpload?: string }> {
+}): Promise<{ error?: string; avisoUpload?: string; id?: string }> {
   const { supabase, user, empresaId } = await getAuthUser()
   if (!empresaId) return { error: 'Empresa não encontrada.' }
 
@@ -99,7 +99,7 @@ export async function salvarContratoGerado(input: {
   }
 
   revalidatePath('/contratos')
-  return avisoUpload ? { avisoUpload } : {}
+  return avisoUpload ? { id: contrato.id, avisoUpload } : { id: contrato.id }
 }
 
 export async function listarContratosGerados(): Promise<ContratoGerado[]> {
