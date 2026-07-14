@@ -4,7 +4,7 @@ import { buscarProcessoDataJud } from '@/lib/datajud'
 import { sendNovasMovimentacoesEmail } from '@/lib/email'
 import { verificarCronSecret } from '@/lib/cron-auth'
 
-export const maxDuration = 300 // 5 min (Vercel Pro)
+export const maxDuration = 800 // Vercel Pro c/ Fluid Compute — teto GA sem beta (2026-07)
 
 // Throttle entre consultas ao DataJud (limite público ~120 req/min → ~1 req/600ms).
 const THROTTLE_MS = 600

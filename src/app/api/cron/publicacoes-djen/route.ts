@@ -9,7 +9,7 @@ import {
 import { sendNovasPublicacoesEmail } from '@/lib/email'
 import { verificarCronSecret } from '@/lib/cron-auth'
 
-export const maxDuration = 300 // 5 min (Vercel Pro)
+export const maxDuration = 800 // Vercel Pro c/ Fluid Compute — teto GA sem beta (2026-07)
 
 // Throttle entre consultas ao DJEN entre advogados — busca sequencial, não
 // Promise.all irrestrito (a API não confirmou 429 em teste, mas o backoff em
