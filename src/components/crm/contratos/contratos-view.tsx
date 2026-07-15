@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine } from 'lucide-react'
+import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine, Upload, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
 import { salvarContratoGerado, excluirContratoGerado, enviarParaAssinatura } from '@/app/(crm)/contratos/actions'
@@ -143,6 +143,175 @@ function SignatarioEmpresaDialog({
   )
 }
 
+/**
+ * Aba "Enviar documento": sobe um PDF pronto (feito fora do gerador) e manda
+ * pra assinatura via ZapSign. Signatários são informados manualmente (não há
+ * como derivar do PDF). Pré-preenche a 1ª linha com quem assina pela empresa,
+ * se configurado — mas aqui a lista é 100% editável (o usuário monta tudo).
+ */
+function UploadDocumentoTab({
+  signatarioNome,
+  signatarioEmail,
+  onEnviado,
+}: {
+  signatarioNome: string
+  signatarioEmail: string
+  onEnviado: () => void
+}) {
+  const [file, setFile] = useState<File | null>(null)
+  const [nome, setNome] = useState('')
+  const [signatarios, setSignatarios] = useState<Array<{ nome: string; email: string }>>(
+    signatarioNome && signatarioEmail
+      ? [{ nome: signatarioNome, email: signatarioEmail }, { nome: '', email: '' }]
+      : [{ nome: '', email: '' }],
+  )
+  const [enviando, setEnviando] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null
+    setFile(f)
+    if (f && !nome) setNome(f.name.replace(/\.pdf$/i, ''))
+  }
+
+  function setSig(i: number, campo: 'nome' | 'email', valor: string) {
+    setSignatarios((prev) => prev.map((s, idx) => (idx === i ? { ...s, [campo]: valor } : s)))
+  }
+  function addSig() {
+    setSignatarios((prev) => [...prev, { nome: '', email: '' }])
+  }
+  function removeSig(i: number) {
+    setSignatarios((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev))
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!file) {
+      toast.error('Selecione um arquivo PDF.')
+      return
+    }
+    const validos = signatarios
+      .map((s) => ({ nome: s.nome.trim(), email: s.email.trim() }))
+      .filter((s) => s.nome || s.email)
+    if (validos.length === 0) {
+      toast.error('Informe ao menos um signatário.')
+      return
+    }
+
+    const fd = new FormData()
+    fd.append('pdf', file)
+    fd.append('nome', nome.trim())
+    fd.append('signatarios', JSON.stringify(validos))
+
+    setEnviando(true)
+    try {
+      const res = await fetch('/api/contratos/upload-assinatura', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data?.error ?? 'Não foi possível enviar o documento.')
+        return
+      }
+      toastEnviado(data?.signatarios)
+      setFile(null)
+      setNome('')
+      setSignatarios(
+        signatarioNome && signatarioEmail
+          ? [{ nome: signatarioNome, email: signatarioEmail }, { nome: '', email: '' }]
+          : [{ nome: '', email: '' }],
+      )
+      if (fileRef.current) fileRef.current.value = ''
+      onEnviado()
+    } catch {
+      toast.error('Falha de conexão ao enviar o documento.')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      <form onSubmit={handleSubmit} className="mx-auto flex max-w-2xl flex-col gap-5">
+        <div>
+          <h3 className="font-semibold">Enviar documento para assinatura</h3>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Suba um PDF já pronto (feito fora do gerador) e envie para assinatura eletrônica.
+            Cada signatário recebe o próprio link por e-mail.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="upload_pdf">Arquivo PDF (máx. 8 MB)</Label>
+          <input
+            id="upload_pdf"
+            ref={fileRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={onFile}
+            className="text-sm text-foreground file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-foreground/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground hover:file:bg-foreground/15"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="upload_nome">Nome do documento</Label>
+          <Input
+            id="upload_nome"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Ex: Contrato de Parceria Aurum × Contas"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label>Signatários</Label>
+          <p className="-mt-1 text-xs text-muted-foreground">
+            Todos que assinam o documento — incluindo quem assina pela sua empresa. Cada um recebe o link no próprio e-mail.
+          </p>
+          {signatarios.map((s, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                value={s.nome}
+                onChange={(e) => setSig(i, 'nome', e.target.value)}
+                placeholder="Nome completo"
+                className="flex-1"
+              />
+              <Input
+                type="email"
+                value={s.email}
+                onChange={(e) => setSig(i, 'email', e.target.value)}
+                placeholder="email@exemplo.com"
+                className="flex-1"
+              />
+              <button
+                type="button"
+                onClick={() => removeSig(i)}
+                disabled={signatarios.length === 1}
+                title="Remover signatário"
+                className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-destructive disabled:opacity-40"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addSig}
+            className="flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs hover:bg-accent"
+          >
+            <Plus className="size-3" />
+            Adicionar signatário
+          </button>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <Button type="submit" disabled={enviando}>
+            {enviando ? 'Enviando…' : 'Enviar para assinatura'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 export function ContratosView({
   templateUrl,
   emRevisao = false,
@@ -165,7 +334,7 @@ export function ContratosView({
 }) {
   const router = useRouter()
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [activeTab, setActiveTab] = useState<'gerador' | 'historico'>('gerador')
+  const [activeTab, setActiveTab] = useState<'gerador' | 'upload' | 'historico'>('gerador')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [enviandoId, setEnviandoId] = useState<string | null>(null)
   const [signatarioOpen, setSignatarioOpen] = useState(false)
@@ -386,7 +555,7 @@ export function ContratosView({
       <div className="shrink-0 border-b border-border bg-background px-6 pt-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1">
-            {(['gerador', 'historico'] as const).map((tab) => (
+            {(['gerador', 'upload', 'historico'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -397,9 +566,11 @@ export function ContratosView({
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {tab === 'gerador' ? <FileText className="size-3.5" /> : <History className="size-3.5" />}
+                {tab === 'gerador' ? <FileText className="size-3.5" /> : tab === 'upload' ? <Upload className="size-3.5" /> : <History className="size-3.5" />}
                 {tab === 'gerador'
                   ? 'Gerador'
+                  : tab === 'upload'
+                  ? 'Enviar documento'
                   : `Histórico${historicoProp.length > 0 ? ` (${historicoProp.length})` : ''}`}
               </button>
             ))}
@@ -426,6 +597,15 @@ export function ContratosView({
         className={`h-full w-full flex-1 border-0 ${activeTab === 'gerador' ? '' : 'hidden'}`}
         title="Gerador de Contratos"
       />
+
+      {/* Enviar documento (upload de PDF pronto) */}
+      {activeTab === 'upload' && (
+        <UploadDocumentoTab
+          signatarioNome={signatarioNome}
+          signatarioEmail={signatarioEmail}
+          onEnviado={() => { setActiveTab('historico'); router.refresh() }}
+        />
+      )}
 
       {/* Histórico */}
       {activeTab === 'historico' && (
@@ -456,7 +636,7 @@ export function ContratosView({
                     </div>
                     <div className="ml-3 flex shrink-0 items-center gap-2.5">
                       <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium">
-                        {item.tipo}
+                        {item.origem === 'upload' ? 'Documento' : item.tipo}
                       </span>
                       <StatusBadge variant={STATUS_VARIANT[statusEfetivo(item)]}>
                         {STATUS_LABEL[statusEfetivo(item)]}
@@ -465,14 +645,18 @@ export function ContratosView({
                         {formatDateTime(item.created_at)}
                       </span>
                       {statusEfetivo(item) === 'rascunho' && (
+                        // Upload não exige o responsável-empresa (a lista de
+                        // signatários é 100% manual, guardada no envio); só o
+                        // gerador precisa dele. Por isso o gate por
+                        // assinaturaConfigurada só vale para origem !== 'upload'.
                         <button
                           type="button"
                           title={
-                            assinaturaConfigurada
+                            item.origem === 'upload' || assinaturaConfigurada
                               ? 'Envia o link de assinatura por e-mail para cada signatário do contrato'
-                              : 'Cadastre quem assina os contratos pela empresa (Configurações) para habilitar'
+                              : 'Cadastre quem assina os contratos pela empresa para habilitar'
                           }
-                          disabled={enviandoId === item.id || !assinaturaConfigurada}
+                          disabled={enviandoId === item.id || (item.origem !== 'upload' && !assinaturaConfigurada)}
                           onClick={() => enviarAssinatura(item.id)}
                           className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -496,15 +680,17 @@ export function ContratosView({
                           Link do 1º signatário
                         </button>
                       )}
-                      <button
-                        type="button"
-                        title="Re-editar"
-                        onClick={() => reEditarContrato(item)}
-                        className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
-                      >
-                        <Pencil className="size-3" />
-                        Re-editar
-                      </button>
+                      {item.origem !== 'upload' && (
+                        <button
+                          type="button"
+                          title="Re-editar"
+                          onClick={() => reEditarContrato(item)}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                        >
+                          <Pencil className="size-3" />
+                          Re-editar
+                        </button>
+                      )}
                       <button
                         type="button"
                         title="Excluir"

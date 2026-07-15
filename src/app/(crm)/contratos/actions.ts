@@ -4,17 +4,18 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { assertModulo } from '@/lib/gating'
-import { criarDocumentoAssinatura, type ModalidadeAssinatura } from '@/lib/zapsign'
-
-const MODALIDADES_VALIDAS: ModalidadeAssinatura[] = ['simples', 'email', 'sms', 'qualificada']
-
-const BUCKET_CONTRATOS_GERADOS = 'contratos-gerados'
+import {
+  dispararAssinaturaZapSign,
+  extrairSignatariosDoUpload,
+  BUCKET_CONTRATOS_GERADOS,
+} from '@/lib/contratos-assinatura'
 
 export interface ContratoGerado {
   id: string
   parceiro_nome: string | null
   parceiro_doc: string | null
-  tipo: 'PJ' | 'PF'
+  /** null para uploads (origem='upload') — só o gerador tem PJ/PF. */
+  tipo: 'PJ' | 'PF' | null
   dados: unknown
   created_at: string
   storage_path?: string | null
@@ -29,6 +30,8 @@ export interface ContratoGerado {
   link_assinatura?: string | null
   signed_at?: string | null
   signed_storage_path?: string | null
+  /** 'gerador' (formulário + template) ou 'upload' (PDF pronto enviado). */
+  origem?: 'gerador' | 'upload' | null
 }
 
 export async function salvarContratoGerado(input: {
@@ -108,7 +111,7 @@ export async function listarContratosGerados(): Promise<ContratoGerado[]> {
 
   const { data, error } = await supabase
     .from('contratos_gerados')
-    .select('id, parceiro_nome, parceiro_doc, tipo, dados, created_at, storage_path, status, zapsign_doc_token, zapsign_nivel, link_assinatura, signed_at, signed_storage_path')
+    .select('id, parceiro_nome, parceiro_doc, tipo, dados, created_at, storage_path, status, zapsign_doc_token, zapsign_nivel, link_assinatura, signed_at, signed_storage_path, origem')
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -203,7 +206,7 @@ export async function enviarParaAssinatura(
   //    contrato da própria empresa é retornado.
   const { data: contrato, error: fetchErr } = await supabase
     .from('contratos_gerados')
-    .select('id, parceiro_nome, storage_path, dados')
+    .select('id, parceiro_nome, storage_path, dados, origem')
     .eq('id', contratoId)
     .maybeSingle()
 
@@ -227,43 +230,40 @@ export async function enviarParaAssinatura(
 
   const pdfBase64 = Buffer.from(await pdfBlob.arrayBuffer()).toString('base64')
 
-  // 3. Modalidade de assinatura configurada pra empresa (default 'simples').
-  //    Só modalidades gratuitas + qualificada (paga, deliberada) são aceitas
-  //    — ver src/lib/zapsign.ts.
-  const { data: empresa } = await supabase
-    .from('empresas')
-    .select('config')
-    .eq('id', empresaId)
-    .maybeSingle()
-
-  const config = (empresa?.config as Record<string, unknown> | null) ?? {}
-  const modalidadeConfig = config.contrato_nivel_assinatura as string | undefined
-  const modalidade = (MODALIDADES_VALIDAS.includes(modalidadeConfig as ModalidadeAssinatura)
-    ? modalidadeConfig
-    : 'simples') as ModalidadeAssinatura
-
-  // 4. Monta a lista de signatários: a contraparte (cliente/representante +
-  //    responsáveis adicionais, tirados do próprio formulário do contrato) e,
-  //    se configurado no admin, quem assina em nome da própria empresa — o
-  //    contrato tem linha de assinatura pros dois lados, então os dois lados
-  //    precisam receber o link.
-  const signatarios = extrairSignatariosDaContraparte(contrato.dados)
-  if (signatarios.length === 0) {
-    return { error: 'O contrato não tem nenhum signatário preenchido. Edite o contrato e informe ao menos o nome da contraparte.' }
-  }
-
-  // O responsável pela assinatura da empresa é OBRIGATÓRIO: o contrato tem
-  // linha de assinatura pros dois lados, então enviar sem ele produziria um
-  // documento que o ZapSign fecha como "assinado" sem a empresa ter assinado.
-  // Admin ou sócio cadastra em Configurações (salvarSignatarioContratos).
-  const empresaNome  = (config.contrato_signatario_nome as string | undefined)?.trim()
-  const empresaEmail = (config.contrato_signatario_email as string | undefined)?.trim()
-  if (!empresaNome || !empresaEmail) {
-    return {
-      error: 'Cadastre quem assina os contratos pela empresa (Configurações → Assinatura de contratos) antes de enviar para assinatura eletrônica.',
+  // 3. Monta a lista de signatários conforme a origem do contrato.
+  let signatarios: Array<{ nome: string; email?: string }>
+  if (contrato.origem === 'upload') {
+    // Upload de PDF pronto: a lista foi informada no envio (dados.signatarios).
+    // Não há signatário-empresa automático — o usuário monta a lista inteira.
+    signatarios = extrairSignatariosDoUpload(contrato.dados)
+    if (signatarios.length === 0) {
+      return { error: 'Este documento não tem signatários registrados.' }
     }
+  } else {
+    // Gerador: contraparte (do formulário) + quem assina pela empresa.
+    signatarios = extrairSignatariosDaContraparte(contrato.dados)
+    if (signatarios.length === 0) {
+      return { error: 'O contrato não tem nenhum signatário preenchido. Edite o contrato e informe ao menos o nome da contraparte.' }
+    }
+    // O responsável pela assinatura da empresa é OBRIGATÓRIO no gerador: o
+    // contrato tem linha de assinatura pros dois lados, então enviar sem ele
+    // produziria um documento que o ZapSign fecha como "assinado" sem a empresa
+    // ter assinado. Admin/sócio cadastra em Contratos (salvarSignatarioContratos).
+    const { data: empresa } = await supabase
+      .from('empresas')
+      .select('config')
+      .eq('id', empresaId)
+      .maybeSingle()
+    const config = (empresa?.config as Record<string, unknown> | null) ?? {}
+    const empresaNome  = (config.contrato_signatario_nome as string | undefined)?.trim()
+    const empresaEmail = (config.contrato_signatario_email as string | undefined)?.trim()
+    if (!empresaNome || !empresaEmail) {
+      return {
+        error: 'Cadastre quem assina os contratos pela empresa (aba Contratos → "Quem assina pela empresa") antes de enviar para assinatura eletrônica.',
+      }
+    }
+    signatarios.push({ nome: empresaNome, email: empresaEmail })
   }
-  signatarios.push({ nome: empresaNome, email: empresaEmail })
 
   const semEmail = signatarios.filter((s) => !s.email).map((s) => s.nome)
   if (semEmail.length > 0) {
@@ -272,46 +272,11 @@ export async function enviarParaAssinatura(
     }
   }
 
-  // 5. Chama o ZapSign. Erros (chave ausente, falha da API, ou dado de
-  //    contato faltando pra modalidade escolhida) viram { error } tratável
-  //    como toast pelo caller — criarDocumentoAssinatura já lança mensagens
-  //    legíveis, nunca o corpo cru da resposta.
+  // 4. Modalidade + ZapSign + gravação de status (compartilhado com o upload).
   const nomeArquivo = `Contrato - ${(contrato.parceiro_nome ?? contrato.id).slice(0, 200)}.pdf`
-  let resultado: { token: string; linkAssinatura: string }
-  try {
-    resultado = await criarDocumentoAssinatura({
-      pdfBase64,
-      nomeArquivo,
-      signatarios,
-      modalidade,
-    })
-  } catch (err) {
-    console.error('[enviarParaAssinatura] erro ao criar documento no ZapSign:', err)
-    return { error: err instanceof Error ? err.message : 'Não foi possível enviar o documento para assinatura.' }
-  }
-
-  // 6. Grava o resultado. Client admin: a RLS de UPDATE já escopa por
-  //    empresa, mas a Server Action já validou o dono do contrato acima via
-  //    select com o client de sessão — usar admin aqui evita depender de a
-  //    policy de UPDATE já estar recarregada no schema cache do PostgREST.
-  const { error: updateErr } = await admin
-    .from('contratos_gerados')
-    .update({
-      status:             'enviado',
-      zapsign_doc_token:  resultado.token,
-      zapsign_nivel:      modalidade,
-      link_assinatura:    resultado.linkAssinatura,
-    })
-    .eq('id', contratoId)
-
-  if (updateErr) {
-    console.error('[enviarParaAssinatura] erro ao atualizar contrato após envio:', updateErr.message)
-    return { error: 'O documento foi enviado ao ZapSign, mas não foi possível atualizar o status no CRM. Atualize a página.' }
-  }
+  const res = await dispararAssinaturaZapSign({ empresaId, contratoId, pdfBase64, nomeArquivo, signatarios })
+  if (res.error) return { error: res.error }
 
   revalidatePath('/contratos')
-  return {
-    linkAssinatura: resultado.linkAssinatura,
-    signatarios: signatarios.map((s) => s.nome),
-  }
+  return { linkAssinatura: res.linkAssinatura, signatarios: res.signatarios }
 }
