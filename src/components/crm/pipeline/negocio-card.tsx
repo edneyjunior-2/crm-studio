@@ -60,6 +60,11 @@ function parseBRLInput(formatted: string): number {
   return Number(formatted.replace(/\./g, '').replace(',', '.')) || 0
 }
 
+function todayISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // ── Linha de produto (igual ao negocio-form) ──────────────────────────────────
 
 interface ProdutoLinha {
@@ -208,6 +213,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
   const [motivoSelecionado, setMotivoSelecionado] = useState('')
   const [motivoOutro, setMotivoOutro] = useState('')
   const [slugPerdaDestino, setSlugPerdaDestino] = useState<string>('fechado_perdido')
+  const [dataFechamentoPerda, setDataFechamentoPerda] = useState(() => todayISO())
 
   // ── Produtos (edit inline) ──────────────────────────────────────────────────
   const [produtos, setProdutos] = useState<ProdutoLinha[]>([
@@ -321,6 +327,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
       setSlugPerdaDestino(novoEstagio)
       setMotivoSelecionado('')
       setMotivoOutro('')
+      setDataFechamentoPerda(todayISO())
       setPerdaOpen(true)
     } else {
       setEstagio(novoEstagio)
@@ -340,7 +347,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
         slugPerdaDestino,
         null,
         null,
-        null,
+        dataFechamentoPerda || todayISO(),
         motivo
       )
       if (result.error) {
@@ -935,6 +942,16 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
           </p>
 
           <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`data-fechamento-perda-${negocio.id}`}>Data de Fechamento</Label>
+              <Input
+                id={`data-fechamento-perda-${negocio.id}`}
+                type="date"
+                value={dataFechamentoPerda}
+                onChange={(e) => setDataFechamentoPerda(e.target.value)}
+              />
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <Label>Motivo</Label>
               <Select value={motivoSelecionado} onValueChange={(v) => setMotivoSelecionado(v ?? '')}>
