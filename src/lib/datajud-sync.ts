@@ -9,12 +9,13 @@ const THROTTLE_MS = 600
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 type ProcessoRow = {
-  id:              string
-  numero_processo: string
-  tribunal_slug:   string
-  empresa_id:      string
-  advogado_id:     string | null
-  assunto:         string | null
+  id:                    string
+  numero_processo:       string
+  tribunal_slug:         string
+  empresa_id:            string
+  advogado_id:           string | null
+  assunto:               string | null
+  ultimo_datajud_update: string | null
 }
 
 // Acumula processos com novas movimentações para notificar ao final (evita rate-limit de e-mail no meio do loop)
@@ -55,7 +56,7 @@ export async function sincronizarMovimentacoesDataJud(
   const limite = opts?.limite ?? 300
   const { data: processos, error } = await db
     .from('processos_juridicos')
-    .select('id, numero_processo, tribunal_slug, empresa_id, advogado_id, assunto')
+    .select('id, numero_processo, tribunal_slug, empresa_id, advogado_id, assunto, ultimo_datajud_update')
     .eq('status', 'em_transito')
     .order('ultimo_datajud_update', { ascending: true, nullsFirst: true })
     .limit(limite)
@@ -199,6 +200,13 @@ async function processarResultado(
   res: DataJudResult,
   notificacoes: Notificacao[],
 ): Promise<{ atualizado: boolean; erro: string | null; qtdNovas: number }> {
+  // Capturado ANTES de qualquer carimbo de ultimo_datajud_update neste sync —
+  // é o sinal de "processo nunca sincronizado antes" (backfill histórico).
+  // Movimentações de anos atrás descobertas agora não são "novidade" pro
+  // usuário; mesmo tratamento que processos/novo/actions.ts já dá ao
+  // cadastro manual (lido:true, sem e-mail).
+  const primeiraSincronizacao = processo.ultimo_datajud_update === null
+
   if (!res.ok) {
     if (res.motivo === 'nao_encontrado') {
       // Processo não indexado no DataJud ainda — marca como verificado hoje
@@ -235,7 +243,7 @@ async function processarResultado(
       descricao:         m.nome,
       complemento:       m.complemento || null,
       data_movimentacao: dataMovimentacao,
-      lido:              false,
+      lido:              primeiraSincronizacao,
       raw_data:          m,
     }
   })
@@ -265,8 +273,9 @@ async function processarResultado(
 
   const qtdNovas = inserted?.length ?? 0
 
-  // Registra processo com novas movimentações para e-mail ao responsável
-  if (qtdNovas > 0 && processo.advogado_id) {
+  // Registra processo com novas movimentações para e-mail ao responsável —
+  // não no backfill inicial (AC4): não é "notícia" pro advogado, é histórico.
+  if (qtdNovas > 0 && processo.advogado_id && !primeiraSincronizacao) {
     notificacoes.push({
       advogadoId: processo.advogado_id,
       processoId: processo.id,
