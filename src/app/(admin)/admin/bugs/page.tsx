@@ -70,7 +70,7 @@ export default async function BugsPage({ searchParams }: BugsPageProps) {
       admin
         .from('bug_reports')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: true })
         .range(from, to)
     )
   } catch {
