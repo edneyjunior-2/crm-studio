@@ -907,8 +907,20 @@
     var habilitado = pendentes.length === 0;
     btnDocusign.disabled = !habilitado;
     btnDocusign.classList.toggle('btn-disabled', !habilitado);
-    btnDocusign.title = habilitado
-      ? 'Salva o contrato e envia o link de assinatura por e-mail para cada signatário'
+    if (habilitado) {
+      btnDocusign.removeAttribute('data-badge');
+      btnDocusign.title = 'Salva o contrato e envia o link de assinatura por e-mail para cada signatário';
+      return;
+    }
+    // Distingue "contrato ainda sem signatário preenchido" (marcadores entre
+    // parênteses, ex.: '(representante legal)') de "signatário preenchido mas
+    // sem e-mail" (nome real). A tag do botão é CSS content:attr(data-badge),
+    // então precisa refletir o motivo REAL — antes dizia sempre 'FALTA E-MAIL',
+    // o que enganava quem só não tinha preenchido os dados ainda.
+    var soFaltaPreencher = pendentes.every(function (p) { return p.charAt(0) === '('; });
+    btnDocusign.dataset.badge = soFaltaPreencher ? 'PREENCHA' : 'FALTA E-MAIL';
+    btnDocusign.title = soFaltaPreencher
+      ? 'Preencha os dados do contrato (nome do signatário) para habilitar o envio para assinatura'
       : 'Sem e-mail para: ' + pendentes.join(', ') + ' — cada signatário recebe o link no próprio e-mail.';
   }
 

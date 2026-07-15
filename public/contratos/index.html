@@ -350,11 +350,12 @@
     .btn-outline { background: transparent; color: var(--aurum-precisao); border: 1px solid var(--aurum-border); }
     .btn-outline:hover { background: #F9FAFB; }
     .btn-disabled { background: #E5E7EB; color: #9CA3AF; cursor: not-allowed; position: relative; }
-    .btn-disabled::after {
-      content: 'FALTA E-MAIL';
+    .btn-disabled[data-badge]::after {
+      content: attr(data-badge);
       position: absolute; top: -8px; right: -8px;
       background: var(--aurum-reserva); color: var(--aurum-precisao);
       font-size: 8px; padding: 2px 5px; border-radius: 3px; font-weight: 700;
+      white-space: nowrap;
     }
     .btn-remover-socio {
       background: none; border: none; cursor: pointer;
@@ -1165,6 +1166,6 @@
   <!-- Motor genérico compartilhado por todos os tenants — URL absoluta de
        produção (necessária p/ templates white-label servidos de outra origem
        via signed URL do Supabase Storage) + cache-bust ?v=. -->
-  <script src="https://app.crmstudio.com.br/contratos/engine.js?v=3"></script>
+  <script src="https://app.crmstudio.com.br/contratos/engine.js?v=4"></script>
 </body>
 </html>
