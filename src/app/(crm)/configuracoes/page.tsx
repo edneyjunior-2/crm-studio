@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { Settings, LayoutDashboard, GitMerge, Briefcase } from 'lucide-react'
+import { Settings, LayoutDashboard, GitMerge, Briefcase, Scale } from 'lucide-react'
 import { CodigoAcesso } from '@/components/crm/configuracoes/codigo-acesso'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -24,6 +24,8 @@ import { listarEstagios } from '@/lib/pipeline-estagios'
 import { EtapasConfig } from '@/components/crm/configuracoes/etapas-config'
 import { getPipelineConfig } from '@/lib/pipeline-config'
 import { PipelineConfigSection } from '@/components/crm/configuracoes/pipeline-config-section'
+import { getProcessosConfig } from '@/lib/processos-config'
+import { ProcessosConfigSection } from '@/components/crm/configuracoes/processos-config-section'
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient()
@@ -94,6 +96,9 @@ export default async function ConfiguracoesPage() {
 
   // Obrigatórios do form de negócio (empresas.config.pipeline) — defaults quando não configurado
   const pipelineConfig = await getPipelineConfig(supabase, empresaId)
+
+  // Advogado padrão do módulo Processos (empresas.config.processos) — defaults quando não configurado
+  const processosConfig = await getProcessosConfig(supabase, empresaId)
 
   const profiles: Profile[] = (profilesResult.data ?? []) as Profile[]
   const authInfo = (authUsersResult.data ?? []) as { id: string; email: string | null; last_sign_in_at: string | null }[]
@@ -282,6 +287,34 @@ export default async function ConfiguracoesPage() {
           </div>
         </details>
       </section>
+
+      {/* Vertical advocacia — some da página inteira sem o módulo, não só desabilita */}
+      {modulosDisponiveis.includes('processos' as Modulo) && (
+        <section>
+          <details className="group rounded-xl border border-border">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 marker:hidden">
+              <div className="flex items-center gap-2">
+                <Scale className="size-4 text-muted-foreground" />
+                <span className="text-base font-medium text-foreground">Advogado responsável padrão</span>
+              </div>
+              <svg
+                className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div className="flex flex-col gap-4 border-t border-border px-5 pb-5 pt-4">
+              <ProcessosConfigSection
+                advogados={profiles
+                  .map((p) => ({ id: p.id, full_name: p.full_name }))
+                  .sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'))}
+                advogadoPadraoId={processosConfig.advogado_padrao_id}
+              />
+            </div>
+          </details>
+        </section>
+      )}
 
       <section className="flex flex-col gap-4">
         <PrivacidadeDados

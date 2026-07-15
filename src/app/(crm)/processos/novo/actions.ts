@@ -11,6 +11,7 @@ import {
   mensagemErroDataJud,
 } from '@/lib/datajud'
 import { parseValorBR } from '@/lib/honorarios'
+import { getProcessosConfig } from '@/lib/processos-config'
 
 export interface BuscarProcessoResult {
   numeroProcesso:   string
@@ -71,7 +72,12 @@ export async function criarProcesso(
   // na tabela nova — cliente_id de processos_juridicos já cumpre esse papel).
   const clienteIds  = [...new Set(formData.getAll('cliente_ids').map((v) => v.toString().trim()).filter(Boolean))]
   const clienteId   = clienteIds[0] ?? null
-  const advogadoId = (formData.get('advogado_id') as string)?.trim() || null
+  let advogadoId = (formData.get('advogado_id') as string)?.trim() || null
+  if (!advogadoId) {
+    // ponytail: nenhum advogado escolhido no form — cai pro padrão da empresa
+    // (getProcessosConfig já devolve null se não houver, sem regressão).
+    advogadoId = (await getProcessosConfig(supabase, empresaId)).advogado_padrao_id
+  }
   const parceiroId = (formData.get('parceiro_id') as string)?.trim() || null
   // Parceiro indicador (public.parceiros) — distinto de parceiroId acima (profiles/portal).
   const indicadorParceiroId = (formData.get('indicador_parceiro_id') as string)?.trim() || null

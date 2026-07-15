@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { normalizarNumeroCNJ, detectarTribunal } from '@/lib/datajud'
 import { getAuthUser } from '@/lib/auth'
+import { getProcessosConfig } from '@/lib/processos-config'
 
 export interface ProcessoImportRow {
   numero_processo:   string
@@ -125,6 +126,10 @@ export async function POST(req: NextRequest) {
   const result: ImportResult = { total: rows.length, criados: 0, atualizados: 0, erros: [], semDataJud: [] }
   const admin = createAdminClient()
 
+  // Advogado padrão da empresa (empresas.config.processos) — buscado uma única vez
+  // fora do loop (ponytail: uma query por request, não uma por linha).
+  const { advogado_padrao_id: advogadoPadraoId } = await getProcessosConfig(supabase, empresaId)
+
   // 1. Normalizar e validar todas as linhas
   type Payload = Record<string, unknown>
   const payloads: Payload[] = []
@@ -140,7 +145,8 @@ export async function POST(req: NextRequest) {
 
     const tribunalSlug = detectarTribunal(numero)
     const clienteId    = row.cliente_nome  ? clienteMap.get(row.cliente_nome.toLowerCase().trim())  ?? null : null
-    const advogadoId   = row.advogado_nome ? advogadoMap.get(row.advogado_nome.toLowerCase().trim()) ?? null : null
+    // Sem match explícito por nome, cai pro advogado padrão da empresa (pode ser null).
+    const advogadoId   = (row.advogado_nome ? advogadoMap.get(row.advogado_nome.toLowerCase().trim()) ?? null : null) ?? advogadoPadraoId
     const honTipo      = normalizeHonorariosTipo(row.honorarios_tipo)
     const honTipoValido = honTipo === 'fixo' || honTipo === 'percentual' ? honTipo : null
 
