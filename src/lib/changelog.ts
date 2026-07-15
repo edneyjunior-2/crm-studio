@@ -27,6 +27,40 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-15-contratos-assinatura-eletronica',
+    data: '2026-07-15',
+    titulo: 'Assinatura eletrônica dos contratos, direto no sistema',
+    tipo: 'novidade',
+    modulo: 'geral',
+    itens: [
+      'Gere o contrato e envie para assinatura em 1 clique — sem imprimir, assinar à mão ou escanear',
+      'Empresa com mais de um sócio? Adicione todos os responsáveis no contrato — cada um recebe o link de assinatura no próprio e-mail',
+      'O responsável da sua empresa pelas assinaturas é cadastrado uma vez e entra automaticamente em todo contrato enviado',
+      'O status do contrato (Enviado → Assinado) atualiza sozinho no histórico assim que todos assinarem',
+    ],
+  },
+  {
+    id: '2026-07-15-contratos-upload-documento',
+    data: '2026-07-15',
+    titulo: 'Envie qualquer documento pronto para assinatura',
+    tipo: 'novidade',
+    modulo: 'geral',
+    itens: [
+      'Nova aba "Enviar documento" em Contratos: suba um PDF já pronto (feito fora do sistema) e mande para assinatura eletrônica',
+      'Defina os signatários na hora do envio — cada um recebe o próprio link por e-mail',
+    ],
+  },
+  {
+    id: '2026-07-15-contratos-campo-desativado',
+    data: '2026-07-15',
+    titulo: 'Contrato com campo não preenchido sai certo',
+    tipo: 'correcao',
+    modulo: 'geral',
+    itens: [
+      'Um campo desmarcado no gerador (ex.: RG não informado) não aparece mais como texto bruto no documento final',
+    ],
+  },
+  {
     id: '2026-07-13-calendario-sync-continua',
     data: '2026-07-13',
     titulo: 'Google Calendar sincroniza sozinho com o CRM',
