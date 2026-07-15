@@ -12,9 +12,10 @@ import { avaliarPagamento } from './actions'
 import { ConfigSdrSection } from '@/components/crm/configuracoes/config-sdr-section'
 import { DadosEmpresaSection } from '@/components/crm/configuracoes/dados-empresa-section'
 import { AddonAssinaturaCard } from '@/components/crm/configuracoes/addon-assinatura-card'
+import { BlocoUsuariosCard } from '@/components/crm/configuracoes/bloco-usuarios-card'
 import { ADDON_ASSINATURA } from '@/lib/addons'
-import { temAddon } from '@/lib/addons-server'
-import { modulosEfetivos, MODULO_LABEL } from '@/lib/modulos'
+import { temAddon, limiteUsuariosEfetivo } from '@/lib/addons-server'
+import { modulosEfetivos, MODULO_LABEL, LIMITES_POR_PLANO } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
 import { getAuthUser } from '@/lib/auth'
 import type { PlanoEmpresa } from '@/lib/auth'
@@ -42,9 +43,9 @@ export default async function ConfiguracoesPage() {
   // Tenant efetivo: para platform admin reflete empresa_ativa_id; para usuário
   // comum é igual a profiles.empresa_id. NÃO reler profiles.empresa_id direto —
   // daria vazio/órfão p/ platform admin. (ver atendimento/page.tsx)
-  const { empresaId } = await getAuthUser()
+  const { empresaId, plano } = await getAuthUser()
 
-  const [profilesResult, authUsersResult, empresaResult, sdrResult, temAssinaturaEletronica] = await Promise.all([
+  const [profilesResult, authUsersResult, empresaResult, sdrResult, temAssinaturaEletronica, limiteUsuarios] = await Promise.all([
     supabase.from('profiles').select('*').order('created_at', { ascending: true }),
     // E-mail + último acesso vêm da view profiles_auth (banco, via service_role),
     // NÃO de auth.admin.listUsers() (GoTrue) — que falhava em prod e zerava todos
@@ -67,7 +68,13 @@ export default async function ConfiguracoesPage() {
       : Promise.resolve({ data: null }),
     // Add-on de assinatura eletrônica (spec addon-assinatura-eletronica-zapsign.md)
     empresaId ? temAddon(admin, empresaId, ADDON_ASSINATURA) : Promise.resolve(false),
+    // Limite efetivo de usuários (plano base + blocos comprados — spec addon-bloco-10-usuarios.md)
+    empresaId ? limiteUsuariosEfetivo(admin, empresaId, plano) : Promise.resolve(LIMITES_POR_PLANO[plano].usuarios),
   ])
+
+  // blocosComprados só é significativo quando limiteUsuarios !== -1 (plano
+  // ilimitado não conta blocos — ver limiteUsuariosEfetivo).
+  const blocosComprados = limiteUsuarios === -1 ? 0 : Math.round((limiteUsuarios - LIMITES_POR_PLANO[plano].usuarios) / 10)
 
   const sdr = (sdrResult.data ?? null) as {
     wa_phone_number_id: string | null
@@ -172,9 +179,13 @@ export default async function ConfiguracoesPage() {
         <div>
           <h3 className="text-base font-medium text-foreground">Usuários</h3>
           <p className="text-sm text-muted-foreground">
-            {usuarios.length} {usuarios.length === 1 ? 'usuário cadastrado' : 'usuários cadastrados'}
+            {usuarios.length} de {limiteUsuarios === -1 ? '∞' : limiteUsuarios} usuários
           </p>
         </div>
+
+        {limiteUsuarios !== -1 && (
+          <BlocoUsuariosCard blocosComprados={blocosComprados} podeComprar={profile?.role === 'admin'} />
+        )}
 
         {profilesResult.error ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 py-10 text-center">

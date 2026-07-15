@@ -19,13 +19,25 @@
  */
 
 export const ADDON_ASSINATURA = 'assinatura_eletronica'
+export const ADDON_BLOCO_USUARIOS = 'bloco_10_usuarios'
+
+/**
+ * Add-ons QUANTITATIVOS (múltiplas linhas ativas por empresa) — contratarAddon
+ * (configuracoes/actions.ts) pula o guard de "já ativo" pra esses slugs: o
+ * objetivo é justamente permitir comprar o MESMO slug várias vezes (spec
+ * addon-bloco-10-usuarios.md). Todo add-on NÃO listado aqui é booleano
+ * (comprar 2x = erro "já está ativo na sua conta").
+ */
+export const ADDONS_EMPILHAVEIS: readonly string[] = [ADDON_BLOCO_USUARIOS]
 
 /** Preço mensal em reais por slug — fonte única cobrada no Checkout (nunca form/DB). */
 export const PRECO_ADDON: Record<string, number> = {
   [ADDON_ASSINATURA]: 49,
+  [ADDON_BLOCO_USUARIOS]: 50,
 }
 
 /** Nome curto por slug — usado na descrição do item no Checkout Asaas. */
 export const NOME_ADDON: Record<string, string> = {
   [ADDON_ASSINATURA]: 'Assinatura Eletrônica',
+  [ADDON_BLOCO_USUARIOS]: 'Bloco de +10 usuários',
 }

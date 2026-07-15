@@ -1,6 +1,8 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { PRECO_ADDON } from '@/lib/addons'
+import { PRECO_ADDON, ADDON_BLOCO_USUARIOS } from '@/lib/addons'
+import { LIMITES_POR_PLANO } from '@/lib/modulos'
+import type { PlanoEmpresa } from '@/lib/auth'
 
 /**
  * addons-server.ts — Posse de add-on (temAddon) e processamento do trilho de
@@ -58,6 +60,41 @@ export async function temAddon(
     return false
   }
   return (data?.length ?? 0) > 0
+}
+
+/**
+ * Limite de usuários da empresa, já somando os blocos comprados (add-on
+ * quantitativo — spec addon-bloco-10-usuarios.md). `-1` = ilimitado
+ * (Business/interno/trial — blocos não fazem diferença nesse caso, nem são
+ * contados: retorna cedo sem consultar `empresa_addons`).
+ *
+ * Fail-closed pro limite BASE do plano (nunca pro ilimitado) se a leitura de
+ * `empresa_addons` falhar — nunca libera às cegas.
+ *
+ * @param db        client admin (service role, bypassa RLS) — mesmo padrão de temAddon.
+ * @param empresaId tenant a checar.
+ * @param plano     plano atual da empresa (já resolvido pelo caller via getAuthUser()/getAuthAdmin()).
+ */
+export async function limiteUsuariosEfetivo(
+  db: ReturnType<typeof createAdminClient>,
+  empresaId: string,
+  plano: PlanoEmpresa,
+): Promise<number> {
+  const base = LIMITES_POR_PLANO[plano].usuarios
+  if (base === -1) return -1
+
+  const { count, error } = await db
+    .from('empresa_addons')
+    .select('id', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId)
+    .eq('addon_slug', ADDON_BLOCO_USUARIOS)
+    .in('status', ['ativo', 'atrasado'])
+
+  if (error) {
+    console.error('[limiteUsuariosEfetivo] erro ao contar blocos:', error.message)
+    return base
+  }
+  return base + 10 * (count ?? 0)
 }
 
 // ---------------------------------------------------------------------------

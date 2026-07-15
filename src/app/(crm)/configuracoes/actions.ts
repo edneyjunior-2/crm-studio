@@ -8,9 +8,9 @@ import { getAuthAdmin, getAuthFinanceiro, getAuthUser } from '@/lib/auth'
 import type { StatusEmpresa } from '@/lib/auth'
 import { cancelSubscription, createCheckout } from '@/lib/asaas'
 import { encarregadoSchema } from '@/lib/schemas'
-import { MODULOS, LIMITES_POR_PLANO } from '@/lib/modulos'
-import { PRECO_ADDON, NOME_ADDON } from '@/lib/addons'
-import { temAddon } from '@/lib/addons-server'
+import { MODULOS } from '@/lib/modulos'
+import { PRECO_ADDON, NOME_ADDON, ADDON_BLOCO_USUARIOS, ADDONS_EMPILHAVEIS } from '@/lib/addons'
+import { temAddon, limiteUsuariosEfetivo } from '@/lib/addons-server'
 import { appUrl } from '@/lib/site-url'
 import { z } from 'zod'
 
@@ -229,8 +229,12 @@ export async function createUser(
   // travar o menu aqui evita a UI confusa de mostrar módulos inacessíveis.
   const modulosPermitidosConvite = role === 'parceiro' ? ['processos'] : undefined
 
-  // Limite de plano: conta usuários (profiles) da empresa. -1 = ilimitado.
-  const limiteUsuarios = LIMITES_POR_PLANO[plano].usuarios
+  // Hoisted: precisa existir ANTES do check de limite — limiteUsuariosEfetivo
+  // lê empresa_addons com o client admin (spec addon-bloco-10-usuarios.md).
+  const admin = createAdminClient()
+
+  // Limite de plano + blocos de usuário comprados (add-on empilhável). -1 = ilimitado.
+  const limiteUsuarios = await limiteUsuariosEfetivo(admin, empresaId, plano)
   if (limiteUsuarios !== -1) {
     const { count, error: countError } = await supabase
       .from('profiles')
@@ -239,14 +243,13 @@ export async function createUser(
     if (countError) return { error: countError.message }
     if ((count ?? 0) >= limiteUsuarios) {
       // Mensagem tem que dizer PARA ONDE ir — "faça upgrade" sozinho manda a
-      // pessoa procurar. O Business é o único plano sem teto de usuários.
+      // pessoa procurar. Dois caminhos: bloco de 10 usuários (add-on) ou
+      // Business (o único plano sem teto de usuários).
       return {
-        error: `Seu plano inclui ${limiteUsuarios} usuários e eles já estão todos ocupados. Para crescer o time, mude para o Business (usuários ilimitados) em Configurações › Assinatura.`,
+        error: `Seu plano inclui ${limiteUsuarios} usuários (com os blocos contratados) e já estão todos ocupados. Amplie em blocos de 10 usuários (R$50/mês) ou mude para o Business (sem limite) em Configurações.`,
       }
     }
   }
-
-  const admin = createAdminClient()
 
   const [{ data: adminProfile }, { data: empresa }] = await Promise.all([
     supabase.from('profiles').select('full_name').eq('id', adminUser.id).single(),
@@ -932,7 +935,7 @@ function addonClaimSentinel(slug: string, empresaId: string): string {
  * action sem alteração, desde que tenha entrada em PRECO_ADDON/NOME_ADDON.
  */
 export async function contratarAddon(slug: string): Promise<{ error?: string; checkoutUrl?: string }> {
-  const { user, empresaId, role } = await getAuthUser()
+  const { user, empresaId, role, plano } = await getAuthUser()
   if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
 
   // Segurança: checado NO SERVIDOR — a UI só esconde o botão pra quem não
@@ -946,9 +949,22 @@ export async function contratarAddon(slug: string): Promise<{ error?: string; ch
   const db = createAdminClient()
 
   // Guard boolean: já ativo (inclui a cortesia do plano 'interno')? Nunca
-  // deixa nascer uma 2ª compra do mesmo add-on.
-  if (await temAddon(db, empresaId, slug)) {
+  // deixa nascer uma 2ª compra do mesmo add-on — EXCETO pros slugs
+  // empilháveis (ex.: bloco de 10 usuários), onde comprar de novo é o
+  // comportamento ESPERADO (várias linhas ativas por empresa — spec
+  // addon-bloco-10-usuarios.md).
+  const empilhavel = ADDONS_EMPILHAVEIS.includes(slug)
+  if (!empilhavel && await temAddon(db, empresaId, slug)) {
     return { error: 'Este módulo já está ativo na sua conta.' }
+  }
+
+  // Só pro bloco de usuários: plano já ilimitado (Business/interno) não tem
+  // motivo pra comprar bloco — seria dinheiro jogado fora. Isto é só UX (não
+  // é trava de segurança): não bloqueia nada crítico se for removida. `plano`
+  // já vem de getAuthUser() resolvido pro tenant EFETIVO (mesmo tratamento de
+  // empresaId) — sem precisar de outra query.
+  if (slug === ADDON_BLOCO_USUARIOS && (plano === 'business' || plano === 'interno')) {
+    return { error: 'Seu plano já não tem limite de usuários — não é necessário comprar blocos.' }
   }
 
   // Guard de corrida — ver comentário de ADDON_CLAIM_TTL_MS acima.
