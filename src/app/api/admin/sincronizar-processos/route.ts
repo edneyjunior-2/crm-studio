@@ -5,6 +5,9 @@ import { sincronizarMovimentacoesDataJud } from '@/lib/datajud-sync'
 import { sincronizarPublicacoesDJEN } from '@/lib/djen-sync'
 
 export const maxDuration = 800 // mesmo teto dos crons — as 2 syncs rodam em sequência aqui
+// API pública do CNJ (DJEN) bloqueia (403) requests de datacenter fora do
+// Brasil — fixa a região da function em São Paulo para não cair nesse bloqueio.
+export const preferredRegion = 'gru1'
 
 // Limite alto: o clique dispara pra TODOS os tenants de uma vez e deve drenar
 // o backlog inteiro (cobre com folga o total atual de processos — ver spec

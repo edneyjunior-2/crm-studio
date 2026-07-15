@@ -4,6 +4,9 @@ import { sincronizarPublicacoesDJEN } from '@/lib/djen-sync'
 import { verificarCronSecret } from '@/lib/cron-auth'
 
 export const maxDuration = 800 // Vercel Pro c/ Fluid Compute — teto GA sem beta (2026-07)
+// API pública do CNJ bloqueia (403) requests de datacenter fora do Brasil —
+// fixa a região da function em São Paulo para não cair nesse bloqueio.
+export const preferredRegion = 'gru1'
 
 // Vercel Cron invoca via GET; POST permite trigger manual autenticado
 export async function GET(req: NextRequest) {

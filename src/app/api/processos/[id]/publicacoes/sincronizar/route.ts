@@ -12,6 +12,9 @@ import {
 import { sendNovasPublicacoesEmail } from '@/lib/email'
 
 export const maxDuration = 60
+// API pública do CNJ bloqueia (403) requests de datacenter fora do Brasil —
+// fixa a região da function em São Paulo para não cair nesse bloqueio.
+export const preferredRegion = 'gru1'
 
 export async function POST(
   req: NextRequest,
