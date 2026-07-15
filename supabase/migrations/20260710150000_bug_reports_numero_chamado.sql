@@ -17,8 +17,19 @@ alter table public.bug_reports add constraint bug_reports_numero_key unique (num
 
 -- Sequence começa depois do maior número já usado no backfill, pra numerar
 -- os próximos chamados automaticamente (DEFAULT), sem trava de race condition.
+-- Tabela vazia (banco novo, reconstruído do zero a partir das migrations —
+-- ver 20260627120000_bug_reports_tabela_base.sql) é um caso real: setval
+-- não aceita 0 (sequence começa em 1), então usa a forma de 3 argumentos
+-- com is_called=false pra o primeiro chamado nascer #1 em vez de estourar erro.
 create sequence if not exists public.bug_reports_numero_seq;
-select setval('public.bug_reports_numero_seq', coalesce((select max(numero) from public.bug_reports), 0));
+with maximo as (
+  select max(numero) as valor from public.bug_reports
+)
+select setval(
+  'public.bug_reports_numero_seq',
+  coalesce((select valor from maximo), 1),
+  (select valor from maximo) is not null
+);
 alter table public.bug_reports alter column numero set default nextval('public.bug_reports_numero_seq');
 alter sequence public.bug_reports_numero_seq owned by public.bug_reports.numero;
 
