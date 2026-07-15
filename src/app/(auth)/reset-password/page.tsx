@@ -85,6 +85,20 @@ export default function ResetPasswordPage() {
       setErrorMsg('Erro ao redefinir senha. O link pode ter expirado. Solicite um novo.')
       setPending(false)
     } else {
+      // Zera senha_temporaria (mesmo efeito de completarPrimeiroAcesso() em
+      // definir-senha/actions.ts) — best-effort, não bloqueia o sucesso se
+      // falhar: sem isso, quem redefine a senha por aqui (ex.: retomada de
+      // cadastro abandonado) cai de novo em /definir-senha no primeiro acesso
+      // pós-pagamento. Coberto pela policy "profiles: usuario atualiza o
+      // proprio" (id = auth.uid()), sem policy nova.
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { error: flagErr } = await supabase
+          .from('profiles')
+          .update({ senha_temporaria: false })
+          .eq('id', user.id)
+        if (flagErr) console.error('[reset-password] falha ao zerar senha_temporaria:', flagErr.message)
+      }
       setStatus('success')
     }
   }

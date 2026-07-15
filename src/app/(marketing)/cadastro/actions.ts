@@ -8,8 +8,56 @@ import { redirect } from 'next/navigation'
 import { sendWelcomeEmail } from '@/lib/email'
 import { rateLimit, clientIp } from '@/lib/rate-limit'
 import { planoValido } from '@/lib/planos'
+import { appUrl } from '@/lib/site-url'
 
-export async function cadastrar(formData: FormData): Promise<{ error?: string }> {
+/**
+ * Se o e-mail já existe MAS a empresa ainda está pendente_cartao (nunca pagou
+ * — nem sequer "esqueceu" senha, já que ela é aleatória e nunca foi vista),
+ * reenvia o link de acesso (mesmo resetPasswordForEmail de /esqueci-senha) em
+ * vez de deixar a pessoa achando que precisa lembrar uma senha que nunca
+ * escolheu. Fail-safe: qualquer erro/ausência cai em `false` — o caller usa a
+ * mensagem genérica de sempre.
+ */
+async function tentarRetomarCadastro(email: string): Promise<boolean> {
+  try {
+    const admin = createAdminClient()
+    const { data: authRow } = await admin
+      .from('profiles_auth')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle()
+    if (!authRow) return false
+
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('empresa_id')
+      .eq('id', authRow.id)
+      .maybeSingle()
+    if (!profile?.empresa_id) return false
+
+    const { data: empresa } = await admin
+      .from('empresas')
+      .select('status')
+      .eq('id', profile.empresa_id)
+      .maybeSingle()
+    if (empresa?.status !== 'pendente_cartao') return false
+
+    const supabase = await createClient()
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${appUrl()}/reset-password`,
+    })
+    if (error) {
+      console.error('[cadastrar] falha ao reenviar link de retomada:', error.message)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('[cadastrar] erro inesperado ao tentar retomar cadastro:', err)
+    return false
+  }
+}
+
+export async function cadastrar(formData: FormData): Promise<{ error?: string; retomada?: boolean }> {
   // Anti-abuso: 5 cadastros/hora por IP. FAIL-CLOSED de propósito — criamos o
   // usuário pela Admin API (ver abaixo), o que contorna o rate limit nativo do
   // signup público do Supabase. Este limiter é a ÚNICA barreira, e cada cadastro
@@ -95,6 +143,9 @@ export async function cadastrar(formData: FormData): Promise<{ error?: string }>
       createError.code === 'email_exists' ||
       /already (been )?registered|already exists/i.test(createError.message)
     ) {
+      if (await tentarRetomarCadastro(email)) {
+        return { retomada: true }
+      }
       return { error: 'Este e-mail já está cadastrado. Faça login ou recupere sua senha.' }
     }
     console.error('[cadastrar] erro ao criar usuário:', createError.message)
