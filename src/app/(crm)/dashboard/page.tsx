@@ -16,6 +16,10 @@ import { mapaEstagios, corPorTipo } from '@/lib/estagios-ui'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { unstable_cache } from 'next/cache'
 import type { NegocioComRelacoes, Followup } from '@/types'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { AddonAssinaturaBanner } from '@/components/crm/addon-assinatura-banner'
+import { ADDON_ASSINATURA } from '@/lib/addons'
+import { temAddon } from '@/lib/addons-server'
 
 // Paleta de cores hex para os donuts (por tipo/posição)
 const CORES_TIPO: Record<string, string> = {
@@ -63,7 +67,7 @@ function formatDate(dateStr: string): string {
 
 export default async function DashboardPage() {
   // Usa o cache do layout — zero round-trip extra ao Supabase Auth
-  const { supabase, user, role, empresaId } = await getAuthUser()
+  const { supabase, user, role, empresaId, plano } = await getAuthUser()
   if (!user) redirect('/login')
 
   // Parceiro (externo) não tem dashboard — mostraria pipeline/financeiro do
@@ -79,6 +83,7 @@ export default async function DashboardPage() {
   const mesAtualFim = `${proximoMes.getFullYear()}-${String(proximoMes.getMonth() + 1).padStart(2, '0')}-01`
 
   const isFinanceiro = role === 'admin' || role === 'socio'
+  const admin = createAdminClient()
 
   // Tudo em paralelo — uma única rodada de queries
   const [
@@ -87,6 +92,7 @@ export default async function DashboardPage() {
     negociosAll,
     { data: empresa },
     estagios,
+    temAssinaturaEletronica,
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -106,7 +112,16 @@ export default async function DashboardPage() {
       ? supabase.from('empresas').select('nome').eq('id', empresaId).single()
       : Promise.resolve({ data: null }),
     listarEstagios(),
+    // Add-on de assinatura eletrônica (spec addon-assinatura-eletronica-zapsign.md)
+    // — decide o banner de venda abaixo. Sem empresa, trata como "já tem" pra
+    // nunca mostrar o banner numa conta órfã.
+    empresaId ? temAddon(admin, empresaId, ADDON_ASSINATURA) : Promise.resolve(true),
   ])
+
+  // Banner de venda: todos os usuários sem o add-on veem (exceto plano
+  // 'interno', que usa de graça — Aurumtax). Compra habilitada só pra
+  // admin/socio (ver AddonAssinaturaBanner); comercial vê "fale com o administrador".
+  const mostrarBannerAssinatura = plano !== 'interno' && !temAssinaturaEletronica
 
   const mapa = mapaEstagios(estagios)
 
@@ -422,6 +437,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      {mostrarBannerAssinatura && (
+        <AddonAssinaturaBanner podeComprar={role === 'admin' || role === 'socio'} />
+      )}
+
       {/* Cabeçalho */}
       <div className="flex flex-col gap-3">
         <div>

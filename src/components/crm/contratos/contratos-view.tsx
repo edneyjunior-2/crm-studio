@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine, Upload, Plus, X } from 'lucide-react'
+import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine, Upload, Plus, X, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
 import { salvarContratoGerado, excluirContratoGerado, enviarParaAssinatura } from '@/app/(crm)/contratos/actions'
@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { salvarSignatarioContratos } from '@/app/(crm)/configuracoes/actions'
+import { salvarSignatarioContratos, contratarAddon } from '@/app/(crm)/configuracoes/actions'
+import { ADDON_ASSINATURA } from '@/lib/addons'
 
 function formatDateTime(iso: string) {
   const d = new Date(iso)
@@ -320,6 +321,7 @@ export function ContratosView({
   podeConfigurarAssinatura = false,
   signatarioNome = '',
   signatarioEmail = '',
+  temAssinaturaEletronica = false,
 }: {
   templateUrl?: string | null
   emRevisao?: boolean
@@ -331,6 +333,11 @@ export function ContratosView({
   podeConfigurarAssinatura?: boolean
   signatarioNome?: string
   signatarioEmail?: string
+  /** Empresa contratou o add-on de assinatura eletrônica (R$49/mês). Sem isso,
+   *  tanto o envio do histórico quanto a aba "Enviar documento" viram CTA de
+   *  upsell (mesmo padrão de assinaturaConfigurada) — o bloqueio real é no
+   *  servidor (enviarParaAssinatura e a rota de upload), isto é só a UI. */
+  temAssinaturaEletronica?: boolean
 }) {
   const router = useRouter()
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -338,7 +345,24 @@ export function ContratosView({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [enviandoId, setEnviandoId] = useState<string | null>(null)
   const [signatarioOpen, setSignatarioOpen] = useState(false)
+  const [comprandoAddon, setComprandoAddon] = useState(false)
   const [, startTransition] = useTransition()
+
+  // CTA de upsell quando a empresa ainda não tem o add-on (temAssinaturaEletronica
+  // === false) — mesmo redirecionamento de continuar-button.tsx (checkout
+  // hospedado do Asaas).
+  function ativarAssinaturaEletronica() {
+    setComprandoAddon(true)
+    startTransition(async () => {
+      const res = await contratarAddon(ADDON_ASSINATURA)
+      if (res.error) {
+        toast.error(res.error)
+        setComprandoAddon(false)
+        return
+      }
+      if (res.checkoutUrl) window.location.href = res.checkoutUrl
+    })
+  }
 
   // Evita cadastrar o mesmo contrato duas vezes se o iframe disparar a mensagem repetida
   const ultimoDoc = useRef<string | null>(null)
@@ -598,13 +622,44 @@ export function ContratosView({
         title="Gerador de Contratos"
       />
 
-      {/* Enviar documento (upload de PDF pronto) */}
+      {/* Enviar documento (upload de PDF pronto) — bloqueado sem o add-on de
+          assinatura eletrônica. O bloqueio real é no servidor (a rota
+          /api/contratos/upload-assinatura também checa temAddon); isto é só
+          pra não deixar a pessoa preencher o formulário inteiro pra descobrir
+          o bloqueio só no submit. */}
       {activeTab === 'upload' && (
-        <UploadDocumentoTab
-          signatarioNome={signatarioNome}
-          signatarioEmail={signatarioEmail}
-          onEnviado={() => { setActiveTab('historico'); router.refresh() }}
-        />
+        temAssinaturaEletronica ? (
+          <UploadDocumentoTab
+            signatarioNome={signatarioNome}
+            signatarioEmail={signatarioEmail}
+            onEnviado={() => { setActiveTab('historico'); router.refresh() }}
+          />
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Lock className="size-7" />
+            </div>
+            <h2 className="mt-5 text-xl font-bold tracking-[-0.01em]">Assinatura eletrônica é um módulo adicional</h2>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+              Envie documentos prontos para assinatura digital com validade jurídica, direto do CRM.
+              <strong className="text-foreground"> R$ 49/mês.</strong>
+            </p>
+            {podeConfigurarAssinatura ? (
+              <button
+                type="button"
+                onClick={ativarAssinaturaEletronica}
+                disabled={comprandoAddon}
+                className="mt-5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+              >
+                {comprandoAddon ? 'Abrindo checkout…' : 'Ativar agora'}
+              </button>
+            ) : (
+              <span className="mt-5 text-sm text-muted-foreground">
+                Peça ao administrador ou sócio da conta para ativar.
+              </span>
+            )}
+          </div>
+        )
       )}
 
       {/* Histórico */}
@@ -645,24 +700,45 @@ export function ContratosView({
                         {formatDateTime(item.created_at)}
                       </span>
                       {statusEfetivo(item) === 'rascunho' && (
-                        // Upload não exige o responsável-empresa (a lista de
-                        // signatários é 100% manual, guardada no envio); só o
-                        // gerador precisa dele. Por isso o gate por
-                        // assinaturaConfigurada só vale para origem !== 'upload'.
-                        <button
-                          type="button"
-                          title={
-                            item.origem === 'upload' || assinaturaConfigurada
-                              ? 'Envia o link de assinatura por e-mail para cada signatário do contrato'
-                              : 'Cadastre quem assina os contratos pela empresa para habilitar'
-                          }
-                          disabled={enviandoId === item.id || (item.origem !== 'upload' && !assinaturaConfigurada)}
-                          onClick={() => enviarAssinatura(item.id)}
-                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Send className="size-3" />
-                          {enviandoId === item.id ? 'Enviando…' : 'Enviar p/ assinatura'}
-                        </button>
+                        temAssinaturaEletronica ? (
+                          // Upload não exige o responsável-empresa (a lista de
+                          // signatários é 100% manual, guardada no envio); só o
+                          // gerador precisa dele. Por isso o gate por
+                          // assinaturaConfigurada só vale para origem !== 'upload'.
+                          <button
+                            type="button"
+                            title={
+                              item.origem === 'upload' || assinaturaConfigurada
+                                ? 'Envia o link de assinatura por e-mail para cada signatário do contrato'
+                                : 'Cadastre quem assina os contratos pela empresa para habilitar'
+                            }
+                            disabled={enviandoId === item.id || (item.origem !== 'upload' && !assinaturaConfigurada)}
+                            onClick={() => enviarAssinatura(item.id)}
+                            className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Send className="size-3" />
+                            {enviandoId === item.id ? 'Enviando…' : 'Enviar p/ assinatura'}
+                          </button>
+                        ) : podeConfigurarAssinatura ? (
+                          <button
+                            type="button"
+                            title="Módulo adicional — R$ 49/mês"
+                            disabled={comprandoAddon}
+                            onClick={ativarAssinaturaEletronica}
+                            className="flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Lock className="size-3" />
+                            {comprandoAddon ? 'Abrindo checkout…' : 'Ativar assinatura eletrônica'}
+                          </button>
+                        ) : (
+                          <span
+                            title="Peça a um administrador ou sócio da conta para ativar a assinatura eletrônica"
+                            className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground"
+                          >
+                            <Lock className="size-3" />
+                            Fale com o administrador
+                          </span>
+                        )
                       )}
                       {statusEfetivo(item) === 'enviado' && item.link_assinatura && (
                         <button

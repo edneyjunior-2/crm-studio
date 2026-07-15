@@ -2,6 +2,8 @@ import { getAuthUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ContratosView } from '@/components/crm/contratos/contratos-view'
 import { listarContratosGerados } from './actions'
+import { ADDON_ASSINATURA } from '@/lib/addons'
+import { temAddon } from '@/lib/addons-server'
 
 export default async function ContratosPage() {
   const { empresaId, role } = await getAuthUser()
@@ -14,14 +16,18 @@ export default async function ContratosPage() {
   let assinaturaConfigurada = false
   let signatarioNome  = ''
   let signatarioEmail = ''
+  // Add-on de assinatura eletrônica (R$49/mês — spec
+  // addon-assinatura-eletronica-zapsign.md). Sem empresa (conta órfã) não há
+  // como ter o add-on — default false (fail-closed, mesmo espírito de temAddon).
+  let temAssinaturaEletronica = false
 
   if (empresaId) {
     const db = createAdminClient()
-    const { data: empresa } = await db
-      .from('empresas')
-      .select('config')
-      .eq('id', empresaId)
-      .single()
+    const [{ data: empresa }, addonOk] = await Promise.all([
+      db.from('empresas').select('config').eq('id', empresaId).single(),
+      temAddon(db, empresaId, ADDON_ASSINATURA),
+    ])
+    temAssinaturaEletronica = addonOk
 
     const config = (empresa?.config as Record<string, unknown> | null) ?? {}
     const templatePath = config.contrato_template_path as string | undefined
@@ -57,6 +63,7 @@ export default async function ContratosPage() {
       podeConfigurarAssinatura={role === 'admin' || role === 'socio'}
       signatarioNome={signatarioNome}
       signatarioEmail={signatarioEmail}
+      temAssinaturaEletronica={temAssinaturaEletronica}
     />
   )
 }

@@ -5,6 +5,7 @@ import { sendAlertaInterno, sendAcessoLiberadoEmail } from '@/lib/email'
 import { appUrl } from '@/lib/site-url'
 import { timingSafeEqual, createHash } from 'crypto'
 import { PLANOS_VENDAVEIS, PRECO_POR_PLANO, type PlanoVendavel } from '@/lib/planos'
+import { parseAddonExternalReference, processarWebhookAddon } from '@/lib/addons-server'
 
 const ALERTA_EMAIL = process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com'
 
@@ -189,11 +190,96 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 
-  // 4. Resolver empresa_id
   // Em eventos SUBSCRIPTION_*, a chave é subscription.id; nos PAYMENT_*,
-  // payment.subscription. O fallback por customer usa o customer do payload
-  // correspondente.
+  // payment.subscription. O fallback por customer (fluxo de plano, abaixo)
+  // usa o customer do payload correspondente.
   const subscriptionId = isSubscriptionEvent ? subscription?.id : payment?.subscription
+
+  // 3b. TRILHO DE ADD-ON — totalmente separado do fluxo de plano (spec
+  //     addon-assinatura-eletronica-zapsign.md). Detectado e despachado ANTES
+  //     de qualquer resolução de empresa/assinatura do fluxo de plano abaixo, e
+  //     SEMPRE retorna aqui: o fluxo de plano assume que TODA subscription de
+  //     uma empresa é a do PLANO (insere em `assinaturas`, mexe em
+  //     `empresas.status`) — deixar um evento de add-on cair lá colidiria no
+  //     UNIQUE de `assinaturas` (23505), seria cancelado como órfã no Asaas, e
+  //     um atraso de R$49 suspenderia a empresa inteira.
+  //
+  //     Detecção agnóstica ao slug — faz parse de `addon:${slug}:${empresaId}`:
+  //       a) subscription.externalReference (presente em eventos SUBSCRIPTION_*,
+  //          setado por contratarAddon/createCheckout); ou
+  //       b) o subscriptionId já registrado em empresa_addons (necessário pros
+  //          eventos PAYMENT_* — esses não trazem a externalReference da
+  //          subscription, só o id dela).
+  //
+  //     Residual conhecido (mesma classe de race já documentada abaixo, no
+  //     23505 de SUBSCRIPTION_CREATED do fluxo de plano): se um PAYMENT_* de
+  //     add-on chegasse fora de ordem, ANTES de SUBSCRIPTION_CREATED ter sido
+  //     processado, nenhum dos dois caminhos resolveria e o evento cairia no
+  //     fluxo de plano — mesmo gap pré-existente que o próprio fluxo de plano
+  //     já tem pra esse cenário de entrega fora de ordem (Asaas não garante
+  //     ordem de entrega entre webhooks). Não endurecido aqui de propósito,
+  //     mesmo princípio de "não complicar por uma corrida teórica/rara" já
+  //     aplicado ao restante deste arquivo.
+  let addonInfo = subscription?.externalReference
+    ? parseAddonExternalReference(subscription.externalReference)
+    : null
+
+  if (!addonInfo && subscriptionId) {
+    const { data: addonRow, error: addonRowErr } = await supabase
+      .from('empresa_addons')
+      .select('empresa_id, addon_slug')
+      .eq('asaas_subscription_id', subscriptionId)
+      .maybeSingle()
+    if (addonRowErr) {
+      console.error('[webhook] erro ao checar empresa_addons por subscriptionId:', addonRowErr.message)
+    }
+    if (addonRow) {
+      addonInfo = { slug: addonRow.addon_slug, empresaId: addonRow.empresa_id }
+    }
+  }
+
+  if (addonInfo) {
+    const resultadoAddon = await processarWebhookAddon({
+      db:             supabase,
+      event,
+      slug:           addonInfo.slug,
+      empresaId:      addonInfo.empresaId,
+      subscriptionId: subscriptionId ?? null,
+    })
+
+    if (!resultadoAddon.ok) {
+      // Mesmo padrão do fluxo de plano pro mesmo tipo de falha (ver
+      // insertAssinaturaErr/statusErr abaixo): NÃO marca processed — a
+      // subscription do add-on já existe no Asaas (já está cobrando), então
+      // uma falha aqui, silenciosa, deixaria o cliente pagando por um módulo
+      // que `temAddon` nunca libera. 500 + alerta pro dono investigar na hora
+      // (revisão adversarial 2026-07-15, ALTO).
+      console.error('[webhook] falha ao processar trilho de add-on:', resultadoAddon.error)
+      await supabase
+        .from('eventos_webhook')
+        .update({ empresa_id: addonInfo.empresaId, error: resultadoAddon.error })
+        .eq('asaas_event_id', asaasEventId)
+      sendAlertaInterno({
+        to:        ALERTA_EMAIL,
+        assunto:   '[CRM Studio] Webhook Asaas: falha ao processar add-on',
+        titulo:    'Cobrança de add-on confirmada mas não registrada',
+        descricao: 'Um evento do trilho de add-on (assinatura eletrônica, bloco de usuários, etc.) falhou ao gravar em empresa_addons. Isso pode significar um cliente pagando por um módulo que o sistema não libera — verifique eventos_webhook.error e concilie manualmente.',
+        linhas:    [`slug: ${addonInfo.slug}`, `empresa_id: ${addonInfo.empresaId}`, `subscription_id: ${subscriptionId ?? '(nenhum)'}`, `evento: ${asaasEventId}`, `erro: ${resultadoAddon.error}`],
+        destaque:  'perigo',
+      }).catch((e: unknown) => {
+        console.error('[webhook] falha ao enviar alerta interno (trilho de add-on):', e)
+      })
+      return NextResponse.json({ error: 'db_error' }, { status: 500 })
+    }
+
+    await supabase
+      .from('eventos_webhook')
+      .update({ empresa_id: addonInfo.empresaId, processed: true, processed_at: new Date().toISOString() })
+      .eq('asaas_event_id', asaasEventId)
+    return NextResponse.json({ ok: true })
+  }
+
+  // 4. Resolver empresa_id (FLUXO DE PLANO — ver o trilho de add-on acima)
   const customerId = isSubscriptionEvent ? subscription?.customer : payment?.customer
 
   let empresaId: string | null = null
@@ -508,6 +594,28 @@ export async function POST(request: NextRequest) {
     // permanece null e nenhuma atualização de status é feita.
   } else if (event === 'SUBSCRIPTION_DELETED' || event === 'SUBSCRIPTION_CANCELLED' || event === 'SUBSCRIPTION_INACTIVATED') {
     novoStatus = 'cancelado'
+  }
+
+  // Guard (revisão adversarial 2026-07-15, MÉDIO): só mutar assinaturas/
+  // empresas quando `subscriptionId` for RECONHECIDAMENTE de plano — isto é,
+  // já existe uma linha correspondente em `assinaturas` (assinaturaJaRegistrada,
+  // calculada no topo). Sem isso, um PAYMENT_* do trilho de ADD-ON chegando
+  // fora de ordem (nextDueDate=hoje pro add-on, sem os 14 dias de folga do
+  // plano — Asaas não garante ordem de entrega) cairia aqui: nem o trilho de
+  // add-on acima (empresa_addons ainda sem a linha) nem `assinaturas`
+  // reconhecem essa subscription, mas o fallback por asaas_customer_id abaixo
+  // ainda resolve a EMPRESA certa — e sem este guard, o código mutaria
+  // `empresas.status`/`plano` a partir de um pagamento que não é do plano
+  // (reativaria uma empresa atrasada, ou rebaixaria um trial em conversão).
+  // Ignorar aqui é seguro: o add-on se ativa de qualquer forma quando seu
+  // próprio SUBSCRIPTION_CREATED for processado (processarWebhookAddon grava
+  // status:'ativo' direto no insert, sem depender de PAYMENT_CONFIRMED). Não
+  // afeta o fluxo de plano legítimo: por construção (trial= +14 dias; o
+  // insert síncrono de assinarPlano() acontece antes do webhook chegar),
+  // `assinaturaJaRegistrada` já é true nesses eventos pra qualquer subscription
+  // de plano real.
+  if (novoStatus && subscriptionId && !assinaturaJaRegistrada) {
+    novoStatus = null
   }
 
   if (novoStatus) {

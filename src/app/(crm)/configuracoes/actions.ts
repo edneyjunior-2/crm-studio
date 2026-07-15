@@ -6,9 +6,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthAdmin, getAuthFinanceiro, getAuthUser } from '@/lib/auth'
 import type { StatusEmpresa } from '@/lib/auth'
-import { cancelSubscription } from '@/lib/asaas'
+import { cancelSubscription, createCheckout } from '@/lib/asaas'
 import { encarregadoSchema } from '@/lib/schemas'
 import { MODULOS, LIMITES_POR_PLANO } from '@/lib/modulos'
+import { PRECO_ADDON, NOME_ADDON } from '@/lib/addons'
+import { temAddon } from '@/lib/addons-server'
 import { appUrl } from '@/lib/site-url'
 import { z } from 'zod'
 
@@ -892,4 +894,132 @@ export async function salvarConfigSdrEmpresa(formData: FormData) {
 
   revalidatePath('/configuracoes')
   return {}
+}
+
+// ---------------------------------------------------------------------------
+// Add-ons — compra (spec addon-assinatura-eletronica-zapsign.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * Janela de "reivindicação" de um checkout de add-on em andamento — mesmo
+ * princípio do CLAIM_TTL_MS de iniciarCheckoutCartao
+ * ((marketing)/cadastro/pagamento/actions.ts), adaptado porque `empresa_addons`
+ * não tem uma coluna de claim dedicada (ponytail da spec: sem tabela/coluna
+ * nova).
+ *
+ * Mecanismo: ANTES de chamar o Asaas, insere uma linha PLACEHOLDER
+ * (status='cancelado' — nunca conta como ativa em nenhuma leitura, inclusive
+ * temAddon) cujo `asaas_subscription_id` é um sentinel DETERMINÍSTICO
+ * (`pending:${slug}:${empresaId}`). O UNIQUE que já existe nessa coluna faz o
+ * papel do UPDATE condicional de iniciarCheckoutCartao: a 2ª chamada
+ * concorrente (duplo clique/2 abas) tenta inserir o MESMO sentinel e colide
+ * (23505) — barrada atomicamente pelo próprio Postgres, sem lock nem coluna
+ * nova (um pg_advisory_lock não sobreviveria ao round-trip assíncrono até o
+ * Asaas de qualquer forma, já que cada chamada RPC roda na própria
+ * transação). Expira em ADDON_CLAIM_TTL_MS — a linha antiga é apagada antes da
+ * nova tentativa — para não travar retries legítimos depois de uma
+ * falha/abandono de checkout.
+ */
+const ADDON_CLAIM_TTL_MS = 5 * 60 * 1000
+
+function addonClaimSentinel(slug: string, empresaId: string): string {
+  return `pending:${slug}:${empresaId}`
+}
+
+/**
+ * Contrata um add-on avulso (ex.: ADDON_ASSINATURA) via Checkout hospedado do
+ * Asaas. Slug-agnóstico de propósito — o PRÓXIMO add-on reusa esta mesma
+ * action sem alteração, desde que tenha entrada em PRECO_ADDON/NOME_ADDON.
+ */
+export async function contratarAddon(slug: string): Promise<{ error?: string; checkoutUrl?: string }> {
+  const { user, empresaId, role } = await getAuthUser()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  // Segurança: checado NO SERVIDOR — a UI só esconde o botão pra quem não
+  // pode. Chamar a action direto (fetch/console) sem ser admin/socio cai aqui.
+  if (role !== 'admin' && role !== 'socio') {
+    return { error: 'Só o administrador ou sócio da conta pode contratar módulos.' }
+  }
+
+  if (!(slug in PRECO_ADDON)) return { error: 'Módulo desconhecido.' }
+
+  const db = createAdminClient()
+
+  // Guard boolean: já ativo (inclui a cortesia do plano 'interno')? Nunca
+  // deixa nascer uma 2ª compra do mesmo add-on.
+  if (await temAddon(db, empresaId, slug)) {
+    return { error: 'Este módulo já está ativo na sua conta.' }
+  }
+
+  // Guard de corrida — ver comentário de ADDON_CLAIM_TTL_MS acima.
+  const sentinel = addonClaimSentinel(slug, empresaId)
+  const cutoffIso = new Date(Date.now() - ADDON_CLAIM_TTL_MS).toISOString()
+
+  // Libera reclaim de uma tentativa antiga expirada ANTES de tentar a nova
+  // (senão um checkout abandonado travaria a compra pra sempre).
+  await db
+    .from('empresa_addons')
+    .delete()
+    .eq('asaas_subscription_id', sentinel)
+    .lt('created_at', cutoffIso)
+
+  const { error: claimErr } = await db
+    .from('empresa_addons')
+    .insert({
+      empresa_id:            empresaId,
+      addon_slug:            slug,
+      status:                'cancelado', // placeholder — nunca conta como ativo (ver temAddon)
+      asaas_subscription_id: sentinel,
+      valor:                 PRECO_ADDON[slug],
+    })
+
+  if (claimErr) {
+    if (claimErr.code === '23505') {
+      return { error: 'Já iniciamos seu checkout há poucos instantes. Aguarde alguns segundos e tente novamente.' }
+    }
+    return { error: claimErr.message }
+  }
+
+  try {
+    // Pré-preenche o pagador com os dados da empresa — igual ao princípio de
+    // iniciarCheckoutCartao (sem customer/customerData, a Asaas deixaria a
+    // pessoa preencher do zero na página hospedada).
+    const { data: empresa } = await db
+      .from('empresas')
+      .select('razao_social, nome, cnpj, cpf')
+      .eq('id', empresaId)
+      .maybeSingle()
+
+    const nomePagador = empresa?.razao_social || empresa?.nome || 'Cliente CRM Studio'
+    const documento = empresa?.cnpj || empresa?.cpf || undefined
+
+    // nextDueDate = hoje — add-on não tem trial (a cobrança recorrente já nasce ativa).
+    const hoje = new Date()
+    const nextDueDate = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+
+    const base = appUrl()
+    const checkout = await createCheckout({
+      empresaId,
+      customer: {
+        name: nomePagador,
+        ...(user.email ? { email: user.email } : {}),
+        ...(documento ? { cpfCnpj: documento } : {}),
+      },
+      value:             PRECO_ADDON[slug],
+      itemDescription:   `${NOME_ADDON[slug] ?? 'Módulo adicional'} — cobrança mensal recorrente`,
+      externalReference: `addon:${slug}:${empresaId}`,
+      nextDueDate,
+      successUrl: `${base}/configuracoes?addon=ok`,
+      cancelUrl:  `${base}/configuracoes`,
+      expiredUrl: `${base}/configuracoes`,
+    })
+
+    return { checkoutUrl: checkout.link }
+  } catch (err) {
+    // Libera a reivindicação pra permitir nova tentativa (mesmo padrão de
+    // iniciarCheckoutCartao em caso de falha na Asaas).
+    await db.from('empresa_addons').delete().eq('asaas_subscription_id', sentinel)
+    const msg = err instanceof Error ? err.message : String(err)
+    return { error: `Erro ao iniciar o checkout: ${msg}` }
+  }
 }

@@ -200,19 +200,38 @@ const PIXEL_TRANSPARENTE_BASE64 =
  *    src/app/api/asaas/webhook/route.ts.
  *  - O valor da cobrança vem de `items[].value` (não existe `subscription.value`
  *    no schema real) — `subscription` só carrega `cycle`/`nextDueDate`/`endDate`.
+ *
+ * `plano` é OPCIONAL (spec addon-assinatura-eletronica-zapsign.md): um add-on
+ * não é um PlanoVendavel. Quando `plano` vem, o comportamento é IDÊNTICO ao de
+ * sempre (descrição "Plano X — cobrança mensal recorrente", externalReference
+ * = empresaId). Quando `plano` está ausente, usa `itemDescription` (obrigatório
+ * nesse caso — validado em runtime, não só no tipo) e aceita um
+ * `externalReference` próprio — add-ons usam `addon:${slug}:${empresaId}` pro
+ * webhook conseguir separar o trilho deles do trilho de plano.
  */
 export async function createCheckout(params: {
   empresaId: string
   customer?: { name: string; email?: string; cpfCnpj?: string }
   value: number
-  plano: PlanoVendavel
+  plano?: PlanoVendavel
+  /** Descrição do item no Checkout quando `plano` está ausente (compra de add-on). */
+  itemDescription?: string
+  /** Override do externalReference da subscription (default: empresaId). */
+  externalReference?: string
   nextDueDate: string    // 'YYYY-MM-DD'
   successUrl: string
   cancelUrl: string
   expiredUrl: string
 }): Promise<AsaasCheckout> {
-  const { empresaId, customer, value, plano, nextDueDate, successUrl, cancelUrl, expiredUrl } = params
+  const { empresaId, customer, value, plano, itemDescription, externalReference, nextDueDate, successUrl, cancelUrl, expiredUrl } = params
   const digits = customer?.cpfCnpj?.replace(/\D/g, '') ?? ''
+
+  if (!plano && !itemDescription) {
+    throw new Error('createCheckout: informe `plano` ou `itemDescription`.')
+  }
+  const description = plano
+    ? `Plano ${PLANO_LABEL[plano]} — cobrança mensal recorrente`
+    : itemDescription!
 
   return asaasRequest<AsaasCheckout>('POST', '/checkouts', {
     billingTypes: ['CREDIT_CARD'],
@@ -224,7 +243,7 @@ export async function createCheckout(params: {
     },
     items: [{
       name:        'Assinatura CRM Studio',
-      description: `Plano ${PLANO_LABEL[plano]} — cobrança mensal recorrente`,
+      description,
       value,
       quantity:    1,
       imageBase64: PIXEL_TRANSPARENTE_BASE64,
@@ -240,6 +259,6 @@ export async function createCheckout(params: {
       cycle: 'MONTHLY',
       nextDueDate,
     },
-    externalReference: empresaId,
+    externalReference: externalReference ?? empresaId,
   })
 }

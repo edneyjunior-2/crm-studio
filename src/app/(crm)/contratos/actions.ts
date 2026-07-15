@@ -9,6 +9,8 @@ import {
   extrairSignatariosDoUpload,
   BUCKET_CONTRATOS_GERADOS,
 } from '@/lib/contratos-assinatura'
+import { ADDON_ASSINATURA } from '@/lib/addons'
+import { temAddon } from '@/lib/addons-server'
 
 export interface ContratoGerado {
   id: string
@@ -202,6 +204,20 @@ export async function enviarParaAssinatura(
   const erroModulo = await assertModulo('contratos')
   if (erroModulo) return { error: erroModulo }
 
+  const admin = createAdminClient()
+
+  // Gate do add-on de assinatura eletrônica (R$49/mês — spec
+  // addon-assinatura-eletronica-zapsign.md), logo após o assertModulo e antes
+  // de qualquer leitura/mutação do contrato (inclusive contratos de origem
+  // 'upload' — o add-on gateia a FUNCIONALIDADE de assinar, não uma origem
+  // específica). temAddon é fail-closed (nunca libera às cegas se a checagem
+  // falhar).
+  if (!(await temAddon(admin, empresaId, ADDON_ASSINATURA))) {
+    return {
+      error: 'A assinatura eletrônica é um módulo adicional (R$ 49/mês). Peça ao administrador ou sócio da conta para ativar em Configurações.',
+    }
+  }
+
   // 1. Busca o contrato com o client de sessão — RLS garante que só um
   //    contrato da própria empresa é retornado.
   const { data: contrato, error: fetchErr } = await supabase
@@ -215,8 +231,6 @@ export async function enviarParaAssinatura(
   if (!contrato.storage_path) {
     return { error: 'Gere o contrato antes de enviar pra assinatura.' }
   }
-
-  const admin = createAdminClient()
 
   // 2. Baixa o PDF do Storage (client admin) e converte pra base64.
   const { data: pdfBlob, error: downloadErr } = await admin.storage

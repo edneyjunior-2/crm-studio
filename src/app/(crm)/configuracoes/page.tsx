@@ -11,6 +11,9 @@ import { ExcluirConta } from '@/components/crm/configuracoes/excluir-conta'
 import { avaliarPagamento } from './actions'
 import { ConfigSdrSection } from '@/components/crm/configuracoes/config-sdr-section'
 import { DadosEmpresaSection } from '@/components/crm/configuracoes/dados-empresa-section'
+import { AddonAssinaturaCard } from '@/components/crm/configuracoes/addon-assinatura-card'
+import { ADDON_ASSINATURA } from '@/lib/addons'
+import { temAddon } from '@/lib/addons-server'
 import { modulosEfetivos, MODULO_LABEL } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
 import { getAuthUser } from '@/lib/auth'
@@ -41,7 +44,7 @@ export default async function ConfiguracoesPage() {
   // daria vazio/órfão p/ platform admin. (ver atendimento/page.tsx)
   const { empresaId } = await getAuthUser()
 
-  const [profilesResult, authUsersResult, empresaResult, sdrResult] = await Promise.all([
+  const [profilesResult, authUsersResult, empresaResult, sdrResult, temAssinaturaEletronica] = await Promise.all([
     supabase.from('profiles').select('*').order('created_at', { ascending: true }),
     // E-mail + último acesso vêm da view profiles_auth (banco, via service_role),
     // NÃO de auth.admin.listUsers() (GoTrue) — que falhava em prod e zerava todos
@@ -62,6 +65,8 @@ export default async function ConfiguracoesPage() {
           .eq('empresa_id', empresaId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    // Add-on de assinatura eletrônica (spec addon-assinatura-eletronica-zapsign.md)
+    empresaId ? temAddon(admin, empresaId, ADDON_ASSINATURA) : Promise.resolve(false),
   ])
 
   const sdr = (sdrResult.data ?? null) as {
@@ -217,6 +222,10 @@ export default async function ConfiguracoesPage() {
           razaoSocial={empresa?.razao_social ?? null}
           cnpj={empresa?.cnpj ?? null}
         />
+      </section>
+
+      <section>
+        <AddonAssinaturaCard ativo={temAssinaturaEletronica} />
       </section>
 
       <section>

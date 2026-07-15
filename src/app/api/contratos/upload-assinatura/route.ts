@@ -9,6 +9,8 @@ import {
   dispararAssinaturaZapSign,
   BUCKET_CONTRATOS_GERADOS,
 } from '@/lib/contratos-assinatura'
+import { ADDON_ASSINATURA } from '@/lib/addons'
+import { temAddon } from '@/lib/addons-server'
 
 // 4 MB: Route Handlers rodam como Serverless Function na Vercel, cujo corpo de
 // requisição tem teto de plataforma ~4,5 MB (413 cru antes de chegar aqui).
@@ -31,6 +33,22 @@ export async function POST(request: NextRequest) {
   const erroModulo = await assertModulo('contratos')
   if (erroModulo) {
     return NextResponse.json({ error: erroModulo }, { status: 403 })
+  }
+
+  const admin = createAdminClient()
+
+  // Gate do add-on de assinatura eletrônica (R$49/mês — spec
+  // addon-assinatura-eletronica-zapsign.md). Esta rota chama
+  // dispararAssinaturaZapSign diretamente (upload fora do gerador) — SEM este
+  // gate, o paywall de enviarParaAssinatura (contratos/actions.ts) seria
+  // contornável só trocando de rota. Checagem antes de ler o multipart/subir
+  // o PDF (fail fast — evita gastar upload/Storage numa requisição que vai
+  // ser negada de qualquer forma). temAddon é fail-closed.
+  if (!(await temAddon(admin, empresaId, ADDON_ASSINATURA))) {
+    return NextResponse.json(
+      { error: 'A assinatura eletrônica é um módulo adicional (R$ 49/mês). Peça ao administrador ou sócio da conta para ativar em Configurações.' },
+      { status: 403 },
+    )
   }
 
   // 1. Lê o multipart.
@@ -78,7 +96,6 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const admin = createAdminClient()
   const nomeArquivo = (nomeDoc || file.name.replace(/\.pdf$/i, '') || signatarios[0].nome).slice(0, 200)
 
   // 4. Cria o registro (origem='upload', tipo=null) com storage_path provisório.
