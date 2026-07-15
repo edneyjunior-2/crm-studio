@@ -78,10 +78,10 @@ export function ProcessosConfigSection({ advogados, advogadoPadraoId }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        Defina um advogado responsável padrão: processos sincronizados sem um responsável
-        escolhido (como os importados do DataJud) passam a ser atribuídos a ele automaticamente.
-        Você também pode aplicar esse padrão aos processos que já existem e ainda não têm
-        responsável, com o botão abaixo.
+        Defina um advogado responsável padrão: processos novos criados sem um responsável
+        escolhido (pelo formulário ou pela importação em massa) passam a ser atribuídos a ele
+        automaticamente. Você também pode aplicar esse padrão aos processos que já existem e
+        ainda não têm responsável, com o botão abaixo.
       </p>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
