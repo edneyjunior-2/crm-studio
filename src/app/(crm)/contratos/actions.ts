@@ -22,10 +22,16 @@ export interface ContratoGerado {
   created_at: string
   storage_path?: string | null
   // Assinatura eletrônica (ZapSign) — colunas novas (migration
-  // 20260713120000_contratos_assinatura_zapsign.sql). Todas opcionais/nullable
-  // porque a migration pode ainda não estar aplicada no ambiente: nesse caso o
-  // select simplesmente não traz essas chaves e o runtime trata como
-  // 'rascunho'/null (ver contratos-view.tsx).
+  // 20260713120000_contratos_assinatura_zapsign.sql). Opcionais/nullable pro
+  // TypeScript refletir que o valor pode ser null em runtime (contrato ainda
+  // sem envio, etc.) — o runtime trata ausência como 'rascunho'/null (ver
+  // contratos-view.tsx). ATENÇÃO: isso NÃO cobre a migration não ter rodado
+  // ainda — pedir uma coluna que não existe no banco faz o PostgREST devolver
+  // erro 400 (não uma omissão silenciosa da chave), e listarContratosGerados
+  // trata QUALQUER erro devolvendo `[]` — ou seja, uma coluna nova no SELECT
+  // sem a migration aplicada esconde o Histórico inteiro, não só o campo
+  // novo. Sempre aplicar a migration antes de (ou junto com) publicar uma
+  // mudança que adiciona coluna aqui.
   status?: 'rascunho' | 'enviado' | 'assinado' | 'recusado' | null
   zapsign_doc_token?: string | null
   zapsign_nivel?: 'simples' | 'email' | 'sms' | 'qualificada' | null
@@ -34,6 +40,10 @@ export interface ContratoGerado {
   signed_storage_path?: string | null
   /** 'gerador' (formulário + template) ou 'upload' (PDF pronto enviado). */
   origem?: 'gerador' | 'upload' | null
+  /** Status individual de cada signatário — nome/e-mail confirmados pelo
+   *  ZapSign + status ("new"|"link-opened"|"signed"), sincronizado a cada
+   *  evento do webhook. Alimenta o painel "quem assinou/quem falta". */
+  signatarios_zapsign?: Array<{ nome: string; email?: string; status: string; signedAt?: string | null }> | null
 }
 
 export async function salvarContratoGerado(input: {
@@ -113,7 +123,7 @@ export async function listarContratosGerados(): Promise<ContratoGerado[]> {
 
   const { data, error } = await supabase
     .from('contratos_gerados')
-    .select('id, parceiro_nome, parceiro_doc, tipo, dados, created_at, storage_path, status, zapsign_doc_token, zapsign_nivel, link_assinatura, signed_at, signed_storage_path, origem')
+    .select('id, parceiro_nome, parceiro_doc, tipo, dados, created_at, storage_path, status, zapsign_doc_token, zapsign_nivel, link_assinatura, signed_at, signed_storage_path, origem, signatarios_zapsign')
     .order('created_at', { ascending: false })
     .limit(100)
 

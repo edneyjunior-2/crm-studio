@@ -96,12 +96,20 @@ export interface ZapSignSignatario {
 
 export type ModalidadeAssinatura = 'simples' | 'email' | 'sms' | 'qualificada'
 
+export interface ZapSignSignatarioStatus {
+  nome: string
+  email?: string
+  /** Valores do ZapSign: "new" (não abriu) | "link-opened" (abriu, não assinou) | "signed". */
+  status: string
+  signedAt?: string | null
+}
+
 export async function criarDocumentoAssinatura(params: {
   pdfBase64: string
   nomeArquivo: string
   signatarios: Array<{ nome: string; email?: string; telefone?: string }>
   modalidade: ModalidadeAssinatura
-}): Promise<{ token: string; linkAssinatura: string }> {
+}): Promise<{ token: string; linkAssinatura: string; signatarios: ZapSignSignatarioStatus[] }> {
   const apiKey = process.env.ZAPSIGN_API_KEY
   if (!apiKey) {
     throw new Error('ZAPSIGN_API_KEY não configurada')
@@ -165,7 +173,10 @@ export async function criarDocumentoAssinatura(params: {
     throw new Error('Resposta inesperada do ZapSign. Tente novamente mais tarde.')
   }
 
-  const doc = json as { token?: string; signers?: Array<{ sign_url?: string }> }
+  const doc = json as {
+    token?: string
+    signers?: Array<{ sign_url?: string; name?: string; email?: string; status?: string; signed_at?: string | null }>
+  }
   // Cada signatário tem seu PRÓPRIO sign_url e já recebeu por e-mail
   // (send_automatic_email). Guardamos o link do 1º (a contraparte) só como
   // recurso de reenvio manual — ex.: o cliente diz que não recebeu o e-mail e
@@ -179,7 +190,18 @@ export async function criarDocumentoAssinatura(params: {
     throw new Error('O ZapSign não retornou o link de assinatura esperado.')
   }
 
-  return { token: doc.token, linkAssinatura }
+  // Estado inicial de cada signatário (nome/e-mail exatamente como o ZapSign
+  // confirmou ter recebido — não o que a gente mandou, embora deva bater).
+  // Sincronizado depois pelo webhook a cada evento (signers[] vem completo
+  // em toda chamada, não só o de quem assinou naquele evento específico).
+  const signatarios: ZapSignSignatarioStatus[] = (doc.signers ?? []).map((s) => ({
+    nome:     s.name ?? '',
+    email:    s.email,
+    status:   s.status ?? 'new',
+    signedAt: s.signed_at ?? null,
+  }))
+
+  return { token: doc.token, linkAssinatura, signatarios }
 }
 
 // ---------------------------------------------------------------------------

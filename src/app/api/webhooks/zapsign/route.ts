@@ -21,13 +21,51 @@ const BUCKET_CONTRATOS_GERADOS = 'contratos-gerados'
  * "pending" = assinatura parcial, "recusado" = alguém recusou). `doc_signed`
  * dispara a CADA assinatura individual — só fechamos o contrato quando
  * `status === 'signed'`, não pelo nome do evento.
+ *
+ * CONFIRMADO em 2026-07-15 (WebFetch): o payload TAMBÉM traz `signers[]` — o
+ * estado de TODOS os signatários (nome, e-mail, status individual), não só
+ * quem assinou naquele evento específico. Existe ainda `signer_who_signed`
+ * (singular) apontando quem disparou o evento, mas não precisamos dele: como
+ * `signers[]` já vem completo em toda chamada, sincronizamos o array inteiro
+ * a cada webhook — idempotente por natureza (sobrescreve com o estado atual,
+ * não acumula), então nem replay nem fora de ordem quebra nada. Isso alimenta
+ * o painel "quem assinou / quem falta" no histórico.
  */
+
+interface ZapSignWebhookSigner {
+  name?: string
+  email?: string
+  status?: string
+  signed_at?: string | null
+}
 
 interface ZapSignWebhookPayload {
   event_type?: string
   token?: string
   status?: string
   signed_file?: string
+  signers?: ZapSignWebhookSigner[]
+}
+
+// Ordem de avanço do status de um signatário — nunca "des-assina" ninguém.
+// Necessário porque dois webhooks do mesmo documento (ex.: 2 pessoas
+// assinando perto uma da outra) são requisições HTTP independentes, sem
+// garantia de ordem de chegada. Sem isto, o evento mais ANTIGO chegando
+// DEPOIS do mais recente reverteria o painel pra um estado ultrapassado —
+// de forma permanente, já que não existe um evento seguinte que corrija.
+const ORDEM_STATUS: Record<string, number> = { new: 0, 'link-opened': 1, signed: 2 }
+
+function mesclarSignatarios(
+  atual: Array<{ nome: string; email?: string; status: string; signedAt?: string | null }> | null | undefined,
+  recebido: Array<{ nome: string; email?: string; status: string; signedAt?: string | null }>,
+) {
+  const porEmail = new Map((atual ?? []).map((s) => [s.email ?? s.nome, s]))
+  return recebido.map((novo) => {
+    const anterior = porEmail.get(novo.email ?? novo.nome)
+    const ordemAnterior = anterior ? (ORDEM_STATUS[anterior.status] ?? 0) : -1
+    const ordemNova = ORDEM_STATUS[novo.status] ?? 0
+    return ordemNova >= ordemAnterior ? novo : anterior!
+  })
 }
 
 function timingSafeCompare(a: string, b: string): boolean {
@@ -63,7 +101,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Payload inválido' }, { status: 400 })
   }
 
-  const { event_type: eventType, token, status, signed_file: signedFileUrl } = body
+  const { event_type: eventType, token, status, signed_file: signedFileUrl, signers } = body
 
   if (!token) {
     return NextResponse.json({ error: 'Payload incompleto' }, { status: 400 })
@@ -75,7 +113,7 @@ export async function POST(request: NextRequest) {
   //    admin, é service role).
   const { data: contrato, error: fetchErr } = await admin
     .from('contratos_gerados')
-    .select('id, empresa_id, signed_storage_path')
+    .select('id, empresa_id, signed_storage_path, signatarios_zapsign')
     .eq('zapsign_doc_token', token)
     .maybeSingle()
 
@@ -91,7 +129,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // 4. Documento COMPLETO (todos assinaram) — status no nível do documento,
+  // 4. Sincroniza o status de CADA signatário (painel "quem assinou / quem
+  //    falta" no histórico) — roda em TODO evento com `signers[]` presente,
+  //    mesmo assinatura parcial (status do documento ainda "pending"), não só
+  //    quando fecha. MESCLA com o estado já salvo (ver mesclarSignatarios) em
+  //    vez de sobrescrever cego — protege contra webhooks fora de ordem.
+  if (Array.isArray(signers) && signers.length > 0) {
+    const recebido = signers.map((s) => ({
+      nome:     s.name ?? '',
+      email:    s.email,
+      status:   s.status ?? 'new',
+      signedAt: s.signed_at ?? null,
+    }))
+    const signatariosZapsign = mesclarSignatarios(contrato.signatarios_zapsign, recebido)
+    const { error: signersErr } = await admin
+      .from('contratos_gerados')
+      .update({ signatarios_zapsign: signatariosZapsign })
+      .eq('id', contrato.id)
+    if (signersErr) {
+      // Não aborta o processamento do evento por isto — o painel de status é
+      // informativo; o fechamento do contrato (abaixo) é o que importa de
+      // verdade e não deve ficar refém dessa escrita secundária.
+      console.error('[webhook zapsign] erro ao sincronizar signatarios_zapsign:', signersErr.message)
+    }
+  }
+
+  // 5. Documento COMPLETO (todos assinaram) — status no nível do documento,
   //    não o nome do evento (doc_signed dispara a cada assinatura individual).
   if (status === 'signed') {
     // Idempotente via UPDATE condicional (trava): só transiciona se ainda não
@@ -148,7 +211,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // 5. Recusa — aceita tanto pelo evento quanto pelo status (a doc do ZapSign
+  // 6. Recusa — aceita tanto pelo evento quanto pelo status (a doc do ZapSign
   //    usa status: "recusado" no payload de doc_refused).
   if (eventType === 'doc_refused' || status === 'recusado') {
     const { error: updErr } = await admin
@@ -166,7 +229,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // 6. doc_created, doc_deleted, email_bounce, ou status intermediário
+  // 7. doc_created, doc_deleted, email_bounce, ou status intermediário
   //    (ex.: "pending" — assinatura parcial): nenhum deles fecha o documento,
   //    nada a fazer.
   return NextResponse.json({ ok: true })

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine, Upload, Plus, X, Lock } from 'lucide-react'
+import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine, Upload, Plus, X, Lock, ChevronDown, ChevronUp, Mail, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
 import { salvarContratoGerado, excluirContratoGerado, enviarParaAssinatura } from '@/app/(crm)/contratos/actions'
@@ -46,6 +46,59 @@ const STATUS_LABEL: Record<string, string> = {
   enviado:  'Enviado',
   assinado: 'Assinado',
   recusado: 'Recusado',
+}
+
+// Status do ZapSign por signatário ("new"|"link-opened"|"signed") → rótulo em
+// PT-BR + cor. "new"/"link-opened" contam como "ainda não assinou" pro resumo.
+const SIGNATARIO_STATUS_LABEL: Record<string, { label: string; className: string }> = {
+  new:           { label: 'Aguardando',  className: 'text-muted-foreground' },
+  'link-opened': { label: 'Visualizou',  className: 'text-blue-600 dark:text-blue-400' },
+  signed:        { label: 'Assinado',    className: 'text-emerald-600 dark:text-emerald-400' },
+}
+
+/**
+ * Painel "quem assinou / quem falta" — expansível, dentro do card do
+ * histórico. Lê `signatarios_zapsign` (nome/e-mail confirmados pelo ZapSign +
+ * status individual, sincronizado a cada evento do webhook — ver
+ * src/app/api/webhooks/zapsign/route.ts). Mostra o e-mail de cada um de
+ * propósito: é o jeito de conferir se o contrato foi mandado pro endereço
+ * certo sem precisar abrir o painel do ZapSign.
+ */
+function PainelSignatarios({ signatarios }: { signatarios: NonNullable<ContratoGerado['signatarios_zapsign']> }) {
+  const assinaram = signatarios.filter((s) => s.status === 'signed').length
+  const [aberto, setAberto] = useState(false)
+
+  return (
+    <div className="border-t border-border pt-2.5">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+      >
+        {aberto ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+        {assinaram}/{signatarios.length} assinaram
+      </button>
+      {aberto && (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {signatarios.map((s, i) => {
+            const info = SIGNATARIO_STATUS_LABEL[s.status] ?? SIGNATARIO_STATUS_LABEL.new
+            return (
+              <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                {s.status === 'signed' ? (
+                  <Check className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <Mail className="size-3 shrink-0 text-muted-foreground" />
+                )}
+                <span className="font-medium">{s.nome || '—'}</span>
+                {s.email && <span className="text-muted-foreground">{s.email}</span>}
+                <span className={`ml-auto font-medium ${info.className}`}>{info.label}</span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 // Toast de sucesso, listando quem recebeu o link. Cada signatário (contraparte,
@@ -665,7 +718,7 @@ export function ContratosView({
       {/* Histórico */}
       {activeTab === 'historico' && (
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="mx-auto max-w-2xl">
+          <div className="mx-auto max-w-4xl">
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h3 className="font-semibold">Histórico de contratos gerados</h3>
@@ -683,13 +736,15 @@ export function ContratosView({
                 {historicoProp.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
+                    className="flex flex-col gap-2.5 rounded-lg border border-border bg-card px-4 py-3"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex items-center gap-3">
                       <FileText className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate font-medium">{item.parceiro_nome ?? '—'}</span>
+                      <span className="min-w-0 flex-1 truncate font-medium" title={item.parceiro_nome ?? undefined}>
+                        {item.parceiro_nome ?? '—'}
+                      </span>
                     </div>
-                    <div className="ml-3 flex shrink-0 items-center gap-2.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium">
                         {item.origem === 'upload' ? 'Documento' : item.tipo}
                       </span>
@@ -778,6 +833,10 @@ export function ContratosView({
                         {deletingId === item.id ? 'Excluindo…' : 'Excluir'}
                       </button>
                     </div>
+
+                    {item.signatarios_zapsign && item.signatarios_zapsign.length > 0 && (
+                      <PainelSignatarios signatarios={item.signatarios_zapsign} />
+                    )}
                   </div>
                 ))}
               </div>

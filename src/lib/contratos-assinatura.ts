@@ -50,7 +50,7 @@ export async function dispararAssinaturaZapSign(params: {
     return { error: `Sem e-mail para: ${semEmail.join(', ')}. Cada signatário recebe o link no próprio e-mail.` }
   }
 
-  let resultado: { token: string; linkAssinatura: string }
+  let resultado: Awaited<ReturnType<typeof criarDocumentoAssinatura>>
   try {
     resultado = await criarDocumentoAssinatura({
       pdfBase64: params.pdfBase64,
@@ -66,10 +66,14 @@ export async function dispararAssinaturaZapSign(params: {
   const { error: updateErr } = await admin
     .from('contratos_gerados')
     .update({
-      status:             'enviado',
-      zapsign_doc_token:  resultado.token,
-      zapsign_nivel:      modalidade,
-      link_assinatura:    resultado.linkAssinatura,
+      status:                'enviado',
+      zapsign_doc_token:     resultado.token,
+      zapsign_nivel:         modalidade,
+      link_assinatura:       resultado.linkAssinatura,
+      // Estado inicial de cada signatário (nome/e-mail confirmados pelo ZapSign
+      // + status "new"/"link-opened"/"signed") — o webhook sincroniza isso a
+      // cada evento. Painel "quem assinou/quem falta" no histórico lê daqui.
+      signatarios_zapsign:   resultado.signatarios,
     })
     .eq('id', params.contratoId)
 
