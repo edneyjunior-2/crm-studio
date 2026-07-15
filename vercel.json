@@ -9,6 +9,10 @@
       "schedule": "*/15 3-10 * * 0-4"
     },
     {
+      "path": "/api/cron/watchdog-sincronizacao",
+      "schedule": "0 11 * * *"
+    },
+    {
       "path": "/api/cron/purgar-canceladas",
       "schedule": "0 4 * * *"
     },

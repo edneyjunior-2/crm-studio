@@ -1,0 +1,23 @@
+/**
+ * Ping fire-and-forget pra um serviço de heartbeat externo (healthchecks.io ou
+ * similar) — prova que a PRÓPRIA VERCEL disparou este cron, independente do
+ * resultado da sincronização (isso é o que cron_execucoes já cobre). No-op se
+ * a env var não estiver configurada — o dono ainda não tem conta criada;
+ * o código já fica pronto pra quando ele configurar.
+ *
+ * Chamar SEM `await` no call site (fire-and-forget de verdade — não pode
+ * atrasar nem falhar o cron por causa de um serviço externo fora do ar).
+ * Nunca lança: até uma URL malformada na env var (erro síncrono do fetch)
+ * é capturada aqui dentro, não só a rejeição assíncrona da promise.
+ */
+export function pingHealthcheck(envVarName: string): void {
+  const url = process.env[envVarName]
+  if (!url) return
+  try {
+    fetch(url).catch((e: unknown) => {
+      console.error(`[healthcheck] falha ao pingar ${envVarName}:`, e)
+    })
+  } catch (e) {
+    console.error(`[healthcheck] falha síncrona ao pingar ${envVarName}:`, e)
+  }
+}
