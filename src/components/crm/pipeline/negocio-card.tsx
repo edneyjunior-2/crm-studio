@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { deleteNegocio, updateNegocio, updateEstagioComData } from '@/app/(crm)/pipeline/actions'
+import { gerarFinanceiroDoFechamento } from '@/app/(crm)/pipeline/fechamento-financeiro-actions'
 import { getNegocioProdutos } from '@/app/(crm)/pipeline/produtos-actions'
 import { registrarEmailComFollowups } from '@/app/(crm)/pipeline/followup-actions'
 import { RegistrarReuniaoDialog } from './registrar-reuniao-dialog'
@@ -63,6 +64,14 @@ function parseBRLInput(formatted: string): number {
 function todayISO(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function primeiroDiaMes(offsetMeses: number): string {
+  const d = new Date()
+  const totalMeses = d.getMonth() + offsetMeses
+  const ano = d.getFullYear() + Math.floor(totalMeses / 12)
+  const mes = ((totalMeses % 12) + 12) % 12
+  return `${ano}-${String(mes + 1).padStart(2, '0')}-01`
 }
 
 // ── Linha de produto (igual ao negocio-form) ──────────────────────────────────
@@ -214,6 +223,12 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
   const [motivoOutro, setMotivoOutro] = useState('')
   const [slugPerdaDestino, setSlugPerdaDestino] = useState<string>('fechado_perdido')
   const [dataFechamentoPerda, setDataFechamentoPerda] = useState(() => todayISO())
+  const [ganhoOpen, setGanhoOpen] = useState(false)
+  const [ganhoIsPending, startGanhoTransition] = useTransition()
+  const [slugGanhoDestino, setSlugGanhoDestino] = useState<string>('fechado_ganho')
+  const [dataFechamentoGanho, setDataFechamentoGanho] = useState(() => todayISO())
+  const [periodicidadeGanho, setPeriodicidadeGanho] = useState<string>('mensal')
+  const [gerarFinanceiroGanho, setGerarFinanceiroGanho] = useState(true)
 
   // ── Produtos (edit inline) ──────────────────────────────────────────────────
   const [produtos, setProdutos] = useState<ProdutoLinha[]>([
@@ -329,6 +344,13 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
       setMotivoOutro('')
       setDataFechamentoPerda(todayISO())
       setPerdaOpen(true)
+    } else if (estagioDestino?.tipo === 'ganho' && estagio !== novoEstagio) {
+      // Intercepta e abre modal de confirmação de ganho sem alterar o Select ainda
+      setSlugGanhoDestino(novoEstagio)
+      setDataFechamentoGanho(todayISO())
+      setPeriodicidadeGanho('mensal')
+      setGerarFinanceiroGanho(true)
+      setGanhoOpen(true)
     } else {
       setEstagio(novoEstagio)
     }
@@ -357,6 +379,42 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
       setEstagio(slugPerdaDestino as EstagioNegocio)
       setPerdaOpen(false)
       toast.success('Negócio registrado como perdido.')
+    })
+  }
+
+  function handleConfirmarGanho() {
+    startGanhoTransition(async () => {
+      const dataFinal = dataFechamentoGanho || todayISO()
+      const result = await updateEstagioComData(
+        negocio.id,
+        slugGanhoDestino,
+        null,
+        periodicidadeGanho,
+        dataFinal,
+        null
+      )
+      if (result.error) {
+        toast.error(result.error)
+        return
+      }
+
+      if (gerarFinanceiroGanho && result.transicionou !== false) {
+        const finResult = await gerarFinanceiroDoFechamento({
+          negocioId: negocio.id,
+          dataFechamento: dataFinal,
+          periodicidade: periodicidadeGanho,
+        })
+        if (finResult.error) {
+          toast.success('Negócio marcado como ganho!')
+          toast.error(`Financeiro: ${finResult.error}`)
+        } else {
+          toast.success(`Negócio ganho! ${finResult.mensagem}`)
+        }
+      } else {
+        toast.success('Negócio marcado como ganho!')
+      }
+      setEstagio(slugGanhoDestino as EstagioNegocio)
+      setGanhoOpen(false)
     })
   }
 
@@ -996,6 +1054,97 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
               onClick={handleConfirmarPerda}
             >
               {perdaIsPending ? 'Registrando...' : 'Confirmar Perda'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: confirmar ganho — intercepta mudança de estágio para tipo 'ganho' */}
+      <Dialog
+        open={ganhoOpen}
+        onOpenChange={(v) => {
+          if (!ganhoIsPending) setGanhoOpen(v)
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirmar Ganho</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Registre os detalhes do fechamento de{' '}
+            <strong className="text-foreground">{negocio.titulo}</strong>.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`data-fechamento-ganho-${negocio.id}`}>Data de Fechamento</Label>
+              <div className="flex gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDataFechamentoGanho(primeiroDiaMes(0))}
+                >
+                  Mês vigente
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDataFechamentoGanho(primeiroDiaMes(1))}
+                >
+                  Próximo mês
+                </Button>
+              </div>
+              <Input
+                id={`data-fechamento-ganho-${negocio.id}`}
+                type="date"
+                value={dataFechamentoGanho}
+                onChange={(e) => setDataFechamentoGanho(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>Periodicidade</Label>
+              <Select
+                value={periodicidadeGanho}
+                onValueChange={(v) => { if (v) setPeriodicidadeGanho(v) }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PERIODICIDADE_LABELS).map(([valor, label]) => (
+                    <SelectItem key={valor} value={valor}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 hover:bg-emerald-50 transition-colors">
+              <input
+                type="checkbox"
+                checked={gerarFinanceiroGanho}
+                onChange={(e) => setGerarFinanceiroGanho(e.target.checked)}
+                className="mt-0.5 size-4 accent-emerald-600 cursor-pointer"
+              />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-foreground">Gerar conta a receber e comissão</span>
+                <span className="text-xs text-muted-foreground">
+                  Cria automaticamente a conta a receber no financeiro e a comissão prevista para o responsável pelo negócio.
+                </span>
+              </div>
+            </label>
+          </div>
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" type="button" />}>
+              Cancelar
+            </DialogClose>
+            <Button disabled={ganhoIsPending} onClick={handleConfirmarGanho}>
+              {ganhoIsPending ? 'Salvando...' : 'Confirmar Ganho'}
             </Button>
           </DialogFooter>
         </DialogContent>

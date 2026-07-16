@@ -69,6 +69,14 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function primeiroDiaMes(offsetMeses: number): string {
+  const d = new Date()
+  const totalMeses = d.getMonth() + offsetMeses
+  const ano = d.getFullYear() + Math.floor(totalMeses / 12)
+  const mes = ((totalMeses % 12) + 12) % 12
+  return `${ano}-${String(mes + 1).padStart(2, '0')}-01`
+}
+
 function formatBRL(valor: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)
 }
@@ -464,6 +472,24 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
           {/* Data de fechamento real */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="data-fechamento-real">Data de Fechamento Real</Label>
+            <div className="flex gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDataFechamento(primeiroDiaMes(0))}
+              >
+                Mês vigente
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDataFechamento(primeiroDiaMes(1))}
+              >
+                Próximo mês
+              </Button>
+            </div>
             <Input
               id="data-fechamento-real"
               type="date"
