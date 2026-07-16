@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { criarCotacao } from '../actions'
+import municipiosBr from '@/lib/frete/municipios-br.json'
 
 interface Cliente { id: string; razao_social: string }
 interface Veiculo { id: string; placa: string }
@@ -58,15 +59,22 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
         </div>
       )}
 
-      {/* Origem + destino */}
+      {/* Origem + destino — autocomplete nativo (<datalist>) com os 5.571
+          municípios do IBGE (src/lib/frete/municipios-br.json, dado público
+          oficial, sem custo de API nem dependência de Google Maps). */}
+      <datalist id="cidades-br">
+        {municipiosBr.map((m) => (
+          <option key={`${m.nome}-${m.uf}`} value={`${m.nome} - ${m.uf}`} />
+        ))}
+      </datalist>
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="origem">Origem *</label>
-          <input id="origem" name="origem" required placeholder="Cidade/UF de origem" className={inputClass} />
+          <input id="origem" name="origem" list="cidades-br" required placeholder="Cidade/UF de origem" className={inputClass} autoComplete="off" />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="destino">Destino *</label>
-          <input id="destino" name="destino" required placeholder="Cidade/UF de destino" className={inputClass} />
+          <input id="destino" name="destino" list="cidades-br" required placeholder="Cidade/UF de destino" className={inputClass} autoComplete="off" />
         </div>
       </div>
 
