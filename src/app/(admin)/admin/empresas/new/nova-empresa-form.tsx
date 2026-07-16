@@ -14,6 +14,7 @@ const TIPOS_ATUACAO = [
   { value: 'vendas',     label: 'CRM de Vendas',    desc: 'Pipeline, clientes, financeiro, contratos' },
   { value: 'advocacia',  label: 'CRM Advocacia',    desc: 'Tudo + Processos Jurídicos (DataJud)' },
   { value: 'engenharia', label: 'CRM Engenharia',   desc: 'Tudo + Obras, equipe e ponto diário' },
+  { value: 'frete',      label: 'CRM Frete e Logística', desc: 'Tudo + Calculadora ANTT, veículos e motoristas' },
 ]
 
 export function NovaEmpresaForm() {

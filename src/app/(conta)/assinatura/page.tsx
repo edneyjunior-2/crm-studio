@@ -27,6 +27,7 @@ const PLANOS_CONFIG: Record<PlanoEmpresa, { label: string; price: string; taglin
   business:   { label: PLANO_LABEL.business,   price: `${precoFormatado('business')}/mês`,   tagline: PLANO_TAGLINE.business },
   advocacia:  { label: PLANO_LABEL.advocacia,  price: `${precoFormatado('advocacia')}/mês`,  tagline: PLANO_TAGLINE.advocacia },
   engenharia: { label: PLANO_LABEL.engenharia, price: `${precoFormatado('engenharia')}/mês`, tagline: PLANO_TAGLINE.engenharia },
+  frete:      { label: PLANO_LABEL.frete,      price: `${precoFormatado('frete')}/mês`,      tagline: PLANO_TAGLINE.frete },
 }
 
 const MODULO_LABEL: Record<Modulo, string> = {
@@ -44,6 +45,7 @@ const MODULO_LABEL: Record<Modulo, string> = {
   rh:           'Recursos Humanos',
   processos:    'Processos Jurídicos',
   obras:        'Obras e Construção Civil',
+  frete:        'Frete e Logística',
   atendimentos: 'Atendimentos WhatsApp',
 }
 

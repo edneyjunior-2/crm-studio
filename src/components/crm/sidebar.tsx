@@ -32,6 +32,7 @@ import {
   HardHat,
   Calculator,
   Sparkles,
+  Truck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
@@ -180,6 +181,38 @@ const navItems: NavItem[] = [
     modulo: 'obras',
     isSubItem: true,
     parentHref: '/obras',
+  },
+  {
+    href: '/frete',
+    label: 'Frete e Logística',
+    icon: Truck,
+    modulo: 'frete',
+    exactMatch: true,
+    tourSlug: 'frete',
+  },
+  {
+    href: '/frete/cotacoes',
+    label: 'Cotações',
+    icon: Calculator,
+    modulo: 'frete',
+    isSubItem: true,
+    parentHref: '/frete',
+  },
+  {
+    href: '/frete/veiculos',
+    label: 'Veículos',
+    icon: Truck,
+    modulo: 'frete',
+    isSubItem: true,
+    parentHref: '/frete',
+  },
+  {
+    href: '/frete/motoristas',
+    label: 'Motoristas',
+    icon: IdCard,
+    modulo: 'frete',
+    isSubItem: true,
+    parentHref: '/frete',
   },
   {
     href: '/contratos',

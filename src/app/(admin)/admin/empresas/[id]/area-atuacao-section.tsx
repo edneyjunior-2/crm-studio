@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Briefcase, Scale, HardHat, MessagesSquare } from 'lucide-react'
+import { Briefcase, Scale, HardHat, Truck, MessagesSquare } from 'lucide-react'
 import { atualizarAreaAtuacao } from '../actions'
 
 const AREAS = [
-  { value: 'vendas',      label: 'CRM de Vendas',    desc: 'Pipeline, clientes, financeiro, contratos',    icon: Briefcase },
-  { value: 'advocacia',   label: 'CRM Advocacia',    desc: 'Tudo + Processos Jurídicos (DataJud)',          icon: Scale    },
-  { value: 'engenharia',  label: 'CRM Engenharia',   desc: 'Tudo + Obras, equipe e ponto diário',           icon: HardHat  },
+  { value: 'vendas',      label: 'CRM de Vendas',      desc: 'Pipeline, clientes, financeiro, contratos',        icon: Briefcase },
+  { value: 'advocacia',   label: 'CRM Advocacia',      desc: 'Tudo + Processos Jurídicos (DataJud)',              icon: Scale    },
+  { value: 'engenharia',  label: 'CRM Engenharia',     desc: 'Tudo + Obras, equipe e ponto diário',               icon: HardHat  },
+  { value: 'frete',       label: 'Frete e Logística',  desc: 'Tudo + Calculadora ANTT, veículos e motoristas',    icon: Truck    },
 ]
 
 const ADDONS_EM_BREVE = [
@@ -23,9 +24,9 @@ export function AreaAtuacaoSection({
   area,
 }: {
   empresaId: string
-  area: 'vendas' | 'advocacia' | 'engenharia'
+  area: 'vendas' | 'advocacia' | 'engenharia' | 'frete'
 }) {
-  const [selecionada, setSelecionada] = useState<'vendas' | 'advocacia' | 'engenharia'>(area)
+  const [selecionada, setSelecionada] = useState<'vendas' | 'advocacia' | 'engenharia' | 'frete'>(area)
   const atualizar = atualizarAreaAtuacao.bind(null, empresaId)
   const mudou = selecionada !== area
 
@@ -43,7 +44,7 @@ export function AreaAtuacaoSection({
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-4">
         {AREAS.map((a) => {
           const Icon = a.icon
           const ativa = selecionada === a.value
@@ -51,7 +52,7 @@ export function AreaAtuacaoSection({
             <button
               key={a.value}
               type="button"
-              onClick={() => setSelecionada(a.value as 'vendas' | 'advocacia' | 'engenharia')}
+              onClick={() => setSelecionada(a.value as 'vendas' | 'advocacia' | 'engenharia' | 'frete')}
               className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
                 ativa ? 'border-foreground bg-foreground/5' : 'border-border hover:border-foreground/30'
               }`}

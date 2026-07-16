@@ -37,6 +37,7 @@ export const MODULOS = [
   'rh',            // /rh
   'processos',     // /processos — módulo vertical Advocacia (processos jurídicos + DataJud)
   'obras',         // /obras — módulo vertical Engenharia/Construção Civil
+  'frete',         // /frete — módulo vertical Frete e Logística (calculadora ANTT, veículos, motoristas, cotações)
   'atendimentos',  // /atendimentos — inbox WhatsApp (reservado, não ativável via plano)
 ] as const
 
@@ -57,6 +58,7 @@ export const MODULO_LABEL: Record<Modulo, string> = {
   rh:           'Recursos Humanos',
   processos:    'Processos Jurídicos',
   obras:        'Obras e Construção Civil',
+  frete:        'Frete e Logística',
   atendimentos: 'Atendimentos WhatsApp',
 }
 
@@ -150,6 +152,12 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
     'financeiro', 'comissoes', 'automacoes',
     'obras', 'estoque',
   ],
+  frete: [
+    'pipeline', 'clientes', 'solucoes', 'calendario',
+    'parceiros', 'fluxos', 'contratos',
+    'financeiro', 'comissoes', 'automacoes',
+    'frete',
+  ],
 }
 
 // ---------------------------------------------------------------------------
@@ -201,11 +209,13 @@ export const LIMITES_POR_PLANO: Record<
   // extras, que saem por R$2 a menos como add-ons avulsos).
   business: { usuarios: -1, funis: -1, solucoes: -1 },
   // Verticais: mesmo teto dos demais. NUNCA incluem o vertical do outro
-  // (processos e obras não se misturam) — nem o Business os inclui, então um
-  // escritório que passe de 20 cresce por blocos de usuário (add-on) ou vira
-  // conta negociada ('interno').
+  // (processos, obras e frete não se misturam) — nem o Business os inclui,
+  // então uma empresa que passe de 20 cresce por blocos de usuário (add-on) ou
+  // vira conta negociada ('interno').
   advocacia:  { usuarios: USUARIOS_INCLUSOS, funis: 3, solucoes: -1 },
   engenharia: { usuarios: USUARIOS_INCLUSOS, funis: 3, solucoes: -1 },
+  // ⚠️ PROVISÓRIO — mesmos limites do pro (ver spec frete-01-backend-schema-antt.md).
+  frete:      { usuarios: USUARIOS_INCLUSOS, funis: 3, solucoes: -1 },
 }
 
 // ---------------------------------------------------------------------------
@@ -226,7 +236,7 @@ export const LIMITES_POR_PLANO: Record<
 // Módulos verticais mutuamente exclusivos.
 // Se a empresa escolheu um vertical (via modulos_ativos), os demais são removidos
 // mesmo que estejam embutidos no plano (ex.: trial/interno têm tudo).
-const VERTICAIS: Modulo[] = ['processos', 'obras']
+const VERTICAIS: Modulo[] = ['processos', 'obras', 'frete']
 
 export function modulosEfetivos(
   plano: PlanoEmpresa,

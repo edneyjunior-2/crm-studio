@@ -12,7 +12,7 @@
  * webhook.
  */
 
-export const PLANOS_VENDAVEIS = ['starter', 'pro', 'business', 'advocacia', 'engenharia'] as const
+export const PLANOS_VENDAVEIS = ['starter', 'pro', 'business', 'advocacia', 'engenharia', 'frete'] as const
 
 export type PlanoVendavel = (typeof PLANOS_VENDAVEIS)[number]
 
@@ -23,6 +23,7 @@ export const PRECO_POR_PLANO: Record<PlanoVendavel, number> = {
   business:   497,
   advocacia:  247,
   engenharia: 347,
+  frete:      397,
 }
 
 export const PLANO_LABEL: Record<PlanoVendavel, string> = {
@@ -31,6 +32,7 @@ export const PLANO_LABEL: Record<PlanoVendavel, string> = {
   business:   'Business',
   advocacia:  'Advocacia',
   engenharia: 'Engenharia e Obras',
+  frete:      'Frete e Logística',
 }
 
 /** Preço formatado em BRL — use sempre isto para EXIBIR preço, nunca string crua. */
@@ -49,6 +51,7 @@ export const PLANO_TAGLINE: Record<PlanoVendavel, string> = {
   business:   'Sem teto: usuários, funis e soluções ilimitados.',
   advocacia:  'CRM + Processos jurídicos com DataJud e DJEN.',
   engenharia: 'CRM + Obras, estoque e materiais.',
+  frete:      'CRM + calculadora ANTT e gestão de motoristas para transportadoras.',
 }
 
 /** Quando ?plano= não vem na URL (CTA do hero, sem contexto de card). */

@@ -232,7 +232,9 @@ export default async function EmpresaDetailPage({
             ? 'advocacia'
             : empresa.modulos_ativos?.includes('obras')
               ? 'engenharia'
-              : 'vendas'
+              : empresa.modulos_ativos?.includes('frete')
+                ? 'frete'
+                : 'vendas'
         }
       />
 

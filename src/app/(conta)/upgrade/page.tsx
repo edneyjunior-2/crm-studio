@@ -24,6 +24,7 @@ const planoLabel: Record<PlanoEmpresa, string> = {
   // planos-verticais-no-checkout.md ampliou PlanoEmpresa em src/lib/auth.ts).
   advocacia:  'Advocacia',
   engenharia: 'Engenharia e Obras',
+  frete:      'Frete e Logística',
 }
 
 const moduloLabel: Record<Modulo, string> = {
@@ -41,6 +42,7 @@ const moduloLabel: Record<Modulo, string> = {
   rh:           'RH',
   processos:    'Processos Jurídicos',
   obras:        'Obras e Construção Civil',
+  frete:        'Frete e Logística',
   atendimentos: 'Atendimentos WhatsApp',
 }
 

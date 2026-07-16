@@ -75,7 +75,8 @@ export async function criarEmpresa(
   // Módulos extras ativados por tipo de atuação
   const modulosExtras =
     tipoAtuacao === 'advocacia'  ? ['processos'] :
-    tipoAtuacao === 'engenharia' ? ['obras']     : []
+    tipoAtuacao === 'engenharia' ? ['obras']     :
+    tipoAtuacao === 'frete'      ? ['frete']     : []
 
   if (!nome || !email) return { error: 'Nome e e-mail são obrigatórios.' }
 
@@ -294,10 +295,11 @@ export async function salvarSugestaoSdr(
 }
 
 // ---------------------------------------------------------------------------
-// Trocar a área de atuação (Vendas | Advocacia | Engenharia)
+// Trocar a área de atuação (Vendas | Advocacia | Engenharia | Frete)
 // Cada vertical controla um módulo em modulos_ativos:
 //   advocacia  → 'processos'
 //   engenharia → 'obras'
+//   frete      → 'frete'
 //   vendas     → nenhum extra
 // ---------------------------------------------------------------------------
 
@@ -308,7 +310,7 @@ export async function atualizarAreaAtuacao(
   await getAuthPlatformAdmin()
 
   const area = formData.get('tipo_atuacao') as string | null
-  if (area !== 'vendas' && area !== 'advocacia' && area !== 'engenharia') return
+  if (area !== 'vendas' && area !== 'advocacia' && area !== 'engenharia' && area !== 'frete') return
 
   const db = createAdminClient()
 
@@ -322,13 +324,15 @@ export async function atualizarAreaAtuacao(
   // existentes (perderíamos os módulos não-verticais já ativos da empresa).
   if (readErr) { console.error('atualizarAreaAtuacao (read):', readErr.message); return }
 
-  // Remove módulos verticais anteriores e adiciona o novo
+  // ponytail: generalizado pra sempre limpar os 3 slugs de vertical
+  // (processos/obras/frete — mutuamente exclusivos) antes de aplicar o novo.
   let novos: string[] = (emp?.modulos_ativos ?? []).filter(
-    (m: string) => m !== 'processos' && m !== 'obras',
+    (m: string) => m !== 'processos' && m !== 'obras' && m !== 'frete',
   )
 
   if (area === 'advocacia')  novos = [...novos, 'processos']
   if (area === 'engenharia') novos = [...novos, 'obras']
+  if (area === 'frete')      novos = [...novos, 'frete']
 
   const { error } = await db.from('empresas').update({ modulos_ativos: novos }).eq('id', empresaId)
   if (error) { console.error('atualizarAreaAtuacao (update):', error.message); return }

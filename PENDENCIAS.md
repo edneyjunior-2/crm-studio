@@ -6,6 +6,20 @@ Backlog de features planejadas, ordenadas por prioridade. Mover para "Concluído
 
 ## Em aberto
 
+### Módulo Frete e Logística — ativação em produção
+**Status:** código construído em 2026-07-16 (orquestração 4 streams: schema+calculadora ANTT, CRUD veículos/motoristas/cotações, OCR de CNH, oferta em `/precos` R$397 + admin). Revisado (code review + security review) e corrigido. Falta só ativar:
+
+1. **Aplicar as 3 migrations novas** (`supabase/migrations/202607161*.sql`) — precisa de autorização explícita, ainda não aplicadas.
+2. **Configurar `GOOGLE_VISION_API_KEY`** (env var, Vercel + `.env.local`) — sem ela, a leitura automática de CNH falha com erro claro (não mascarado), mas fica indisponível até configurar. Conta Google Cloud com Vision API habilitada, chave de API simples (não service account).
+3. **Completar a tabela `frete_antt_coeficientes`** — hoje só tem 1 linha de exemplo (Tabela A/geral, Resolução ANTT 6.076/2026). Precisa transcrever manualmente as demais combinações tabela×tipo de carga da fonte oficial (`calculadorafrete.antt.gov.br`) antes de anunciar a calculadora como cobrindo todos os tipos de carga.
+4. Testar upload de CNH real (ângulos, iluminação, foto de celular) pra calibrar a confiança do parser — só testado contra texto simulado até aqui.
+
+**Decisão de custo (2026-07-16):** OCR construído internamente (Google Vision + parser próprio) em vez de contratar Infosimples/idwall/CAF — sem cliente pagante ainda, custo fixo mensal (R$100 mínimo da Infosimples) não é opção.
+
+**Contexto:** `research/25-modulo-frete-logistica-transportadora.md` (visão geral e MVP), `research/26-consulta-cnh-api-motorista.md` (por que não existe API só-por-número), `research/27-ocr-cnh-upload-foto.md` (provedores prontos vs. construir), specs em `.claude/specs/frete-01` a `frete-04`.
+
+---
+
 ### Verificação OAuth do Google — Google Calendar
 **Objetivo:** sair do modo de teste do app OAuth no Google Cloud Console. Sem
 a verificação, o app fica limitado a ~100 usuários de teste cadastrados

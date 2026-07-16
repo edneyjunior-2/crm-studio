@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Check, Zap, Scale, HardHat } from 'lucide-react'
+import { Check, Zap, Scale, HardHat, Truck } from 'lucide-react'
 import { Reveal } from '@/components/marketing/motion'
 import { PRECO_POR_PLANO } from '@/lib/planos'
 
@@ -94,19 +94,35 @@ const VERTICAIS = [
     slug: 'advocacia' as const,
     icon: Scale,
     setor: 'Advocacia',
+    preco: PRECO_POR_PLANO.advocacia,
     modulos: ['CRM + Pipeline', 'Financeiro com honorários', 'Processos jurídicos / DataJud + DJEN', 'Chat Inbox'],
   },
   {
     slug: 'engenharia' as const,
     icon: HardHat,
     setor: 'Engenharia e Obras',
+    preco: PRECO_POR_PLANO.engenharia,
     modulos: ['CRM + Pipeline', 'Financeiro de obras', 'Estoque e materiais', 'Gestão de contratos'],
   },
   {
     slug: 'pro' as const,
     icon: Zap,
     setor: 'Comercial / Vendas',
+    preco: PRECO_POR_PLANO.pro,
     modulos: ['CRM + Pipeline completo', 'Financeiro integrado', 'SDR WhatsApp (add-on)', 'Comissões e parceiros'],
+  },
+  {
+    slug: 'frete' as const,
+    icon: Truck,
+    setor: 'Frete e Logística',
+    preco: PRECO_POR_PLANO.frete,
+    modulos: [
+      'Calculadora de piso mínimo ANTT (Tabela oficial)',
+      'Cadastro de veículos e motoristas com alerta de documento vencendo',
+      'Cotação de frete direto no funil de vendas',
+      'Financeiro automático ao fechar negócio',
+      '+ todo o Pro (pipeline, financeiro, contratos, 20 usuários)',
+    ],
   },
 ]
 
@@ -253,7 +269,8 @@ export default function PrecosPage() {
               </p>
             </div>
           </Reveal>
-          <div className="grid gap-5 lg:grid-cols-3">
+          {/* ponytail: 4 verticais agora — grid-cols-4 pra distribuir igual (era -3) */}
+          <div className="grid gap-5 lg:grid-cols-4">
             {VERTICAIS.map((v, i) => {
               const Icon = v.icon
               return (
@@ -265,7 +282,7 @@ export default function PrecosPage() {
                       </div>
                     </div>
                     <h3 className="font-heading text-lg font-semibold">{v.setor}</h3>
-                    <p className="mt-1 text-sm font-semibold text-accent">{BRL.format(PRECO_POR_PLANO[v.slug])}/mês</p>
+                    <p className="mt-1 text-sm font-semibold text-accent">{BRL.format(v.preco)}/mês</p>
                     <ul className="mt-4 flex flex-col gap-2">
                       {v.modulos.map((m) => (
                         <li key={m} className="flex items-center gap-2 text-[13px] text-muted-foreground">
