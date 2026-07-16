@@ -33,9 +33,9 @@ export async function criarCotacao(
 
   // Segurança: piso ANTT é SEMPRE recalculado no servidor — nunca aceito do client
   // (ponytail: sem preview reativo no form; o cálculo roda uma vez, aqui, no submit).
-  const coeficiente = await buscarCoeficienteVigente(supabase, parsed.data.tabela_antt, parsed.data.tipo_carga)
+  const coeficiente = await buscarCoeficienteVigente(supabase, parsed.data.tabela_antt, parsed.data.tipo_carga, parsed.data.eixos)
   if (!coeficiente) {
-    return { error: 'Coeficiente ANTT não encontrado para esta combinação de tabela e tipo de carga.' }
+    return { error: 'Coeficiente ANTT não encontrado para esta combinação de tabela, tipo de carga e número de eixos.' }
   }
   const valorPisoAntt = calcularPisoMinimoAntt(parsed.data.distancia_km, coeficiente)
 
@@ -51,6 +51,7 @@ export async function criarCotacao(
       distancia_km:    parsed.data.distancia_km,
       tabela_antt:     parsed.data.tabela_antt,
       tipo_carga:      parsed.data.tipo_carga,
+      eixos:           parsed.data.eixos,
       valor_piso_antt: valorPisoAntt,
       valor_negociado: valorNegociado,
       status:          'rascunho',

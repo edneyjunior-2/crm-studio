@@ -11,7 +11,7 @@ export default async function NovaCotacaoPage() {
 
   const [{ data: clientes }, { data: veiculos }, { data: motoristas }] = await Promise.all([
     supabase.from('clientes').select('id, razao_social').order('razao_social'),
-    supabase.from('frete_veiculos').select('id, placa').eq('ativo', true).order('placa'),
+    supabase.from('frete_veiculos').select('id, placa, eixos').eq('ativo', true).order('placa'),
     supabase.from('frete_motoristas').select('id, nome').eq('ativo', true).order('nome'),
   ])
 
@@ -36,7 +36,7 @@ export default async function NovaCotacaoPage() {
 
       <NovaCotacaoForm
         clientes={(clientes ?? []).map((c) => ({ id: c.id, razao_social: c.razao_social }))}
-        veiculos={(veiculos ?? []).map((v) => ({ id: v.id, placa: v.placa }))}
+        veiculos={(veiculos ?? []).map((v) => ({ id: v.id, placa: v.placa, eixos: v.eixos }))}
         motoristas={(motoristas ?? []).map((m) => ({ id: m.id, nome: m.nome }))}
       />
     </div>

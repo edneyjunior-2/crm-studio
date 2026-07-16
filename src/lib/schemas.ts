@@ -88,6 +88,12 @@ export const cotacaoFreteSchema = z.object({
   distancia_km: z.coerce.number().positive('Distância deve ser positiva'),
   tabela_antt: z.enum(['A', 'B', 'C', 'D']),
   tipo_carga: z.string().trim().min(1, 'Tipo de carga obrigatório').max(100),
+  // Nº de eixos do veículo combinado — muda o coeficiente CCD/CC dentro da
+  // mesma tabela/tipo de carga (achado 2026-07-16, ver antt-calculadora.ts).
+  eixos: z.coerce.number().int().refine(
+    (v) => [2, 3, 4, 5, 6, 7, 9].includes(v),
+    'Número de eixos inválido'
+  ),
 })
 
 export type CotacaoFreteInput = z.infer<typeof cotacaoFreteSchema>

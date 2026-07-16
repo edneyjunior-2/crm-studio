@@ -39,6 +39,17 @@ const TIPO_CARGA_LABEL: Record<string, string> = {
   conteinerizada: 'Conteinerizada',
 }
 
+// Mesmo mapeamento de nova-cotacao-form.tsx — nome de mercado por nº de eixos.
+const TIPO_VEICULO_LABEL: Record<number, string> = {
+  2: 'Toco / VUC (2 eixos)',
+  3: 'Truck (3 eixos)',
+  4: 'Bitruck (4 eixos)',
+  5: 'Carreta (5 eixos)',
+  6: 'Carreta (6 eixos)',
+  7: 'Bitrem (7 eixos)',
+  9: 'Rodotrem (9 eixos)',
+}
+
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function InfoItem({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
@@ -120,6 +131,7 @@ export default async function CotacaoDetailPage({ params }: PageProps) {
               </p>
               <p className="text-sm text-muted-foreground">
                 {TIPO_CARGA_LABEL[cotacao.tipo_carga as string] ?? cotacao.tipo_carga as string} · Tabela {cotacao.tabela_antt as string}
+                {cotacao.eixos != null && ` · ${TIPO_VEICULO_LABEL[cotacao.eixos as number] ?? `${cotacao.eixos} eixos`}`}
               </p>
             </div>
           </div>

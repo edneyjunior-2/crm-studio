@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, AlertCircle } from 'lucide-react'
@@ -8,8 +8,23 @@ import { criarCotacao } from '../actions'
 import municipiosBr from '@/lib/frete/municipios-br.json'
 
 interface Cliente { id: string; razao_social: string }
-interface Veiculo { id: string; placa: string }
+interface Veiculo { id: string; placa: string; eixos: number | null }
 interface Motorista { id: string; nome: string }
+
+// Nomes de mercado por número de eixos do veículo combinado — a tabela ANTT
+// oficial só fala em "número de eixos", mas quem cota frete pensa em termos
+// como "carreta"/"bitrem" (mesmo mapeamento usado na planilha de referência
+// do parceiro do setor que validamos). Nº de eixos é o que de fato indexa o
+// coeficiente CCD/CC (ver antt-calculadora.ts).
+const TIPOS_VEICULO_EIXOS = [
+  { eixos: 2, label: 'Toco / VUC (2 eixos)' },
+  { eixos: 3, label: 'Truck (3 eixos)' },
+  { eixos: 4, label: 'Bitruck (4 eixos)' },
+  { eixos: 5, label: 'Carreta (5 eixos)' },
+  { eixos: 6, label: 'Carreta (6 eixos)' },
+  { eixos: 7, label: 'Bitrem (7 eixos)' },
+  { eixos: 9, label: 'Rodotrem (9 eixos)' },
+]
 
 interface Props {
   clientes:   Cliente[]
@@ -45,6 +60,17 @@ const btnSecondary =
 export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
   const [state, action, isPending] = useActionState(criarCotacao, null)
   const router = useRouter()
+  const eixosRef = useRef<HTMLSelectElement>(null)
+
+  // Se o veículo selecionado já tem eixos cadastrados, pré-preenche o
+  // seletor de eixos — mas continua editável (ex.: veículo sem eixos
+  // cadastrado ainda, ou vendedor cotando sem veículo definido).
+  function handleVeiculoChange(veiculoId: string) {
+    const veiculo = veiculos.find((v) => v.id === veiculoId)
+    if (veiculo?.eixos && eixosRef.current) {
+      eixosRef.current.value = String(veiculo.eixos)
+    }
+  }
 
   useEffect(() => {
     if (state?.id) router.push(`/frete/cotacoes/${state.id}`)
@@ -95,22 +121,39 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
         </div>
       </div>
 
-      {/* Tipo de carga */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelClass} htmlFor="tipo_carga">Tipo de carga *</label>
-        <select id="tipo_carga" name="tipo_carga" required className={inputClass} defaultValue="">
-          <option value="" disabled>Selecione…</option>
-          {TIPOS_CARGA.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
+      {/* Tipo de carga + Nº de eixos */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <label className={labelClass} htmlFor="tipo_carga">Tipo de carga *</label>
+          <select id="tipo_carga" name="tipo_carga" required className={inputClass} defaultValue="">
+            <option value="" disabled>Selecione…</option>
+            {TIPOS_CARGA.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className={labelClass} htmlFor="eixos">Tipo de veículo *</label>
+          <select id="eixos" name="eixos" ref={eixosRef} required className={inputClass} defaultValue="">
+            <option value="" disabled>Selecione…</option>
+            {TIPOS_VEICULO_EIXOS.map((t) => (
+              <option key={t.eixos} value={t.eixos}>{t.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Veículo + Motorista */}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="veiculo_id">Veículo</label>
-          <select id="veiculo_id" name="veiculo_id" className={inputClass} defaultValue="">
+          <select
+            id="veiculo_id"
+            name="veiculo_id"
+            className={inputClass}
+            defaultValue=""
+            onChange={(e) => handleVeiculoChange(e.target.value)}
+          >
             <option value="">Nenhum</option>
             {veiculos.map((v) => (
               <option key={v.id} value={v.id}>{v.placa}</option>
