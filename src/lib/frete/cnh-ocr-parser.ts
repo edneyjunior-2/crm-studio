@@ -145,14 +145,25 @@ const CATEGORIAS_VALIDAS = ['AB', 'AC', 'AD', 'AE', 'A', 'B', 'C', 'D', 'E']
  * associado: o restante da própria linha após o rótulo (quando o OCR manteve
  * label e valor juntos) ou, se a linha só tem o rótulo, a próxima linha não
  * vazia (layout mais comum de CNH: label numa linha, valor na seguinte).
+ *
+ * O rótulo é buscado em QUALQUER posição da linha (não só no início) — a CNH
+ * exportada pelo app oficial CNH Digital prefixa cada campo com o número
+ * oficial dele (ex.: "4d CPF", "5 N° REGISTRO", "2 e 1 NOME E SOBRENOME"),
+ * então ancorar no início da linha (como a v1 deste parser fazia, calibrada
+ * só contra uma CNH física simulada) nunca casava com nada e a leitura saía
+ * vazia — achado reportado por usuário real em 2026-07-17.
  */
 function pegarValorAposLabel(linhas: string[], labelRegex: RegExp): string | undefined {
   for (let i = 0; i < linhas.length; i++) {
     const linha = linhas[i].trim()
     const match = linha.match(labelRegex)
-    if (!match) continue
+    if (!match || match.index == null) continue
 
-    const resto = linha.slice(match[0].length).replace(/^[:\-\s]+/, '').trim()
+    // Também limpa ponto/parênteses residual do próprio rótulo (ex.: "CAT.
+    // HAB." — o "." final sobra depois do match e virava, sem essa limpeza,
+    // um "resto" não-vazio só de pontuação, escondendo o valor real que
+    // estava na linha seguinte).
+    const resto = linha.slice(match.index + match[0].length).replace(/^[:\-.\s]+/, '').trim()
     if (resto) return resto
 
     for (let j = i + 1; j < linhas.length; j++) {
@@ -190,15 +201,24 @@ function converterDataParaIso(bruto: string): string | undefined {
  * regex/heurística de layout (padrão Renach/Mercosul: labels "NOME", "CPF",
  * "Nº REGISTRO"/"REGISTRO", "CAT. HAB."/"CATEGORIA", "VALIDADE"). Campo não
  * encontrado fica undefined — NUNCA inventa/adivinha um valor.
+ *
+ * Os rótulos são procurados em qualquer posição da linha (ver
+ * pegarValorAposLabel) — necessário pro layout real do app CNH Digital, que
+ * prefixa cada campo com o número oficial dele (ex.: "4d CPF", "5 N°
+ * REGISTRO", "2 e 1 NOME E SOBRENOME").
  */
 export function parsearCamposCnh(textoOcr: string): CnhDadosExtraidos {
   const linhas = textoOcr.split(/\r?\n/)
 
-  const nomeBruto = pegarValorAposLabel(linhas, /^NOME\b/i)
-  const cpfBruto = pegarValorAposLabel(linhas, /^CPF\b/i)
-  const cnhNumeroBruto = pegarValorAposLabel(linhas, /^(N[º°o]?\.?\s*)?REGISTRO\b/i)
-  const categoriaBruto = pegarValorAposLabel(linhas, /^CAT\.?\s*HAB\b\.?|^CATEGORIA\b/i)
-  const validadeBruto = pegarValorAposLabel(linhas, /^VALIDADE\b/i)
+  // "(\s+E\s+SOBRENOME)?" consome o rótulo oficial completo ("NOME E
+  // SOBRENOME", campo 2 e 1 do CNH Digital) quando presente — sem isso, o
+  // "resto da linha" virava "E SOBRENOME" (sobra do próprio rótulo) e a
+  // função nunca ia buscar o valor de verdade na linha seguinte.
+  const nomeBruto = pegarValorAposLabel(linhas, /\bNOME(\s+E\s+SOBRENOME)?\b/i)
+  const cpfBruto = pegarValorAposLabel(linhas, /\bCPF\b/i)
+  const cnhNumeroBruto = pegarValorAposLabel(linhas, /\bREGISTRO\b/i)
+  const categoriaBruto = pegarValorAposLabel(linhas, /\bCAT\.?\s*HAB\b|\bCATEGORIA\b/i)
+  const validadeBruto = pegarValorAposLabel(linhas, /\bVALIDADE\b/i)
 
   const nome = nomeBruto?.trim() || undefined
   const cpf = cpfBruto ? formatarCpf(cpfBruto) : undefined
@@ -244,6 +264,45 @@ NAO
 OBSERVAÇÕES
 `.trim()
 
+/**
+ * Texto de exemplo simulando a saída real do Google Vision (files:annotate)
+ * pra uma CNH exportada em PDF pelo app oficial CNH Digital — layout
+ * confirmado contra uma CNH real em 2026-07-17 (dado fictício aqui, a CNH
+ * real usada no teste NÃO fica no repositório). Diferença chave do formato
+ * físico simulado acima: cada campo vem prefixado com o número oficial dele
+ * ("4d CPF", "5 N° REGISTRO", "2 e 1 NOME E SOBRENOME") — foi exatamente essa
+ * diferença que quebrou a v1 do parser (regex ancorada no início da linha).
+ */
+const TEXTO_OCR_EXEMPLO_CNH_DIGITAL = `
+REPÚBLICA FEDERATIVA DO BRASIL
+MINISTÉRIO DOS TRANSPORTES
+SECRETARIA NACIONAL DE TRÂNSITO
+CARTEIRA NACIONAL DE HABILITAÇÃO/DRIVER LICENSE/PERMISO DE CONDUCCIÓN
+2 e 1 NOME E SOBRENOME
+MARIA DA SILVA TESTE
+3 DATA, LOCAL E UF DE NASCIMENTO
+03/06/1993, SALVADOR, BA
+- 4a DATA EMISSÃO
+08/10/2025
+-1° HABILITAÇÃO
+05/02/2019
+4b VALIDADE
+03/10/2035
+ACC
+-4c DOC IDENTIDADE/ORG EMISSOR/UF
+1311586431 SSP BA
+4d CPF
+049.355.835-76
+NACIONALIDADE
+BRASILEIRO(A)
+5 N° REGISTRO
+07208550791
+C9 CAT HAB
+AB
+0
+7 ASSINATURA DO PORTADOR
+`.trim()
+
 /** `npx tsx src/lib/frete/cnh-ocr-parser.ts` — não faz parte do build. */
 export function demo(): void {
   const resultado = parsearCamposCnh(TEXTO_OCR_EXEMPLO)
@@ -255,5 +314,16 @@ export function demo(): void {
   console.assert(resultado.cnhValidade === '2030-08-15', `cnhValidade incorreta: ${resultado.cnhValidade}`)
   console.assert(resultado.confianca === 'alta', `confianca incorreta: ${resultado.confianca}`)
 
-  console.log('parsearCamposCnh(TEXTO_OCR_EXEMPLO) =', JSON.stringify(resultado, null, 2))
+  console.log('parsearCamposCnh(TEXTO_OCR_EXEMPLO) [CNH física] =', JSON.stringify(resultado, null, 2))
+
+  const resultadoDigital = parsearCamposCnh(TEXTO_OCR_EXEMPLO_CNH_DIGITAL)
+
+  console.assert(resultadoDigital.nome === 'MARIA DA SILVA TESTE', `nome incorreto: ${resultadoDigital.nome}`)
+  console.assert(resultadoDigital.cpf === '049.355.835-76', `cpf incorreto: ${resultadoDigital.cpf}`)
+  console.assert(resultadoDigital.cnhNumero === '07208550791', `cnhNumero incorreto: ${resultadoDigital.cnhNumero}`)
+  console.assert(resultadoDigital.cnhCategoria === 'AB', `cnhCategoria incorreta: ${resultadoDigital.cnhCategoria}`)
+  console.assert(resultadoDigital.cnhValidade === '2035-10-03', `cnhValidade incorreta: ${resultadoDigital.cnhValidade}`)
+  console.assert(resultadoDigital.confianca === 'alta', `confianca incorreta: ${resultadoDigital.confianca}`)
+
+  console.log('parsearCamposCnh(TEXTO_OCR_EXEMPLO_CNH_DIGITAL) [app CNH Digital] =', JSON.stringify(resultadoDigital, null, 2))
 }
