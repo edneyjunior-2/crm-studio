@@ -27,6 +27,8 @@ export async function dispararAssinaturaZapSign(params: {
   pdfBase64: string
   nomeArquivo: string
   signatarios: Array<{ nome: string; email?: string }>
+  /** Quem clicou em "Enviar para assinatura" (user.id de getAuthUser() no chamador). */
+  enviadoPor?: string
 }): Promise<{ error?: string; linkAssinatura?: string; signatarios?: string[] }> {
   const admin = createAdminClient()
 
@@ -74,6 +76,7 @@ export async function dispararAssinaturaZapSign(params: {
       // + status "new"/"link-opened"/"signed") — o webhook sincroniza isso a
       // cada evento. Painel "quem assinou/quem falta" no histórico lê daqui.
       signatarios_zapsign:   resultado.signatarios,
+      enviado_por:           params.enviadoPor ?? null,
     })
     .eq('id', params.contratoId)
 

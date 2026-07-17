@@ -155,6 +155,7 @@ export async function POST(request: NextRequest) {
     pdfBase64,
     nomeArquivo,
     signatarios,
+    enviadoPor: user.id,
   })
 
   revalidatePath('/contratos')

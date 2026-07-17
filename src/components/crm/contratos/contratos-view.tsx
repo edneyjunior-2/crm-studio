@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine, Upload, Plus, X, Lock, ChevronDown, ChevronUp, Mail, Check } from 'lucide-react'
 import { toast } from 'sonner'
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
 import { salvarContratoGerado, excluirContratoGerado, enviarParaAssinatura } from '@/app/(crm)/contratos/actions'
 import type { ContratoGerado } from '@/app/(crm)/contratos/actions'
+import { createClient } from '@/lib/supabase/client'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -66,18 +68,38 @@ const SIGNATARIO_STATUS_LABEL: Record<string, { label: string; className: string
  */
 function PainelSignatarios({ signatarios }: { signatarios: NonNullable<ContratoGerado['signatarios_zapsign']> }) {
   const assinaram = signatarios.filter((s) => s.status === 'signed').length
-  const [aberto, setAberto] = useState(false)
+  const faltam = signatarios.filter((s) => s.status !== 'signed')
+  // Aberto por padrão quando falta gente assinar — o resumo colapsado sozinho
+  // não bastava (era preciso expandir pra saber quem falta); ver spec
+  // contratos-historico-live.md.
+  const [aberto, setAberto] = useState(assinaram < signatarios.length)
 
   return (
     <div className="border-t border-border pt-2.5">
-      <button
-        type="button"
-        onClick={() => setAberto((v) => !v)}
-        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-      >
-        {aberto ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-        {assinaram}/{signatarios.length} assinaram
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          {aberto ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+          {assinaram}/{signatarios.length} assinaram
+        </button>
+        {/* Indicador sempre visível (fora do accordion) — mesma paleta âmbar do
+            aviso !assinaturaConfigurada logo acima neste arquivo. */}
+        {faltam.length > 0 ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
+            <AlertTriangle className="size-3 shrink-0" />
+            Faltam {faltam.length}: {faltam.slice(0, 2).map((s) => s.nome || s.email || '—').join(', ')}
+            {faltam.length > 2 ? ` e mais ${faltam.length - 2}` : ''}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <Check className="size-3 shrink-0" />
+            Todos assinaram
+          </span>
+        )}
+      </div>
       {aberto && (
         <ul className="mt-2 flex flex-col gap-1.5">
           {signatarios.map((s, i) => {
@@ -375,6 +397,7 @@ export function ContratosView({
   signatarioNome = '',
   signatarioEmail = '',
   temAssinaturaEletronica = false,
+  empresaId,
 }: {
   templateUrl?: string | null
   emRevisao?: boolean
@@ -391,6 +414,10 @@ export function ContratosView({
    *  upsell (mesmo padrão de assinaturaConfigurada) — o bloqueio real é no
    *  servidor (enviarParaAssinatura e a rota de upload), isto é só a UI. */
   temAssinaturaEletronica?: boolean
+  /** Empresa do usuário logado — usada só para filtrar/assinar o canal Realtime
+   *  (defesa em profundidade; a RLS de SELECT em contratos_gerados já isola por
+   *  empresa_id). Sem empresaId (conta órfã), o canal simplesmente não assina. */
+  empresaId?: string | null
 }) {
   const router = useRouter()
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -400,6 +427,58 @@ export function ContratosView({
   const [signatarioOpen, setSignatarioOpen] = useState(false)
   const [comprandoAddon, setComprandoAddon] = useState(false)
   const [, startTransition] = useTransition()
+
+  // Estado local do histórico: começa a partir da prop (fetch único no
+  // server), mas passa a ser atualizado também pelo Realtime (assinatura
+  // abaixo) e resincronizado quando a prop mudar (ex.: router.refresh() após
+  // excluir/enviarAssinatura/upload).
+  const [historico, setHistorico] = useState<ContratoGerado[]>(historicoProp)
+  useEffect(() => {
+    setHistorico(historicoProp)
+  }, [historicoProp])
+
+  // Realtime: mantém o Histórico atualizado sem F5 quando o webhook do
+  // ZapSign grava mudança de status em background (signatário assinou, doc
+  // recusado, etc.) — ver spec contratos-historico-live.md. O filtro
+  // `empresa_id=eq.${empresaId}` no `.channel()` é defesa em profundidade /
+  // eficiência; a RLS de SELECT em contratos_gerados já isola por empresa no
+  // banco. Reconexão do canal é responsabilidade do próprio client do
+  // Supabase (não reimplementar retry aqui).
+  useEffect(() => {
+    if (!empresaId) return
+
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`contratos_gerados_${empresaId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'contratos_gerados', filter: `empresa_id=eq.${empresaId}` },
+        (payload: RealtimePostgresChangesPayload<ContratoGerado>) => {
+          setHistorico((prev) => {
+            if (payload.eventType === 'DELETE') {
+              const oldId = (payload.old as { id?: string })?.id
+              return prev.filter((c) => c.id !== oldId)
+            }
+            const novo = payload.new as ContratoGerado
+            const existe = prev.some((c) => c.id === novo.id)
+            if (existe) {
+              // Spread por cima do item antigo: preserva campos só-de-join que
+              // o payload cru do Realtime NÃO carrega (ex.: enviado_por_nome,
+              // que vem de um embed no fetch inicial, não é coluna própria da
+              // tabela).
+              return prev.map((c) => (c.id === novo.id ? { ...c, ...novo } : c))
+            }
+            // Nova linha (INSERT) — outra aba/pessoa criou um contrato agora.
+            return [novo, ...prev]
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [empresaId])
 
   // CTA de upsell quando a empresa ainda não tem o add-on (temAssinaturaEletronica
   // === false) — mesmo redirecionamento de continuar-button.tsx (checkout
@@ -648,7 +727,7 @@ export function ContratosView({
                   ? 'Gerador'
                   : tab === 'upload'
                   ? 'Enviar documento'
-                  : `Histórico${historicoProp.length > 0 ? ` (${historicoProp.length})` : ''}`}
+                  : `Histórico${historico.length > 0 ? ` (${historico.length})` : ''}`}
               </button>
             ))}
           </div>
@@ -726,14 +805,14 @@ export function ContratosView({
               </div>
             </div>
 
-            {historicoProp.length === 0 ? (
+            {historico.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
                 <History className="mb-3 size-10 text-muted-foreground/40" />
                 <p className="font-medium text-muted-foreground">Nenhum contrato gerado ainda</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {historicoProp.map((item) => (
+                {historico.map((item) => (
                   <div
                     key={item.id}
                     className="flex flex-col gap-2.5 rounded-lg border border-border bg-card px-4 py-3"
@@ -754,6 +833,9 @@ export function ContratosView({
                       <span className="text-xs text-muted-foreground">
                         {formatDateTime(item.created_at)}
                       </span>
+                      {item.enviado_por_nome && (
+                        <span className="text-xs text-muted-foreground">Enviado por {item.enviado_por_nome}</span>
+                      )}
                       {statusEfetivo(item) === 'rascunho' && (
                         temAssinaturaEletronica ? (
                           // Upload não exige o responsável-empresa (a lista de

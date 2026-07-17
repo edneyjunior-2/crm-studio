@@ -44,6 +44,10 @@ export interface ContratoGerado {
    *  ZapSign + status ("new"|"link-opened"|"signed"), sincronizado a cada
    *  evento do webhook. Alimenta o painel "quem assinou/quem falta". */
   signatarios_zapsign?: Array<{ nome: string; email?: string; status: string; signedAt?: string | null }> | null
+  /** Quem clicou em "Enviar para assinatura" (distinto de created_by, que é quem GEROU o PDF). */
+  enviado_por?: string | null
+  /** Nome de quem enviou, via embed profiles!enviado_por(full_name) em listarContratosGerados. */
+  enviado_por_nome?: string | null
 }
 
 export async function salvarContratoGerado(input: {
@@ -123,13 +127,21 @@ export async function listarContratosGerados(): Promise<ContratoGerado[]> {
 
   const { data, error } = await supabase
     .from('contratos_gerados')
-    .select('id, parceiro_nome, parceiro_doc, tipo, dados, created_at, storage_path, status, zapsign_doc_token, zapsign_nivel, link_assinatura, signed_at, signed_storage_path, origem, signatarios_zapsign')
+    .select('id, parceiro_nome, parceiro_doc, tipo, dados, created_at, storage_path, status, zapsign_doc_token, zapsign_nivel, link_assinatura, signed_at, signed_storage_path, origem, signatarios_zapsign, enviado_por, profiles!enviado_por(full_name)')
     .order('created_at', { ascending: false })
     .limit(100)
 
   if (error || !data) return []
 
-  return data as ContratoGerado[]
+  return (data as unknown as Array<ContratoGerado & { 'profiles!enviado_por': unknown }>).map((row) => {
+    const enviadoPorRaw = row['profiles!enviado_por'] as { full_name?: string | null } | null
+    const contrato: Record<string, unknown> = { ...row }
+    delete contrato['profiles!enviado_por']
+    return {
+      ...(contrato as unknown as ContratoGerado),
+      enviado_por_nome: enviadoPorRaw?.full_name ?? null,
+    }
+  })
 }
 
 export async function excluirContratoGerado(id: string): Promise<{ error?: string }> {
@@ -208,7 +220,7 @@ function extrairSignatariosDaContraparte(dados: unknown): Array<{ nome: string; 
 export async function enviarParaAssinatura(
   contratoId: string,
 ): Promise<{ error?: string; linkAssinatura?: string; signatarios?: string[] }> {
-  const { supabase, empresaId } = await getAuthUser()
+  const { supabase, user, empresaId } = await getAuthUser()
   if (!empresaId) return { error: 'Empresa não encontrada.' }
 
   const erroModulo = await assertModulo('contratos')
@@ -298,7 +310,7 @@ export async function enviarParaAssinatura(
 
   // 4. Modalidade + ZapSign + gravação de status (compartilhado com o upload).
   const nomeArquivo = `Contrato - ${(contrato.parceiro_nome ?? contrato.id).slice(0, 200)}.pdf`
-  const res = await dispararAssinaturaZapSign({ empresaId, contratoId, pdfBase64, nomeArquivo, signatarios })
+  const res = await dispararAssinaturaZapSign({ empresaId, contratoId, pdfBase64, nomeArquivo, signatarios, enviadoPor: user.id })
   if (res.error) return { error: res.error }
 
   revalidatePath('/contratos')

@@ -64,6 +64,7 @@ export default async function ContratosPage() {
       signatarioNome={signatarioNome}
       signatarioEmail={signatarioEmail}
       temAssinaturaEletronica={temAssinaturaEletronica}
+      empresaId={empresaId}
     />
   )
 }
