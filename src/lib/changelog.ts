@@ -27,6 +27,29 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-17-contratos-editar-email-reenviar',
+    data: '2026-07-17',
+    titulo: 'Corrija o e-mail e reenvie o contrato',
+    tipo: 'novidade',
+    modulo: 'geral',
+    itens: [
+      'Errou o e-mail de quem ia assinar? Agora dá pra corrigir direto pelo histórico e reenviar, sem começar tudo de novo',
+      'Contratos enviados (ou recusados) ganham um botão de reenvio — antes só dava pra enviar contratos ainda não enviados',
+    ],
+  },
+  {
+    id: '2026-07-17-contratos-historico-tempo-real',
+    data: '2026-07-17',
+    titulo: 'Histórico de contratos mostra quem enviou e quem falta assinar',
+    tipo: 'melhoria',
+    modulo: 'geral',
+    itens: [
+      'O histórico agora mostra quem da sua equipe enviou cada contrato para assinatura',
+      'Fica destacado, sem precisar clicar em nada, quem ainda não assinou',
+      'A tela atualiza sozinha assim que alguém assina — sem precisar recarregar a página',
+    ],
+  },
+  {
     id: '2026-07-15-contratos-assinatura-eletronica',
     data: '2026-07-15',
     titulo: 'Assinatura eletrônica dos contratos, direto no sistema',
