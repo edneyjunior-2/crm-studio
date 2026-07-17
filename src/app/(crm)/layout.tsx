@@ -4,11 +4,13 @@ import { acessoLiberado } from '@/lib/gating'
 import { modulosEfetivos } from '@/lib/modulos'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { contarConversasNaoLidas } from './atendimento/atendimento-actions'
+import { listarReunioesPendentes, type ReuniaoPendente } from './reunioes-sdr-actions'
 import { CRMShell } from '@/components/crm/crm-shell'
 import { BannerAssinatura } from '@/components/crm/banner-assinatura'
 import { Toaster } from '@/components/ui/sonner'
 import { TourBoasVindas } from '@/components/crm/tour-boas-vindas'
 import { SyncDataJudProvider } from '@/components/crm/sync-datajud-provider'
+import { ReuniaoConfirmacaoPopup } from '@/components/crm/reuniao-confirmacao-popup'
 import type { Profile } from '@/types'
 
 export default async function CRMLayout({
@@ -104,6 +106,18 @@ export default async function CRMLayout({
     }
   }
 
+  // Popup de confirmação de reunião (agendamento real da Leila) — gateado só
+  // por "pode ser confirmante" (role admin/socio), NUNCA por módulo: quem
+  // marca reunião via SDR são sempre as sócias/admin, nunca um comercial.
+  let reunioesPendentesIniciais: ReuniaoPendente[] = []
+  if (role === 'admin' || role === 'socio') {
+    try {
+      reunioesPendentesIniciais = await listarReunioesPendentes()
+    } catch (err) {
+      console.error('[layout] erro ao buscar reuniões pendentes iniciais:', err)
+    }
+  }
+
   return (
     <SyncDataJudProvider>
       <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -121,6 +135,7 @@ export default async function CRMLayout({
 
         <Toaster richColors position="top-right" />
         <TourBoasVindas />
+        <ReuniaoConfirmacaoPopup reunioesIniciais={reunioesPendentesIniciais} />
       </div>
     </SyncDataJudProvider>
   )

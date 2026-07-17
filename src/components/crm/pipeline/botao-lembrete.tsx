@@ -147,7 +147,7 @@ export function BotaoLembrete({ negocioId, clienteNome, variant = 'ghost' }: Bot
       <Button
         variant={variant}
         size="icon-sm"
-        className="opacity-0 transition-opacity group-hover:opacity-100 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600"
+        className="text-amber-500 hover:bg-amber-500/10 hover:text-amber-600"
         onClick={() => setOpen(true)}
         aria-label="Criar lembrete"
         type="button"

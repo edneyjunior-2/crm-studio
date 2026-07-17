@@ -480,11 +480,11 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
             {negocio.titulo}
           </span>
 
-          <div className="flex shrink-0 items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-0.5 [@media(hover:hover)]:hidden [@media(hover:hover)]:group-hover:flex">
             <Button
               variant="ghost"
               size="icon-sm"
-              className="opacity-0 transition-opacity group-hover:opacity-100 text-violet-500 hover:bg-violet-500/10 hover:text-violet-600"
+              className="text-violet-500 hover:bg-violet-500/10 hover:text-violet-600"
               onClick={() => setReuniaoOpen(true)}
               aria-label="Registrar reunião"
             >
@@ -493,7 +493,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
             <Button
               variant="ghost"
               size="icon-sm"
-              className="opacity-0 transition-opacity group-hover:opacity-100 text-blue-500 hover:bg-blue-500/10 hover:text-blue-600"
+              className="text-blue-500 hover:bg-blue-500/10 hover:text-blue-600"
               onClick={() => setEmailOpen(true)}
               aria-label="Registrar e-mail enviado"
             >
@@ -506,7 +506,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
             <Button
               variant="ghost"
               size="icon-sm"
-              className="opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground"
               onClick={() => setEditOpen(true)}
               aria-label="Editar negócio"
             >
@@ -518,7 +518,7 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                 />
               }
             >

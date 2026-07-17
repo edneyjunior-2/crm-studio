@@ -19,6 +19,41 @@ import { rateLimit } from '@/lib/rate-limit'
  * (M1/M2). Hoje o volume é baixo e sequencial; risco de corrida desprezível.
  */
 
+/**
+ * Últimos 8 dígitos de um telefone, sem formatação — números BR variam em como
+ * armazenam DDI (55) e o 9º dígito do celular (o WhatsApp manda sem o 9; um
+ * cadastro manual às vezes tem o 9), mas os 8 dígitos finais são estáveis
+ * entre os formatos. Mesmo padrão já usado em atendimento-actions.ts.
+ */
+function ultimosDigitos(tel: string): string {
+  return tel.replace(/\D/g, '').slice(-8)
+}
+
+/**
+ * Normaliza celular BR pro formato completo (com o 9º dígito) — usado só no
+ * valor GRAVADO em cliente novo, nunca no matching/dedup (que já lida com a
+ * ambiguidade via ultimosDigitos). Este endpoint só recebe número de celular
+ * (origem = WhatsApp), então não há caso de fixo a considerar.
+ * Ex.: "557197201155" (12 díg., sem o 9) → "5571997201155" (13 díg., com o 9).
+ * Ex.: "5571997201155" (já tem o 9) → não muda.
+ * Ex.: sem DDI, "7197201155" (10 díg.) → "71997201155" (11 díg., com o 9).
+ * Fora desses comprimentos: devolve os dígitos como vieram, sem adivinhar.
+ */
+function normalizarTelefoneBR(raw: string): string {
+  const digitos = raw.replace(/\D/g, '')
+  if (digitos.startsWith('55')) {
+    const resto = digitos.slice(2)
+    if (resto.length === 10) {
+      return `55${resto.slice(0, 2)}9${resto.slice(2)}`
+    }
+    return digitos
+  }
+  if (digitos.length === 10) {
+    return `${digitos.slice(0, 2)}9${digitos.slice(2)}`
+  }
+  return digitos
+}
+
 const leadSchema = z.object({
   nome:        z.string().trim().min(1, 'nome é obrigatório').max(200),
   // valida pelos DÍGITOS (após remover formatação) — evita "------" passar no min
@@ -145,10 +180,15 @@ export async function POST(req: NextRequest) {
     solucaoId = solNova.id
   }
 
-  // 5) Cliente: dedup por (empresa_id + telefone); cria se não existir
+  // 5) Cliente: dedup por (empresa_id + telefone); cria se não existir.
+  // Tenta exact match primeiro (rápido); se não achar, cai pra comparação
+  // pelos últimos 8 dígitos — o WhatsApp manda o telefone sem o 9º dígito,
+  // então um cliente já cadastrado com o 9 (cadastro manual) não bateria no
+  // exact match e viraria um cliente duplicado a cada novo lead do mesmo
+  // número (bug real encontrado em produção: "Edney Junior" duplicado).
   let clienteId: string
   let clienteNovo = false
-  const { data: clienteExistente } = await db
+  const { data: clienteExato } = await db
     .from('clientes')
     .select('id')
     .eq('empresa_id', empresaId)
@@ -156,8 +196,22 @@ export async function POST(req: NextRequest) {
     .limit(1)
     .maybeSingle()
 
-  if (clienteExistente?.id) {
-    clienteId = clienteExistente.id
+  let clienteExistenteId = clienteExato?.id ?? null
+  if (!clienteExistenteId) {
+    const digitosLead = ultimosDigitos(telefone)
+    const { data: candidatos } = await db
+      .from('clientes')
+      .select('id, contato_telefone')
+      .eq('empresa_id', empresaId)
+      .not('contato_telefone', 'is', null)
+    const match = (candidatos ?? []).find(
+      (c) => c.contato_telefone && ultimosDigitos(c.contato_telefone) === digitosLead
+    )
+    clienteExistenteId = match?.id ?? null
+  }
+
+  if (clienteExistenteId) {
+    clienteId = clienteExistenteId
   } else {
     const { data: clienteCriado, error: errCli } = await db
       .from('clientes')
@@ -165,7 +219,7 @@ export async function POST(req: NextRequest) {
         empresa_id:        empresaId,
         razao_social:      lead.nome,
         contato_nome:      lead.nome,
-        contato_telefone:  telefone,
+        contato_telefone:  normalizarTelefoneBR(telefone),
         segmento:          lead.segmento ?? null,
         tipo_pessoa:       'pf',
         bloqueio_exclusividade: false,
