@@ -79,6 +79,32 @@ export async function marcarLida(id: string): Promise<{ error?: string }> {
 }
 
 /**
+ * Nº de conversas da empresa com `unread_count > 0` — usado pro badge de não
+ * lidas no item "WhatsApp" da sidebar (fetch inicial no layout + polling no
+ * client). `{ count: 'exact', head: true }` traz só o número, sem linhas.
+ *
+ * Em erro de query, LANÇA (em vez de devolver 0): quem chama no client faz
+ * polling e precisa distinguir "falhou, mantenha o valor anterior" de
+ * "de fato zero conversas não lidas" — devolver 0 aqui zeraria o badge à toa
+ * numa falha transitória. O fetch inicial no layout trata essa exceção com
+ * fallback pra 0 (não pode derrubar a página inteira).
+ */
+export async function contarConversasNaoLidas(): Promise<number> {
+  const { empresaId } = await authEmpresa()
+  const admin = createAdminClient()
+  const { count, error } = await admin
+    .from('conversations')
+    .select('id', { count: 'exact', head: true })
+    .eq('empresa_id', empresaId)
+    .gt('unread_count', 0)
+  if (error) {
+    console.error('[atendimento] erro ao contar conversas não lidas:', error.message)
+    throw new Error(error.message)
+  }
+  return count ?? 0
+}
+
+/**
  * Salva o número do WhatsApp do atendimento (vira o número do robô para esta
  * empresa). Deve ser o MESMO número liberado na WhatsApp Cloud API da Meta.
  */

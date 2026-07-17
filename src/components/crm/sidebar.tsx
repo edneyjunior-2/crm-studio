@@ -38,8 +38,12 @@ import { cn } from '@/lib/utils'
 import type { Profile } from '@/types'
 import type { Modulo } from '@/lib/modulos'
 import { logout } from '@/app/(auth)/login/actions'
+import { contarConversasNaoLidas } from '@/app/(crm)/atendimento/atendimento-actions'
 import { BugReportButton } from './bug-report-button'
 import { ultimaAtualizacaoVisivel } from '@/lib/changelog'
+
+/** Intervalo do polling do badge de não lidas (WhatsApp) — entre 15s e 30s. */
+const POLL_NAO_LIDAS_MS = 20_000
 
 interface NavItem {
   href: string
@@ -262,13 +266,38 @@ interface SidebarProps {
   onMobileClose?: () => void
   empresaId?: string | null
   empresaNome?: string | null
+  /** Contagem inicial de conversas não lidas (badge do item "WhatsApp"), vinda do server. */
+  unreadWhatsappInicial?: number
 }
 
-export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, empresaId, empresaNome }: SidebarProps) {
+export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, empresaId, empresaNome, unreadWhatsappInicial }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const prefersReduced = useReducedMotion()
   const [temNovidade, setTemNovidade] = useState(false)
+  const [unreadWhatsapp, setUnreadWhatsapp] = useState(unreadWhatsappInicial ?? 0)
+
+  // Polling leve do badge de não lidas — só enquanto o módulo 'atendimentos'
+  // estiver ativo pra este usuário (mesmo gating que decide se o item aparece).
+  // Falha num poll individual mantém o último valor conhecido (AC9): sem
+  // toast/erro, é um indicador passivo, tenta de novo no próximo intervalo.
+  useEffect(() => {
+    if (!modulosAtivos.includes('atendimentos')) return
+    let cancelado = false
+    const id = setInterval(() => {
+      contarConversasNaoLidas()
+        .then((n) => {
+          if (!cancelado) setUnreadWhatsapp(n)
+        })
+        .catch(() => {
+          // silencioso de propósito: mantém o valor anterior
+        })
+    }, POLL_NAO_LIDAS_MS)
+    return () => {
+      cancelado = true
+      clearInterval(id)
+    }
+  }, [modulosAtivos])
 
   useEffect(() => {
     const ultimaVisivel = ultimaAtualizacaoVisivel(modulosAtivos)
@@ -378,15 +407,23 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
               {isActive && prefersReduced && (
                 <span className="absolute inset-0 rounded-lg bg-sidebar-accent" />
               )}
-              <Icon
-                className={cn(
-                  'relative shrink-0 transition-colors duration-200',
-                  item.isSubItem && !collapsed ? 'size-3.5' : 'size-4',
-                  isActive
-                    ? 'text-sidebar-primary'
-                    : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/70'
+              {/* Wrapper relativo para o badge de não lidas (item WhatsApp) */}
+              <span className="relative">
+                <Icon
+                  className={cn(
+                    'relative shrink-0 transition-colors duration-200',
+                    item.isSubItem && !collapsed ? 'size-3.5' : 'size-4',
+                    isActive
+                      ? 'text-sidebar-primary'
+                      : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/70'
+                  )}
+                />
+                {item.href === '/atendimento' && unreadWhatsapp > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] font-semibold leading-none text-white ring-1 ring-sidebar">
+                    {unreadWhatsapp > 9 ? '9+' : unreadWhatsapp}
+                  </span>
                 )}
-              />
+              </span>
               {!collapsed && (
                 <>
                   <span className="relative">{item.label}</span>

@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/auth'
 import { acessoLiberado } from '@/lib/gating'
 import { modulosEfetivos } from '@/lib/modulos'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { contarConversasNaoLidas } from './atendimento/atendimento-actions'
 import { CRMShell } from '@/components/crm/crm-shell'
 import { BannerAssinatura } from '@/components/crm/banner-assinatura'
 import { Toaster } from '@/components/ui/sonner'
@@ -90,6 +91,19 @@ export default async function CRMLayout({
   const modulosAtivos = Array.from(modulosUsuario)
     .filter((m) => !modulosOcultos.includes(m))
 
+  // Contagem inicial do badge de não lidas (item "WhatsApp") — só busca se o
+  // módulo estiver ativo pra este usuário, pra não gerar query à toa. Falha
+  // aqui não pode derrubar a página inteira: cai pra 0, o polling no client
+  // corrige assim que conseguir.
+  let unreadWhatsappInicial = 0
+  if (modulosAtivos.includes('atendimentos')) {
+    try {
+      unreadWhatsappInicial = await contarConversasNaoLidas()
+    } catch (err) {
+      console.error('[layout] erro ao buscar contagem inicial de não lidas:', err)
+    }
+  }
+
   return (
     <SyncDataJudProvider>
       <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -102,6 +116,7 @@ export default async function CRMLayout({
           empresaId={empresaId}
           empresaNome={empresaData?.nome ?? null}
           isPlatformAdmin={isPlatformAdmin}
+          unreadWhatsappInicial={unreadWhatsappInicial}
         >{children}</CRMShell>
 
         <Toaster richColors position="top-right" />

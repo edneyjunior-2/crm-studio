@@ -12,9 +12,11 @@ interface CRMShellProps {
   empresaId?: string | null
   empresaNome?: string | null
   isPlatformAdmin?: boolean
+  /** Contagem inicial de conversas não lidas (badge do item "WhatsApp"), vinda do server. */
+  unreadWhatsappInicial?: number
 }
 
-export function CRMShell({ profile, modulosAtivos, children, empresaId, empresaNome, isPlatformAdmin }: CRMShellProps) {
+export function CRMShell({ profile, modulosAtivos, children, empresaId, empresaNome, isPlatformAdmin, unreadWhatsappInicial }: CRMShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -26,6 +28,7 @@ export function CRMShell({ profile, modulosAtivos, children, empresaId, empresaN
         onMobileClose={() => setSidebarOpen(false)}
         empresaId={empresaId}
         empresaNome={empresaNome}
+        unreadWhatsappInicial={unreadWhatsappInicial}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar
