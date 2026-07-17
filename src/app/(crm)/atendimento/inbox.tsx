@@ -5,14 +5,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  MessagesSquare, Bot, User, CheckCheck, CornerUpLeft, Lock,
-  Search, Plus, Smartphone, Pencil, Check, X, Loader2, ArrowLeft,
+  MessagesSquare, Bot, User, CheckCheck, CornerUpLeft,
+  Search, Plus, Smartphone, Pencil, Check, X, Loader2, ArrowLeft, Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   assumirConversa, devolverAoBot, resolverConversa, marcarLida,
-  salvarNumeroAtendimento, iniciarConversa,
+  salvarNumeroAtendimento, iniciarConversa, responderConversa,
 } from './atendimento-actions'
 
 export interface Conversa {
@@ -367,7 +367,22 @@ interface ThreadProps {
 }
 
 function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida }: ThreadProps) {
+  const router = useRouter()
   const status = conversa.status ?? 'bot'
+  const [resposta, setResposta] = useState('')
+  const [enviando, startEnviar] = useTransition()
+
+  function enviar() {
+    const texto = resposta.trim()
+    if (!texto || enviando) return
+    startEnviar(async () => {
+      const res = await responderConversa(conversa.id, texto)
+      if (res.error) { toast.error(res.error); return }
+      setResposta('')
+      router.refresh()
+    })
+  }
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
@@ -417,11 +432,25 @@ function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolve
         )}
       </div>
 
-      {/* TODO: envio de resposta ao lead quando o número estiver conectado na Meta. */}
-      <div className="flex items-center gap-2 border-t border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
-        <Lock className="size-3.5 shrink-0" />
-        <span>Responder pelo WhatsApp estará disponível quando o número do cliente estiver conectado na Meta.</span>
-      </div>
+      <form
+        onSubmit={(e) => { e.preventDefault(); enviar() }}
+        className="flex items-end gap-2 border-t border-border px-4 py-3"
+      >
+        <textarea
+          value={resposta}
+          onChange={(e) => setResposta(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() }
+          }}
+          placeholder="Escreva uma mensagem..."
+          rows={1}
+          disabled={enviando}
+          className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 disabled:opacity-60"
+        />
+        <Button type="submit" disabled={enviando || !resposta.trim()}>
+          {enviando ? <Loader2 className="animate-spin" /> : <Send />} Enviar
+        </Button>
+      </form>
     </>
   )
 }

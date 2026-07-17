@@ -114,6 +114,50 @@ export async function salvarNumeroAtendimento(numero: string): Promise<{ error?:
 }
 
 /**
+ * Envia uma resposta pelo WhatsApp numa conversa existente.
+ *
+ * O envio de verdade acontece no app-sdr (dono das credenciais da Cloud API) via
+ * `POST /api/chat/conversas/[id]/enviar` — esta action só valida que a conversa é
+ * desta empresa e repassa a chamada, autenticada por SDR_CHAT_API_KEY (nunca exposta
+ * ao client). O app-sdr já cuida de gravar a mensagem e mudar o status para 'humano'.
+ */
+export async function responderConversa(id: string, texto: string): Promise<{ error?: string }> {
+  const { empresaId } = await authEmpresa()
+  const msg = texto?.trim()
+  if (!msg) return { error: 'Digite uma mensagem.' }
+
+  const admin = createAdminClient()
+  const { data: conv } = await admin
+    .from('conversations')
+    .select('id')
+    .eq('id', id)
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+  if (!conv) return { error: 'Acesso negado.' }
+
+  const url = process.env.SDR_CHAT_API_URL
+  const key = process.env.SDR_CHAT_API_KEY
+  if (!url || !key) return { error: 'Integração de envio não configurada.' }
+
+  try {
+    const res = await fetch(`${url}/api/chat/conversas/${id}/enviar`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto: msg }),
+    })
+    if (!res.ok) {
+      const corpo = await res.text().catch(() => '')
+      return { error: `Falha ao enviar a mensagem (${res.status}). ${corpo}`.trim() }
+    }
+  } catch {
+    return { error: 'Não foi possível enviar a mensagem agora. Tente de novo.' }
+  }
+
+  revalidatePath('/atendimento')
+  return {}
+}
+
+/**
  * Inicia uma conversa manualmente (humano inicia — não o robô). Cria/reusa a
  * conversa pelo número e registra a 1ª mensagem.
  * TODO: o ENVIO real pelo WhatsApp depende do número conectado na Meta; por ora
