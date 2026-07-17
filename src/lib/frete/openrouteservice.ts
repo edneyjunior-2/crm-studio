@@ -61,8 +61,12 @@ export async function calcularDistanciaRota(origem: Coordenada, destino: Coorden
     throw new Error(`OpenRouteService respondeu ${res.status}: ${corpo.slice(0, 200)}`)
   }
 
+  // A resposta do GET /v2/directions/{profile} vem em GeoJSON por padrão
+  // (FeatureCollection), não no formato "routes[].summary" da doc genérica —
+  // confirmado testando com uma chave real (Salvador→Aracaju, 322,41km,
+  // 2026-07-17). distancia fica em features[0].properties.summary.distance.
   const data = await res.json()
-  const distanciaMetros = data?.routes?.[0]?.summary?.distance
+  const distanciaMetros = data?.features?.[0]?.properties?.summary?.distance
   if (typeof distanciaMetros !== 'number') {
     throw new Error('Resposta do OpenRouteService sem distância de rota (provável falta de rota entre os pontos).')
   }
