@@ -427,6 +427,39 @@ interface ThreadProps {
   onMarcarLida: () => void
 }
 
+/**
+ * Preview de mídia dentro do balão da mensagem. `media_url` chega da page.tsx já
+ * como URL assinada (1h) do bucket privado — ou null se a mídia falhou ao gerar
+ * o link (arquivo sumiu, erro de rede etc.), mesmo a mensagem tendo tido mídia
+ * (`media_mime` não-nulo nesse caso). Sem mídia nenhuma, não renderiza nada.
+ */
+function MidiaMensagem({ mediaUrl, mediaMime }: { mediaUrl: string | null; mediaMime: string | null }) {
+  if (!mediaMime) return null
+
+  if (!mediaUrl) {
+    return <p className="mb-1 text-xs italic opacity-70">Mídia indisponível</p>
+  }
+
+  if (mediaMime.startsWith('image/')) {
+    return (
+      <a href={mediaUrl} target="_blank" rel="noreferrer" className="mb-1 block">
+        {/* eslint-disable-next-line @next/next/no-img-element -- URL assinada e temporária (1h), não vale otimizar/cachear via next/image */}
+        <img src={mediaUrl} alt="Imagem enviada" className="max-w-full rounded-lg" />
+      </a>
+    )
+  }
+
+  if (mediaMime.startsWith('audio/')) {
+    return <audio controls src={mediaUrl} className="mb-1 max-w-full" />
+  }
+
+  return (
+    <a href={mediaUrl} target="_blank" rel="noreferrer" className="mb-1 block underline underline-offset-2 opacity-90">
+      Ver anexo
+    </a>
+  )
+}
+
 function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida }: ThreadProps) {
   const router = useRouter()
   const status = conversa.status ?? 'bot'
@@ -500,12 +533,8 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
                 <span className="px-1 text-xs text-muted-foreground">{autor} · {formatarDataHora(msg.created_at)}</span>
                 <div className={cn('max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words',
                   naDireita ? 'rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm bg-muted text-foreground')}>
-                  {msg.media_url && (
-                    <a href={msg.media_url} target="_blank" rel="noreferrer" className="mb-1 block underline underline-offset-2 opacity-90">
-                      {msg.media_mime?.startsWith('image/') ? 'Ver imagem' : 'Ver anexo'}
-                    </a>
-                  )}
-                  {msg.texto || (msg.media_url ? '' : '(sem texto)')}
+                  <MidiaMensagem mediaUrl={msg.media_url} mediaMime={msg.media_mime} />
+                  {msg.texto || (msg.media_mime ? '' : '(sem texto)')}
                 </div>
               </div>
             )

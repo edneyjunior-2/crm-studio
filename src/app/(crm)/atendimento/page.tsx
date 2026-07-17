@@ -73,7 +73,24 @@ export default async function AtendimentoPage({
       .eq('conversation_id', selecionada.id)
       .order('created_at', { ascending: true })
 
-    mensagens = (msgs ?? []) as Mensagem[]
+    // `media_url` guarda o CAMINHO dentro do bucket privado 'whatsapp-media' (não uma
+    // URL pronta) — geramos aqui uma URL assinada (1h) pra cada mensagem com mídia.
+    // Falha em uma mídia específica não pode derrubar a conversa inteira: degrada
+    // pra null só naquela mensagem.
+    mensagens = await Promise.all(
+      ((msgs ?? []) as Mensagem[]).map(async (msg) => {
+        if (!msg.media_url) return msg
+        try {
+          const { data, error } = await admin.storage
+            .from('whatsapp-media')
+            .createSignedUrl(msg.media_url, 3600)
+          if (error || !data) return { ...msg, media_url: null }
+          return { ...msg, media_url: data.signedUrl }
+        } catch {
+          return { ...msg, media_url: null }
+        }
+      })
+    )
   }
 
   const clientesComTelefone = await listarClientesComTelefone()
