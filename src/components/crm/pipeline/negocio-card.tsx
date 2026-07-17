@@ -192,6 +192,20 @@ function getProbabilidadeVariant(prob: number): 'default' | 'secondary' | 'outli
   return 'outline'
 }
 
+/** Selinho verde do WhatsApp — SVG inline, sem pacote de ícones novo. */
+function WhatsAppBadge() {
+  return (
+    <span
+      className="absolute -right-1 -top-1 z-10 flex size-4 items-center justify-center rounded-full bg-[#25D366] shadow-sm ring-2 ring-card"
+      title="Lead via WhatsApp"
+    >
+      <svg viewBox="0 0 24 24" className="size-2.5" fill="white" aria-hidden="true">
+        <path d="M12 2.1c-5.5 0-10 4.4-10 9.9 0 1.7.5 3.4 1.3 4.9L2 22l5.3-1.4c1.4.8 3 1.2 4.7 1.2 5.5 0 10-4.4 10-9.9s-4.5-9.8-10-9.8zm5.6 14c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.2-4.3-3.7-4.5-3.9-.1-.2-1-1.4-1-2.6s.6-1.9.9-2.1c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5.2.6.8 2 .9 2.1.1.2.1.4 0 .6-.1.2-.2.4-.4.6-.2.2-.4.4-.5.6-.2.2-.4.4-.2.8.2.4 1 1.6 2.1 2.6 1.4 1.3 2.6 1.7 3 1.9.4.2.6.1.8-.1.3-.3.9-1 1.1-1.3.2-.3.5-.3.8-.2l2 .9c.3.2.5.3.6.4.1.2.1.9-.1 1.4z" />
+      </svg>
+    </span>
+  )
+}
+
 interface NegocioCardProps {
   negocio: NegocioComRelacoes
   clientes: Pick<Cliente, 'id' | 'razao_social'>[]
@@ -456,8 +470,13 @@ export function NegocioCard({ negocio, clientes, solucoes, estagios, onDragStart
         onDragStart={(e) => onDragStart(e, negocio.id)}
         className="group relative flex cursor-grab flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-xs transition-shadow active:cursor-grabbing active:shadow-md hover:shadow-sm"
       >
+        {negocio.origem === 'whatsapp' && <WhatsAppBadge />}
+
         <div className="flex items-start justify-between gap-2">
-          <span className="line-clamp-2 min-w-0 flex-1 text-sm font-medium text-foreground leading-snug">
+          <span
+            title={negocio.titulo}
+            className="truncate min-w-0 flex-1 text-sm font-medium text-foreground leading-snug"
+          >
             {negocio.titulo}
           </span>
 

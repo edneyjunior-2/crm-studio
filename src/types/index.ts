@@ -100,6 +100,7 @@ export interface Negocio {
   data_fechamento: string | null
   motivo_perda?: string | null
   estagio_atualizado_em?: string | null
+  origem?: string | null
   observacoes: string | null
   parceiro_id?: string | null
   indicado_por?: string | null

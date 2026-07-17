@@ -96,9 +96,13 @@ export async function POST(req: NextRequest) {
       ?.filter((e) => e.tipo === 'aberto')
       .map((e) => e.slug as string) ?? []
 
-  // 1ª etapa aberta ativa (menor ordem) — onde o novo lead entra no kanban
+  // 2ª etapa aberta ativa (menor ordem) — o /api/leads/ingest só é chamado
+  // quando a Leila já qualificou o lead, então pula a 1ª etapa (prospecção
+  // manual/fria) e cai direto na etapa seguinte (ex.: "Qualificação" no
+  // padrão comum de funil). Se o tenant só tiver 1 etapa aberta, cai nela
+  // mesmo (comportamento atual preservado, sem regressão).
   const estagioInicial: string =
-    estagiosAbertos[0] ?? 'prospeccao'
+    estagiosAbertos[1] ?? estagiosAbertos[0] ?? 'prospeccao'
 
   // 3) Responsável padrão: um admin da empresa (fallback: qualquer perfil)
   const { data: perfis } = await db
@@ -200,6 +204,20 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle()
     negocioId = aberto?.id ?? null
+
+    // Reengajamento via WhatsApp de um negócio aberto já existente (inclusive
+    // criado antes desta mudança, sem origem) também ganha o marcador —
+    // empresaId (do verificarApiKey) continua sendo a única fonte do tenant.
+    if (negocioId) {
+      const { error: errOrigemReuso } = await db
+        .from('negocios')
+        .update({ origem: 'whatsapp' })
+        .eq('id', negocioId)
+        .eq('empresa_id', empresaId)
+      if (errOrigemReuso) {
+        console.error('[ingest] falha ao marcar origem no negócio reusado:', errOrigemReuso.message, { negocioId, empresaId })
+      }
+    }
   }
 
   let negocioCriado = false
@@ -220,7 +238,7 @@ export async function POST(req: NextRequest) {
         // só setamos explicitamente quando o lead veio desqualificado.
         ...(desqualificado
           ? { desqualificado: true, motivo_perda: lead.motivo_desqualificacao ?? null }
-          : {}),
+          : { origem: 'whatsapp' }),
       })
       .select('id')
       .single()

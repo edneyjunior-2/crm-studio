@@ -283,7 +283,7 @@ export function KanbanBoard({ negocios: initialNegocios, clientes, solucoes, goo
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, estagio)}
               className={cn(
-                'flex w-72 shrink-0 flex-col rounded-xl border bg-muted/30 transition-colors',
+                'flex w-80 shrink-0 flex-col rounded-xl border bg-muted/30 transition-colors',
                 borderClass,
                 isDragOver && 'bg-muted/60 ring-2 ring-inset ring-muted-foreground/20'
               )}
