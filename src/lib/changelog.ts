@@ -12,7 +12,7 @@
  * Financeiro/Clientes/Contratos etc.).
  */
 
-export type ModuloChangelog = 'geral' | 'advocacia' | 'engenharia'
+export type ModuloChangelog = 'geral' | 'advocacia' | 'engenharia' | 'frete'
 
 export interface Release {
   id: string
@@ -26,6 +26,19 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    id: '2026-07-17-frete-modulo-novo',
+    data: '2026-07-17',
+    titulo: 'Novo módulo: Frete e Logística',
+    tipo: 'novidade',
+    modulo: 'frete',
+    itens: [
+      'Cadastre os veículos e motoristas da sua frota',
+      'Registre cotações de frete com cálculo de referência do piso mínimo da ANTT (hoje cobrindo carga geral e granel sólido — mais tipos de carga a caminho)',
+      'Busca de cidade por autocomplete (dados do IBGE) na origem e no destino da cotação',
+      'Cotação aprovada vira negócio no funil comercial em 1 clique',
+    ],
+  },
   {
     id: '2026-07-17-contratos-editar-email-reenviar',
     data: '2026-07-17',
@@ -381,6 +394,7 @@ export function changelogVisivel(modulosAtivos: string[] | Set<string>): Release
     if (!release.modulo || release.modulo === 'geral') return true
     if (release.modulo === 'advocacia') return ativos.has('processos')
     if (release.modulo === 'engenharia') return ativos.has('obras')
+    if (release.modulo === 'frete') return ativos.has('frete')
     return true
   })
 }
