@@ -39,6 +39,7 @@ export const MODULOS = [
   'obras',         // /obras — módulo vertical Engenharia/Construção Civil
   'frete',         // /frete — módulo vertical Frete e Logística (calculadora ANTT, veículos, motoristas, cotações)
   'atendimentos',  // /atendimentos — inbox WhatsApp (reservado, não ativável via plano)
+  'sdr',           // Agente SDR (persona/tom de voz em Configurações) — add-on sdr_whatsapp (reservado, não ativável via plano)
 ] as const
 
 export type Modulo = (typeof MODULOS)[number]
@@ -60,6 +61,7 @@ export const MODULO_LABEL: Record<Modulo, string> = {
   obras:        'Obras e Construção Civil',
   frete:        'Frete e Logística',
   atendimentos: 'Atendimentos WhatsApp',
+  sdr:          'Agente SDR (WhatsApp IA)',
 }
 
 // ---------------------------------------------------------------------------
@@ -68,10 +70,11 @@ export const MODULO_LABEL: Record<Modulo, string> = {
 
 /**
  * Módulos globalmente bloqueados que nunca são adicionados via plano.
- * 'atendimentos' (inbox WhatsApp) está reservado — só ativável manualmente
- * pelo admin da plataforma via modulos_ativos na empresa.
+ * 'atendimentos' (inbox WhatsApp) e 'sdr' (Agente SDR/Leila) estão reservados —
+ * só ativáveis manualmente pelo admin da plataforma via modulos_ativos na empresa
+ * (ou pela compra do add-on sdr_whatsapp, ver ADDON_MODULOS).
  */
-export const MODULOS_RESERVADOS: Modulo[] = ['atendimentos']
+export const MODULOS_RESERVADOS: Modulo[] = ['atendimentos', 'sdr']
 
 // ---------------------------------------------------------------------------
 // 3. Dependências entre módulos
@@ -173,7 +176,7 @@ export const MODULOS_POR_PLANO: Record<PlanoEmpresa, Modulo[]> = {
  */
 export const ADDON_MODULOS: Record<string, Modulo[]> = {
   gerador_contratos: ['contratos'],
-  // sdr_whatsapp libera 'sdr' — módulo ainda não existe no MODULOS; ignorado por modulosEfetivos
+  sdr_whatsapp: ['sdr'],
 }
 
 // ---------------------------------------------------------------------------

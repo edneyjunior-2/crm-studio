@@ -44,6 +44,7 @@ const moduloLabel: Record<Modulo, string> = {
   obras:        'Obras e Construção Civil',
   frete:        'Frete e Logística',
   atendimentos: 'Atendimentos WhatsApp',
+  sdr:          'Agente SDR (WhatsApp IA)',
 }
 
 // Módulos que estarão disponíveis no futuro (em breve)

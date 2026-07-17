@@ -47,6 +47,7 @@ const MODULO_LABEL: Record<Modulo, string> = {
   obras:        'Obras e Construção Civil',
   frete:        'Frete e Logística',
   atendimentos: 'Atendimentos WhatsApp',
+  sdr:          'Agente SDR (WhatsApp IA)',
 }
 
 type StatusConfig = {
