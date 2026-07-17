@@ -316,3 +316,145 @@ export async function enviarParaAssinatura(
   revalidatePath('/contratos')
   return { linkAssinatura: res.linkAssinatura, signatarios: res.signatarios }
 }
+
+/**
+ * Lê os signatários de um contrato de ORIGEM 'upload' (`dados.signatarios`,
+ * array plano) devolvendo a CHAVE (índice string) de cada um, pra permitir
+ * editar o e-mail e escrever de volta na posição certa depois.
+ */
+function mapearSignatariosEditaveisUpload(dados: unknown): Array<{ chave: string; nome: string; email: string }> {
+  const d = dados as { signatarios?: Array<{ nome?: string; email?: string }> } | null
+  if (!Array.isArray(d?.signatarios)) return []
+  return d.signatarios.map((s, i) => ({
+    chave: String(i),
+    nome:  (s?.nome ?? '').trim(),
+    email: (s?.email ?? '').trim(),
+  }))
+}
+
+// Espelha a travessia de extrairSignatariosDaContraparte, mas devolve a CHAVE do
+// campo (pra escrever de volta depois) em vez de só nome/email. Repetida de
+// propósito — ver nota acima sobre não tocar na função original.
+function mapearSignatariosEditaveisContraparte(dados: unknown): Array<{ chave: string; nome: string; email: string }> {
+  const d = dados as { mode?: string; fields?: Record<string, string> } | null
+  const fields = d?.fields
+  if (!fields) return []
+
+  if (d?.mode === 'pf') {
+    const nome = (fields.PF_NOME ?? '').trim()
+    return nome ? [{ chave: 'PF_EMAIL', nome, email: (fields.PF_EMAIL ?? '').trim() }] : []
+  }
+
+  const out: Array<{ chave: string; nome: string; email: string }> = []
+  const principal = (fields.REP_NOME ?? '').trim()
+  if (principal) out.push({ chave: 'REP_EMAIL', nome: principal, email: (fields.REP_EMAIL ?? '').trim() })
+
+  const indices = new Set<number>()
+  for (const chave of Object.keys(fields)) {
+    const m = /^REP(\d+)_NOME$/.exec(chave)
+    if (m) indices.add(Number(m[1]))
+  }
+  for (const i of [...indices].sort((a, b) => a - b)) {
+    const nome = (fields[`REP${i}_NOME`] ?? '').trim()
+    if (nome) out.push({ chave: `REP${i}_EMAIL`, nome, email: (fields[`REP${i}_EMAIL`] ?? '').trim() })
+  }
+  return out
+}
+
+/**
+ * Lista os signatários de um contrato já gerado (upload ou gerador) no
+ * formato editável — cada um com a `chave` do campo/índice de onde o e-mail
+ * mora em `dados`, pra `salvarEmailsSignatarios` saber onde escrever de volta.
+ */
+export async function listarSignatariosParaEdicao(
+  contratoId: string,
+): Promise<{ error?: string; signatarios?: Array<{ chave: string; nome: string; email: string }> }> {
+  const { supabase } = await getAuthUser()
+
+  const { data: contrato, error } = await supabase
+    .from('contratos_gerados')
+    .select('dados, origem')
+    .eq('id', contratoId)
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!contrato) return { error: 'Contrato não encontrado.' }
+
+  const signatarios = contrato.origem === 'upload'
+    ? mapearSignatariosEditaveisUpload(contrato.dados)
+    : mapearSignatariosEditaveisContraparte(contrato.dados)
+
+  if (signatarios.length === 0) {
+    return { error: 'Este contrato não tem signatários com e-mail editável.' }
+  }
+  return { signatarios }
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const CAMPO_EMAIL_CONTRAPARTE_RE = /^(PF_EMAIL|REP\d*_EMAIL)$/
+
+/**
+ * Corrige o e-mail de um ou mais signatários de um contrato já gerado
+ * (sobrescrevendo `dados`, sem histórico de versão — ver nota "Ponytail" na
+ * spec). Não reenvia nada: a próxima chamada a `enviarParaAssinatura` já relê
+ * `dados` e usa o e-mail novo.
+ */
+export async function salvarEmailsSignatarios(
+  contratoId: string,
+  alteracoes: Array<{ chave: string; email: string }>,
+): Promise<{ error?: string }> {
+  const { supabase } = await getAuthUser()
+
+  if (alteracoes.length === 0) return { error: 'Nada para salvar.' }
+  for (const a of alteracoes) {
+    if (!EMAIL_RE.test(a.email.trim())) {
+      return { error: `E-mail inválido: "${a.email}".` }
+    }
+  }
+
+  const { data: contrato, error: fetchErr } = await supabase
+    .from('contratos_gerados')
+    .select('dados, origem')
+    .eq('id', contratoId)
+    .maybeSingle()
+
+  if (fetchErr) return { error: fetchErr.message }
+  if (!contrato) return { error: 'Contrato não encontrado.' }
+
+  let novosDados: Record<string, unknown>
+
+  if (contrato.origem === 'upload') {
+    const d = (contrato.dados as { signatarios?: Array<{ nome?: string; email?: string }> } | null) ?? {}
+    const signatarios = Array.isArray(d.signatarios) ? [...d.signatarios] : []
+    for (const a of alteracoes) {
+      const i = Number(a.chave)
+      if (!Number.isInteger(i) || i < 0 || i >= signatarios.length) {
+        return { error: 'Signatário inválido.' }
+      }
+      signatarios[i] = { ...signatarios[i], email: a.email.trim() }
+    }
+    novosDados = { ...d, signatarios }
+  } else {
+    const d = (contrato.dados as { fields?: Record<string, string> } | null) ?? {}
+    const fields: Record<string, string> = { ...(d.fields ?? {}) }
+    for (const a of alteracoes) {
+      // Defesa: `chave` vem do client. Nunca escrever uma chave arbitrária num
+      // jsonb — só aceita exatamente os padrões de campo de e-mail conhecidos.
+      if (!CAMPO_EMAIL_CONTRAPARTE_RE.test(a.chave)) {
+        return { error: 'Campo de e-mail inválido.' }
+      }
+      fields[a.chave] = a.email.trim()
+    }
+    novosDados = { ...d, fields }
+  }
+
+  const { error: updateErr } = await supabase
+    .from('contratos_gerados')
+    .update({ dados: novosDados })
+    .eq('id', contratoId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  revalidatePath('/contratos')
+  return {}
+}

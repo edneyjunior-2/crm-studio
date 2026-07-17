@@ -6,7 +6,13 @@ import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, P
 import { toast } from 'sonner'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
-import { salvarContratoGerado, excluirContratoGerado, enviarParaAssinatura } from '@/app/(crm)/contratos/actions'
+import {
+  salvarContratoGerado,
+  excluirContratoGerado,
+  enviarParaAssinatura,
+  listarSignatariosParaEdicao,
+  salvarEmailsSignatarios,
+} from '@/app/(crm)/contratos/actions'
 import type { ContratoGerado } from '@/app/(crm)/contratos/actions'
 import { createClient } from '@/lib/supabase/client'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -220,6 +226,110 @@ function SignatarioEmpresaDialog({
 }
 
 /**
+ * Edição dos e-mails dos signatários de um contrato do histórico — útil pra
+ * corrigir um e-mail digitado errado antes de reenviar (o botão "Reenviar p/
+ * assinatura" fica logo ao lado no card). O nome NÃO é editável aqui: é o
+ * nome que já está no PDF, mudar aqui não muda o documento gerado. Segue o
+ * MESMO padrão de `SignatarioEmpresaDialog` acima — uma ÚNICA instância do
+ * dialog, controlada por estado no componente pai (ContratosView), fora do
+ * `.map()` do histórico.
+ */
+function EditarEmailsDialog({
+  open,
+  onOpenChange,
+  contratoId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  contratoId: string | null
+}) {
+  const router = useRouter()
+  const [carregando, setCarregando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [signatarios, setSignatarios] = useState<Array<{ chave: string; nome: string; email: string }>>([])
+  const [salvando, startSalvar] = useTransition()
+
+  useEffect(() => {
+    if (!open || !contratoId) return
+    setCarregando(true)
+    setErro(null)
+    setSignatarios([])
+    listarSignatariosParaEdicao(contratoId).then((res) => {
+      setCarregando(false)
+      if (res.error) {
+        setErro(res.error)
+        return
+      }
+      setSignatarios(res.signatarios ?? [])
+    })
+  }, [open, contratoId])
+
+  function setEmail(chave: string, email: string) {
+    setSignatarios((prev) => prev.map((s) => (s.chave === chave ? { ...s, email } : s)))
+  }
+
+  function handleSalvar() {
+    if (!contratoId) return
+    startSalvar(async () => {
+      const alteracoes = signatarios.map((s) => ({ chave: s.chave, email: s.email }))
+      const res = await salvarEmailsSignatarios(contratoId, alteracoes)
+      if (res.error) {
+        toast.error(res.error)
+        return
+      }
+      toast.success('E-mails atualizados')
+      onOpenChange(false)
+      router.refresh()
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Editar e-mails dos signatários</DialogTitle>
+          <DialogDescription>
+            O nome vem do documento e não muda por aqui — só o e-mail para onde vai o link de assinatura.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 pt-1">
+          {carregando ? (
+            <p className="text-sm text-muted-foreground">Carregando signatários…</p>
+          ) : erro ? (
+            <p className="text-sm text-destructive">{erro}</p>
+          ) : (
+            signatarios.map((s) => (
+              <div key={s.chave} className="flex flex-col gap-1.5">
+                <Label htmlFor={`email_${s.chave}`}>{s.nome}</Label>
+                <Input
+                  id={`email_${s.chave}`}
+                  type="email"
+                  value={s.email}
+                  onChange={(e) => setEmail(s.chave, e.target.value)}
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+            ))
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={salvando}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSalvar}
+              disabled={salvando || carregando || signatarios.length === 0}
+            >
+              {salvando ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
  * Aba "Enviar documento": sobe um PDF pronto (feito fora do gerador) e manda
  * pra assinatura via ZapSign. Signatários são informados manualmente (não há
  * como derivar do PDF). Pré-preenche a 1ª linha com quem assina pela empresa,
@@ -425,6 +535,7 @@ export function ContratosView({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [enviandoId, setEnviandoId] = useState<string | null>(null)
   const [signatarioOpen, setSignatarioOpen] = useState(false)
+  const [editandoEmailId, setEditandoEmailId] = useState<string | null>(null)
   const [comprandoAddon, setComprandoAddon] = useState(false)
   const [, startTransition] = useTransition()
 
@@ -836,7 +947,7 @@ export function ContratosView({
                       {item.enviado_por_nome && (
                         <span className="text-xs text-muted-foreground">Enviado por {item.enviado_por_nome}</span>
                       )}
-                      {statusEfetivo(item) === 'rascunho' && (
+                      {statusEfetivo(item) !== 'assinado' && (
                         temAssinaturaEletronica ? (
                           // Upload não exige o responsável-empresa (a lista de
                           // signatários é 100% manual, guardada no envio); só o
@@ -854,7 +965,11 @@ export function ContratosView({
                             className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <Send className="size-3" />
-                            {enviandoId === item.id ? 'Enviando…' : 'Enviar p/ assinatura'}
+                            {enviandoId === item.id
+                              ? 'Enviando…'
+                              : statusEfetivo(item) === 'rascunho'
+                              ? 'Enviar p/ assinatura'
+                              : 'Reenviar p/ assinatura'}
                           </button>
                         ) : podeConfigurarAssinatura ? (
                           <button
@@ -876,6 +991,17 @@ export function ContratosView({
                             Fale com o administrador
                           </span>
                         )
+                      )}
+                      {statusEfetivo(item) !== 'assinado' && (
+                        <button
+                          type="button"
+                          title="Editar o e-mail de quem vai assinar"
+                          onClick={() => setEditandoEmailId(item.id)}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                        >
+                          <Mail className="size-3" />
+                          Editar e-mails
+                        </button>
                       )}
                       {statusEfetivo(item) === 'enviado' && item.link_assinatura && (
                         <button
@@ -935,6 +1061,12 @@ export function ContratosView({
           emailAtual={signatarioEmail}
         />
       )}
+
+      <EditarEmailsDialog
+        open={editandoEmailId !== null}
+        onOpenChange={(o) => setEditandoEmailId(o ? editandoEmailId : null)}
+        contratoId={editandoEmailId}
+      />
     </div>
   )
 }
