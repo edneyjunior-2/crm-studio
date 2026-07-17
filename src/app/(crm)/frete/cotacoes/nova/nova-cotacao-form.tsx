@@ -1,10 +1,11 @@
 'use client'
 
-import { useActionState, useEffect, useRef } from 'react'
+import { useActionState, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, MapPinned } from 'lucide-react'
 import { criarCotacao } from '../actions'
+import { calcularDistanciaAction } from '../calcular-distancia-actions'
 import municipiosBr from '@/lib/frete/municipios-br.json'
 
 interface Cliente { id: string; razao_social: string }
@@ -61,6 +62,10 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
   const [state, action, isPending] = useActionState(criarCotacao, null)
   const router = useRouter()
   const eixosRef = useRef<HTMLSelectElement>(null)
+  const origemRef = useRef<HTMLInputElement>(null)
+  const distanciaRef = useRef<HTMLInputElement>(null)
+  const [calculandoDistancia, startDistancia] = useTransition()
+  const [avisoDistancia, setAvisoDistancia] = useState<string | null>(null)
 
   // Se o veículo selecionado já tem eixos cadastrados, pré-preenche o
   // seletor de eixos — mas continua editável (ex.: veículo sem eixos
@@ -70,6 +75,31 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
     if (veiculo?.eixos && eixosRef.current) {
       eixosRef.current.value = String(veiculo.eixos)
     }
+  }
+
+  // Ao sair do campo Destino, tenta calcular a distância de rota real
+  // (OpenRouteService) entre origem e destino e pré-preenche o campo — nunca
+  // bloqueia o fluxo: se origem/destino não forem cidades reconhecidas (texto
+  // livre digitado sem usar o autocomplete) ou a chamada falhar, o campo
+  // continua vazio/editável pra digitação manual.
+  function handleDestinoBlur(destino: string) {
+    const origem = origemRef.current?.value ?? ''
+    if (!origem || !destino) return
+    setAvisoDistancia(null)
+    startDistancia(async () => {
+      const resultado = await calcularDistanciaAction(origem, destino)
+      if (resultado.distanciaKm != null && distanciaRef.current) {
+        distanciaRef.current.value = String(resultado.distanciaKm)
+        setAvisoDistancia(`Distância de rota calculada automaticamente: ${resultado.distanciaKm} km. Confira e ajuste se necessário.`)
+      } else if (resultado.error) {
+        // Silencioso por padrão — cidade digitada fora do autocomplete é comum
+        // e não deve parecer um erro. Só avisa quando a API de rota falhou de
+        // verdade (não quando é só "cidade não reconhecida").
+        if (!resultado.error.includes('lista de cidades')) {
+          setAvisoDistancia(`Não foi possível calcular a distância automaticamente (${resultado.error}). Preencha manualmente.`)
+        }
+      }
+    })
   }
 
   useEffect(() => {
@@ -96,19 +126,31 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="origem">Origem *</label>
-          <input id="origem" name="origem" list="cidades-br" required placeholder="Cidade/UF de origem" className={inputClass} autoComplete="off" />
+          <input id="origem" name="origem" ref={origemRef} list="cidades-br" required placeholder="Cidade/UF de origem" className={inputClass} autoComplete="off" />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="destino">Destino *</label>
-          <input id="destino" name="destino" list="cidades-br" required placeholder="Cidade/UF de destino" className={inputClass} autoComplete="off" />
+          <input
+            id="destino"
+            name="destino"
+            list="cidades-br"
+            required
+            placeholder="Cidade/UF de destino"
+            className={inputClass}
+            autoComplete="off"
+            onBlur={(e) => handleDestinoBlur(e.target.value)}
+          />
         </div>
       </div>
 
       {/* Distância + Tabela ANTT */}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <label className={labelClass} htmlFor="distancia_km">Distância (km) *</label>
-          <input id="distancia_km" name="distancia_km" type="number" min={1} step="0.1" required className={inputClass} />
+          <label className={labelClass} htmlFor="distancia_km">
+            Distância (km) *
+            {calculandoDistancia && <Loader2 className="ml-1.5 inline size-3 animate-spin text-muted-foreground" />}
+          </label>
+          <input id="distancia_km" name="distancia_km" ref={distanciaRef} type="number" min={1} step="0.1" required className={inputClass} />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="tabela_antt">Tabela ANTT *</label>
@@ -120,6 +162,13 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
           </select>
         </div>
       </div>
+
+      {avisoDistancia && (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <MapPinned className="size-3.5 shrink-0" />
+          {avisoDistancia}
+        </div>
+      )}
 
       {/* Tipo de carga + Nº de eixos */}
       <div className="grid grid-cols-2 gap-3">
