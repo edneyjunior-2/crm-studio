@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Loader2, AlertCircle, MapPinned } from 'lucide-react'
 import { criarCotacao } from '../actions'
 import { calcularDistanciaAction } from '../calcular-distancia-actions'
+import { calcularPisoPreviewAction, type CalcularPisoPreviewResultado } from '../calcular-piso-preview-actions'
 import { CidadeCombobox } from '@/components/crm/frete/cidade-combobox'
 
 interface Cliente { id: string; razao_social: string }
@@ -53,20 +54,21 @@ const btnPrimary =
 const btnSecondary =
   'inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted'
 
-// ponytail: sem preview reativo do piso ANTT no form — o valor é calculado uma
-// única vez no servidor ao salvar (assertModulo + buscarCoeficienteVigente +
-// calcularPisoMinimoAntt em actions.ts) e exibido na página de detalhe, junto
-// do alerta "abaixo do piso" quando aplicável. Evita duplicar a lógica de
-// cálculo no client e mantém o form enxuto.
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
 export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
   const [state, action, isPending] = useActionState(criarCotacao, null)
   const router = useRouter()
   const eixosRef = useRef<HTMLSelectElement>(null)
   const distanciaRef = useRef<HTMLInputElement>(null)
+  const tabelaRef = useRef<HTMLSelectElement>(null)
+  const tipoCargaRef = useRef<HTMLSelectElement>(null)
   const [origem, setOrigem] = useState('')
   const [destino, setDestino] = useState('')
   const [calculandoDistancia, startDistancia] = useTransition()
   const [avisoDistancia, setAvisoDistancia] = useState<string | null>(null)
+  const [pisoPreview, setPisoPreview] = useState<CalcularPisoPreviewResultado | null>(null)
+  const [calculandoPiso, startPiso] = useTransition()
 
   // Se o veículo selecionado já tem eixos cadastrados, pré-preenche o
   // seletor de eixos — mas continua editável (ex.: veículo sem eixos
@@ -91,9 +93,33 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
       if (resultado.distanciaKm != null && distanciaRef.current) {
         distanciaRef.current.value = String(resultado.distanciaKm)
         setAvisoDistancia(`Distância de rota calculada automaticamente: ${resultado.distanciaKm} km. Confira e ajuste se necessário.`)
+        tentarCalcularPiso()
       } else if (resultado.error) {
         setAvisoDistancia(`Não foi possível calcular a distância automaticamente (${resultado.error}). Preencha manualmente.`)
       }
+    })
+  }
+
+  // Preview NÃO-autoritativo do piso ANTT — dispara sempre que os 4 campos
+  // relevantes estiverem preenchidos, em qualquer ordem. O valor definitivo
+  // continua sendo recalculado no servidor, em criarCotacao, ao salvar.
+  function tentarCalcularPiso() {
+    const distanciaVal = distanciaRef.current?.value
+    const tabelaVal = tabelaRef.current?.value
+    const tipoCargaVal = tipoCargaRef.current?.value
+    const eixosVal = eixosRef.current?.value
+
+    const distanciaKm = distanciaVal ? Number(distanciaVal) : NaN
+    const eixos = eixosVal ? Number(eixosVal) : NaN
+
+    if (!Number.isFinite(distanciaKm) || distanciaKm <= 0) return
+    if (!tabelaVal) return
+    if (!tipoCargaVal) return
+    if (!Number.isFinite(eixos)) return
+
+    startPiso(async () => {
+      const resultado = await calcularPisoPreviewAction(distanciaKm, tabelaVal, tipoCargaVal, eixos)
+      setPisoPreview(resultado)
     })
   }
 
@@ -148,11 +174,11 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
             Distância (km) *
             {calculandoDistancia && <Loader2 className="ml-1.5 inline size-3 animate-spin text-muted-foreground" />}
           </label>
-          <input id="distancia_km" name="distancia_km" ref={distanciaRef} type="number" min={1} step="0.1" required className={inputClass} />
+          <input id="distancia_km" name="distancia_km" ref={distanciaRef} type="number" min={1} step="0.1" required className={inputClass} onBlur={tentarCalcularPiso} />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="tabela_antt">Tabela ANTT *</label>
-          <select id="tabela_antt" name="tabela_antt" required className={inputClass} defaultValue="">
+          <select id="tabela_antt" name="tabela_antt" ref={tabelaRef} required className={inputClass} defaultValue="" onChange={tentarCalcularPiso}>
             <option value="" disabled>Selecione…</option>
             {TABELAS_ANTT.map((t) => (
               <option key={t} value={t}>Tabela {t}</option>
@@ -172,7 +198,7 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="tipo_carga">Tipo de carga *</label>
-          <select id="tipo_carga" name="tipo_carga" required className={inputClass} defaultValue="">
+          <select id="tipo_carga" name="tipo_carga" ref={tipoCargaRef} required className={inputClass} defaultValue="" onChange={tentarCalcularPiso}>
             <option value="" disabled>Selecione…</option>
             {TIPOS_CARGA.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
@@ -181,7 +207,7 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
         </div>
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="eixos">Tipo de veículo *</label>
-          <select id="eixos" name="eixos" ref={eixosRef} required className={inputClass} defaultValue="">
+          <select id="eixos" name="eixos" ref={eixosRef} required className={inputClass} defaultValue="" onChange={tentarCalcularPiso}>
             <option value="" disabled>Selecione…</option>
             {TIPOS_VEICULO_EIXOS.map((t) => (
               <option key={t.eixos} value={t.eixos}>{t.label}</option>
@@ -241,9 +267,26 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
           placeholder="Opcional — deixe em branco para usar o piso ANTT"
           className={inputClass}
         />
-        <p className="text-xs text-muted-foreground">
-          O piso mínimo ANTT é calculado ao salvar. Se o valor negociado ficar abaixo do piso, um alerta aparece na página da cotação.
-        </p>
+        {calculandoPiso ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 className="size-3 animate-spin" />
+            Calculando piso mínimo ANTT…
+          </p>
+        ) : pisoPreview?.piso != null ? (
+          <p className="text-xs text-muted-foreground">
+            Piso mínimo ANTT estimado: {BRL.format(pisoPreview.piso)} — usado automaticamente se você deixar &quot;Valor negociado&quot; em branco.
+          </p>
+        ) : pisoPreview?.semCoeficiente ? (
+          <p className="text-xs text-muted-foreground">
+            Ainda não temos o coeficiente ANTT cadastrado para esta combinação (tabela/tipo de carga/nº de eixos) — não será possível calcular o piso automaticamente ao salvar; informe o valor negociado manualmente.
+          </p>
+        ) : pisoPreview?.error ? (
+          <p className="text-xs text-muted-foreground">{pisoPreview.error}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            O piso mínimo ANTT é calculado ao salvar. Se o valor negociado ficar abaixo do piso, um alerta aparece na página da cotação.
+          </p>
+        )}
       </div>
 
       {/* Observações */}

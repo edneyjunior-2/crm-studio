@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-17-frete-piso-antt-preview',
+    data: '2026-07-17',
+    titulo: 'Cotação de frete mostra o piso ANTT ao vivo',
+    tipo: 'melhoria',
+    modulo: 'frete',
+    itens: [
+      'Ao preencher distância, tabela ANTT, tipo de carga e tipo de veículo, o piso mínimo já aparece na tela — antes mesmo de salvar a cotação',
+      'Se a combinação escolhida ainda não tiver coeficiente ANTT cadastrado, o sistema já avisa antes de você preencher o resto do formulário',
+    ],
+  },
+  {
     id: '2026-07-17-frete-modulo-novo',
     data: '2026-07-17',
     titulo: 'Novo módulo: Frete e Logística',
