@@ -41,12 +41,17 @@ export function NovoMotoristaForm() {
   const [lendo, startLeitura] = useTransition()
   const [avisoLeitura, setAvisoLeitura] = useState<string | null>(null)
   const [salvandoDocumento, setSalvandoDocumento] = useState(false)
+  // Texto bruto devolvido pelo Vision — só mostrado quando a confiança sai
+  // baixa, pra dar um jeito fácil de reportar o problema (ajuda a ajustar o
+  // parser sem precisar de acesso a log de servidor).
+  const [textoOcrDebug, setTextoOcrDebug] = useState<string | null>(null)
 
   function handleArquivoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
 
     setAvisoLeitura(null)
+    setTextoOcrDebug(null)
     setArquivoCnh(file)
 
     const fd = new FormData()
@@ -67,11 +72,12 @@ export function NovoMotoristaForm() {
       if (d.cnhCategoria && cnhCategoriaRef.current) cnhCategoriaRef.current.value = d.cnhCategoria
       if (d.cnhValidade && cnhValidadeRef.current) cnhValidadeRef.current.value = d.cnhValidade
 
-      setAvisoLeitura(
-        d.confianca === 'baixa'
-          ? 'Não conseguimos identificar boa parte dos campos automaticamente — complete manualmente antes de salvar.'
-          : 'CNH lida. Confira os campos abaixo antes de salvar — a leitura automática pode conter erros.'
-      )
+      if (d.confianca === 'baixa') {
+        setAvisoLeitura('Não conseguimos identificar boa parte dos campos automaticamente — complete manualmente antes de salvar.')
+        setTextoOcrDebug(res.textoOcr ?? null)
+      } else {
+        setAvisoLeitura('CNH lida. Confira os campos abaixo antes de salvar — a leitura automática pode conter erros.')
+      }
     })
   }
 
@@ -134,6 +140,22 @@ export function NovoMotoristaForm() {
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
           <span>{avisoLeitura}</span>
         </div>
+      )}
+
+      {textoOcrDebug && (
+        <details className="rounded-lg border border-border p-3 text-xs">
+          <summary className="cursor-pointer font-medium text-muted-foreground">
+            Ver texto lido pelo sistema (útil pra reportar o problema)
+          </summary>
+          <textarea
+            readOnly
+            value={textoOcrDebug}
+            rows={8}
+            className="mt-2 w-full resize-none rounded-md border border-border bg-muted/30 p-2 font-mono text-[11px] text-foreground"
+            onFocus={(e) => e.target.select()}
+          />
+          <p className="mt-1 text-muted-foreground">Clique dentro do texto pra selecionar tudo e copiar (Ctrl/Cmd+C).</p>
+        </details>
       )}
 
       {/* Nome */}

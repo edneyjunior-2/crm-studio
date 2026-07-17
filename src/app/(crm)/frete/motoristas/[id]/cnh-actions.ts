@@ -38,6 +38,12 @@ export interface PreVisualizarCnhResultado {
   sucesso: boolean
   dados?: CnhDadosExtraidos
   erro?: string
+  /** Texto bruto devolvido pelo Vision, sempre incluído quando a leitura
+   * roda com sucesso — permite diagnosticar/ajustar o parser (parsearCamposCnh
+   * em cnh-ocr-parser.ts) quando a confiança sai baixa, sem precisar de
+   * acesso a log de servidor. Mostrado na UI só quando confiança é baixa
+   * (ver novo-motorista-form.tsx). */
+  textoOcr?: string
 }
 
 /**
@@ -66,7 +72,7 @@ export async function preVisualizarCnh(formData: FormData): Promise<PreVisualiza
     const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')
     const textoOcr = await extrairTextoImagem(base64, file.type)
     const dados = parsearCamposCnh(textoOcr)
-    return { sucesso: true, dados }
+    return { sucesso: true, dados, textoOcr }
   } catch (e) {
     return { sucesso: false, erro: e instanceof Error ? e.message : 'Erro ao processar imagem.' }
   }
