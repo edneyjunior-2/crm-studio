@@ -31,6 +31,44 @@ export interface ProcessarUploadCnhResultado {
   erro?: string
 }
 
+export interface PreVisualizarCnhResultado {
+  sucesso: boolean
+  dados?: CnhDadosExtraidos
+  erro?: string
+}
+
+/**
+ * Lê a CNH via OCR SEM persistir nada (sem storage, sem linha em
+ * frete_motoristas_documentos) — usada na tela de CRIAÇÃO do motorista, onde
+ * ainda não existe motoristaId pra vincular o documento. Só pré-preenche o
+ * formulário; o arquivo em si só é de fato salvo depois que o motorista for
+ * criado, via processarUploadCnh (ver novo-motorista-form.tsx).
+ */
+export async function preVisualizarCnh(formData: FormData): Promise<PreVisualizarCnhResultado> {
+  const erroModulo = await assertModulo('frete')
+  if (erroModulo) return { sucesso: false, erro: erroModulo }
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) {
+    return { sucesso: false, erro: 'Arquivo obrigatório.' }
+  }
+  if (file.size > TAMANHO_MAXIMO_BYTES) {
+    return { sucesso: false, erro: 'Arquivo muito grande. Limite: 10 MB.' }
+  }
+  if (!MIME_PERMITIDOS.includes(file.type)) {
+    return { sucesso: false, erro: 'Formato não suportado. Envie uma foto (JPEG, PNG ou WEBP).' }
+  }
+
+  try {
+    const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')
+    const textoOcr = await extrairTextoImagem(base64)
+    const dados = parsearCamposCnh(textoOcr)
+    return { sucesso: true, dados }
+  } catch (e) {
+    return { sucesso: false, erro: e instanceof Error ? e.message : 'Erro ao processar imagem.' }
+  }
+}
+
 /**
  * 1. Valida arquivo (tipo/tamanho) e o motorista dono.
  * 2. Sobe pro bucket `frete-motoristas-docs`.
