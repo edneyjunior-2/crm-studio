@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Loader2, AlertCircle, MapPinned } from 'lucide-react'
 import { criarCotacao } from '../actions'
 import { calcularDistanciaAction } from '../calcular-distancia-actions'
-import municipiosBr from '@/lib/frete/municipios-br.json'
+import { CidadeCombobox } from '@/components/crm/frete/cidade-combobox'
 
 interface Cliente { id: string; razao_social: string }
 interface Veiculo { id: string; placa: string; eixos: number | null }
@@ -62,8 +62,9 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
   const [state, action, isPending] = useActionState(criarCotacao, null)
   const router = useRouter()
   const eixosRef = useRef<HTMLSelectElement>(null)
-  const origemRef = useRef<HTMLInputElement>(null)
   const distanciaRef = useRef<HTMLInputElement>(null)
+  const [origem, setOrigem] = useState('')
+  const [destino, setDestino] = useState('')
   const [calculandoDistancia, startDistancia] = useTransition()
   const [avisoDistancia, setAvisoDistancia] = useState<string | null>(null)
 
@@ -77,27 +78,21 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
     }
   }
 
-  // Ao sair do campo Destino, tenta calcular a distância de rota real
-  // (OpenRouteService) entre origem e destino e pré-preenche o campo — nunca
-  // bloqueia o fluxo: se origem/destino não forem cidades reconhecidas (texto
-  // livre digitado sem usar o autocomplete) ou a chamada falhar, o campo
-  // continua vazio/editável pra digitação manual.
-  function handleDestinoBlur(destino: string) {
-    const origem = origemRef.current?.value ?? ''
-    if (!origem || !destino) return
+  // Assim que origem e destino estiverem os dois preenchidos (o combobox só
+  // aceita cidades reais da lista, então aqui já são sempre válidas), calcula
+  // a distância de rota real (OpenRouteService) e pré-preenche o campo — nunca
+  // bloqueia o fluxo: se a chamada falhar, o campo continua editável pra
+  // preenchimento manual.
+  function tentarCalcularDistancia(origemVal: string, destinoVal: string) {
+    if (!origemVal || !destinoVal) return
     setAvisoDistancia(null)
     startDistancia(async () => {
-      const resultado = await calcularDistanciaAction(origem, destino)
+      const resultado = await calcularDistanciaAction(origemVal, destinoVal)
       if (resultado.distanciaKm != null && distanciaRef.current) {
         distanciaRef.current.value = String(resultado.distanciaKm)
         setAvisoDistancia(`Distância de rota calculada automaticamente: ${resultado.distanciaKm} km. Confira e ajuste se necessário.`)
       } else if (resultado.error) {
-        // Silencioso por padrão — cidade digitada fora do autocomplete é comum
-        // e não deve parecer um erro. Só avisa quando a API de rota falhou de
-        // verdade (não quando é só "cidade não reconhecida").
-        if (!resultado.error.includes('lista de cidades')) {
-          setAvisoDistancia(`Não foi possível calcular a distância automaticamente (${resultado.error}). Preencha manualmente.`)
-        }
+        setAvisoDistancia(`Não foi possível calcular a distância automaticamente (${resultado.error}). Preencha manualmente.`)
       }
     })
   }
@@ -115,31 +110,34 @@ export function NovaCotacaoForm({ clientes, veiculos, motoristas }: Props) {
         </div>
       )}
 
-      {/* Origem + destino — autocomplete nativo (<datalist>) com os 5.571
-          municípios do IBGE (src/lib/frete/municipios-br.json, dado público
-          oficial, sem custo de API nem dependência de Google Maps). */}
-      <datalist id="cidades-br">
-        {municipiosBr.map((m) => (
-          <option key={`${m.nome}-${m.uf}`} value={`${m.nome} - ${m.uf}`} />
-        ))}
-      </datalist>
+      {/* Origem + destino — busca por nome da cidade, UF ou sigla de
+          aeroporto (ex.: "SSA" encontra Salvador-BA, "GRU" encontra São
+          Paulo-SP). Combobox Base UI + os 5.571 municípios do IBGE
+          (src/lib/frete/municipios-br.json) + 188 códigos de aeroporto
+          cruzados com o dataset público OpenFlights
+          (src/lib/frete/aeroportos-br.json) — sem custo de API, sem
+          dependência de Google Maps. O valor submetido é sempre o texto
+          canônico "Nome - UF" (a sigla nunca entra no valor final). */}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="origem">Origem *</label>
-          <input id="origem" name="origem" ref={origemRef} list="cidades-br" required placeholder="Cidade/UF de origem" className={inputClass} autoComplete="off" />
+          <CidadeCombobox
+            id="origem"
+            value={origem}
+            onChange={(v) => { setOrigem(v); tentarCalcularDistancia(v, destino) }}
+            placeholder="Cidade, UF ou sigla do aeroporto de origem"
+          />
+          <input type="hidden" name="origem" value={origem} />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className={labelClass} htmlFor="destino">Destino *</label>
-          <input
+          <CidadeCombobox
             id="destino"
-            name="destino"
-            list="cidades-br"
-            required
-            placeholder="Cidade/UF de destino"
-            className={inputClass}
-            autoComplete="off"
-            onBlur={(e) => handleDestinoBlur(e.target.value)}
+            value={destino}
+            onChange={(v) => { setDestino(v); tentarCalcularDistancia(origem, v) }}
+            placeholder="Cidade, UF ou sigla do aeroporto de destino"
           />
+          <input type="hidden" name="destino" value={destino} />
         </div>
       </div>
 
