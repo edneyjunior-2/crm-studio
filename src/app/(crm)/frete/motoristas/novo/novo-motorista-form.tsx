@@ -121,7 +121,7 @@ export function NovoMotoristaForm() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".jpg,.jpeg,.png,.webp"
+            accept=".jpg,.jpeg,.png,.webp,.pdf"
             onChange={handleArquivoChange}
             disabled={lendo}
             className="hidden"

@@ -35,30 +35,24 @@ export interface CnhDadosExtraidos {
 // Chamada à API REST do Google Cloud Vision
 // ---------------------------------------------------------------------------
 
-/**
- * Chama a API REST do Google Cloud Vision (TEXT_DETECTION) e devolve o texto
- * bruto extraído da imagem. Usa a env var GOOGLE_VISION_API_KEY (chave de API
- * simples, não service account/OAuth).
- *
- * Se a env var não estiver configurada, lança um erro claro e explícito —
- * nunca falha silenciosamente nem retorna string vazia (fail loud, ver
- * "Segurança" na spec).
- */
-export async function extrairTextoImagem(base64Image: string): Promise<string> {
+function apiKeyOuFalha(): string {
   const apiKey = process.env.GOOGLE_VISION_API_KEY
   if (!apiKey) {
     throw new Error(
       'GOOGLE_VISION_API_KEY não configurada — defina a variável de ambiente para habilitar a leitura automática de CNH.'
     )
   }
+  return apiKey
+}
 
+async function extrairTextoDeImagem(base64Conteudo: string, apiKey: string): Promise<string> {
   const resposta = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       requests: [
         {
-          image: { content: base64Image },
+          image: { content: base64Conteudo },
           features: [{ type: 'TEXT_DETECTION' }],
         },
       ],
@@ -79,10 +73,64 @@ export async function extrairTextoImagem(base64Image: string): Promise<string> {
 
   // fullTextAnnotation.text preserva quebras de linha (melhor pro parser de
   // layout abaixo); textAnnotations[0].description é o fallback equivalente.
-  const texto: string =
-    respostaVision?.fullTextAnnotation?.text ?? respostaVision?.textAnnotations?.[0]?.description ?? ''
+  return respostaVision?.fullTextAnnotation?.text ?? respostaVision?.textAnnotations?.[0]?.description ?? ''
+}
 
-  return texto
+/**
+ * PDF precisa de um endpoint DIFERENTE do de imagem — images:annotate não
+ * rasteriza PDF (achado do review 2026-07-16, que por isso tirou PDF da
+ * whitelist). O endpoint certo é files:annotate + DOCUMENT_TEXT_DETECTION,
+ * síncrono para documentos pequenos (até 5 páginas) — confirmado funcionando
+ * com uma chamada real em 2026-07-17 (CNH exportada em PDF pelo app CNH
+ * Digital é exatamente esse caso). Só lê a 1ª página — CNH sempre cabe numa.
+ */
+async function extrairTextoDePdf(base64Conteudo: string, apiKey: string): Promise<string> {
+  const resposta = await fetch(`https://vision.googleapis.com/v1/files:annotate?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requests: [
+        {
+          inputConfig: { content: base64Conteudo, mimeType: 'application/pdf' },
+          features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+          pages: [1],
+        },
+      ],
+    }),
+  })
+
+  if (!resposta.ok) {
+    const corpo = await resposta.text().catch(() => '')
+    throw new Error(`Google Cloud Vision retornou erro ${resposta.status}: ${corpo.slice(0, 300)}`)
+  }
+
+  const json = await resposta.json()
+  // files:annotate aninha um nível a mais que images:annotate: um item por
+  // requisição, e dentro dele um item por página processada.
+  const respostaPagina = json?.responses?.[0]?.responses?.[0]
+
+  if (respostaPagina?.error) {
+    throw new Error(`Google Cloud Vision: ${respostaPagina.error.message ?? 'erro desconhecido'}`)
+  }
+
+  return respostaPagina?.fullTextAnnotation?.text ?? ''
+}
+
+/**
+ * Chama a API REST do Google Cloud Vision e devolve o texto bruto extraído do
+ * documento — roteia pro endpoint certo conforme o tipo (imagem vs. PDF; ver
+ * extrairTextoDePdf). Usa a env var GOOGLE_VISION_API_KEY (chave de API
+ * simples, não service account/OAuth).
+ *
+ * Se a env var não estiver configurada, lança um erro claro e explícito —
+ * nunca falha silenciosamente nem retorna string vazia (fail loud, ver
+ * "Segurança" na spec).
+ */
+export async function extrairTextoImagem(base64Conteudo: string, mimeType: string): Promise<string> {
+  const apiKey = apiKeyOuFalha()
+  return mimeType === 'application/pdf'
+    ? extrairTextoDePdf(base64Conteudo, apiKey)
+    : extrairTextoDeImagem(base64Conteudo, apiKey)
 }
 
 // ---------------------------------------------------------------------------

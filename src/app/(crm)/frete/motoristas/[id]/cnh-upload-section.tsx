@@ -131,7 +131,7 @@ export function CnhUploadSection({ motoristaId }: Props) {
           <input
             ref={fileRef}
             type="file"
-            accept=".jpg,.jpeg,.png,.webp"
+            accept=".jpg,.jpeg,.png,.webp,.pdf"
             onChange={handleFileChange}
             disabled={lendo}
             className="hidden"

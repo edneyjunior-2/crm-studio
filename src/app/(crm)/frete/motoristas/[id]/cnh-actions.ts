@@ -19,10 +19,13 @@ import { assertModulo } from '@/lib/gating'
 import { extrairTextoImagem, parsearCamposCnh, type CnhDadosExtraidos } from '@/lib/frete/cnh-ocr-parser'
 
 const TAMANHO_MAXIMO_BYTES = 10 * 1024 * 1024 // 10 MB
-// PDF removido da whitelist: o endpoint do Vision usado aqui (images:annotate)
-// não rasteriza PDF — aceitar o upload sem nunca conseguir ler prometeria uma
-// leitura automática que não funciona (achado de review 2026-07-16).
-const MIME_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp']
+// PDF foi removido da whitelist no review de 2026-07-16 (images:annotate não
+// rasteriza PDF) e READICIONADO em 2026-07-17: é exatamente o formato que a
+// CNH Digital (app oficial) exporta, então excluir PDF quebrava o caso de uso
+// mais comum de "CNH digital". A leitura de PDF usa um endpoint diferente do
+// Vision (files:annotate + DOCUMENT_TEXT_DETECTION) — ver cnh-ocr-parser.ts,
+// testado com chamada real antes de reativar.
+const MIME_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export interface ProcessarUploadCnhResultado {
@@ -61,7 +64,7 @@ export async function preVisualizarCnh(formData: FormData): Promise<PreVisualiza
 
   try {
     const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')
-    const textoOcr = await extrairTextoImagem(base64)
+    const textoOcr = await extrairTextoImagem(base64, file.type)
     const dados = parsearCamposCnh(textoOcr)
     return { sucesso: true, dados }
   } catch (e) {
@@ -148,7 +151,7 @@ export async function processarUploadCnh(
   // 'erro' — nunca fica 'pendente' pra sempre.
   try {
     const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')
-    const textoOcr = await extrairTextoImagem(base64)
+    const textoOcr = await extrairTextoImagem(base64, file.type)
     const dados = parsearCamposCnh(textoOcr)
 
     const { error: updateErro } = await supabase
