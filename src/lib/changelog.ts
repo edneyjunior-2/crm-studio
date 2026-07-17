@@ -12,7 +12,7 @@
  * Financeiro/Clientes/Contratos etc.).
  */
 
-export type ModuloChangelog = 'geral' | 'advocacia' | 'engenharia' | 'frete'
+export type ModuloChangelog = 'geral' | 'advocacia' | 'engenharia' | 'frete' | 'atendimento'
 
 export interface Release {
   id: string
@@ -26,6 +26,62 @@ export interface Release {
 }
 
 export const CHANGELOG: Release[] = [
+  {
+    id: '2026-07-17-atendimento-agendamento-leila',
+    data: '2026-07-17',
+    titulo: 'Leila agora marca reunião de verdade, com confirmação da equipe',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'A assistente de WhatsApp deixa de "inventar" horário na conversa — ela consulta a agenda real (Google Calendar) de quem vai atender e só oferece horários realmente livres',
+      'Toda reunião marcada por ela fica pendente até alguém da equipe confirmar dentro do CRM — um aviso aparece assim que você entra no sistema',
+      'Depois de confirmada, o cliente recebe automaticamente a confirmação pelo WhatsApp — com o link da videochamada, se for o caso',
+      'Se a reunião for recusada, a assistente volta a conversar sozinha com o cliente para oferecer outro horário',
+    ],
+  },
+  {
+    id: '2026-07-17-pipeline-lead-whatsapp',
+    data: '2026-07-17',
+    titulo: 'Lead qualificado pela Leila já entra certo no funil',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Quando a assistente de WhatsApp qualifica um lead, ele já entra direto na etapa de Qualificação do funil — não precisa mais mover manualmente da Prospecção',
+      'Todo negócio que veio de uma conversa de WhatsApp ganha um selinho verde no card, para você identificar de onde ele veio',
+    ],
+  },
+  {
+    id: '2026-07-17-pipeline-card-legivel',
+    data: '2026-07-17',
+    titulo: 'Card do Pipeline mais fácil de ler',
+    tipo: 'melhoria',
+    modulo: 'geral',
+    itens: [
+      'Coluna do Kanban ficou mais larga e o título do negócio não fica mais cortado no meio da palavra',
+      'No celular, os botões de ação (editar, excluir, registrar reunião...) continuam sempre visíveis e clicáveis — no computador, só aparecem quando o mouse passa por cima do card',
+    ],
+  },
+  {
+    id: '2026-07-17-atendimento-nao-lidas',
+    data: '2026-07-17',
+    titulo: 'Aviso de mensagem não lida no menu',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Chegou mensagem nova no WhatsApp? Um número vermelho aparece em cima do ícone "WhatsApp" no menu, mesmo se você estiver em outra tela do sistema',
+      'Atualiza sozinho, sem precisar recarregar a página',
+    ],
+  },
+  {
+    id: '2026-07-17-atendimento-midia',
+    data: '2026-07-17',
+    titulo: 'Fotos e áudios do WhatsApp abrem direto na conversa',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Cliente mandou uma foto ou um áudio pelo WhatsApp? Agora abre direto na conversa dentro do CRM — imagem em miniatura, áudio com player — sem precisar abrir o WhatsApp separado',
+    ],
+  },
   {
     id: '2026-07-17-frete-piso-antt-preview',
     data: '2026-07-17',
@@ -406,6 +462,7 @@ export function changelogVisivel(modulosAtivos: string[] | Set<string>): Release
     if (release.modulo === 'advocacia') return ativos.has('processos')
     if (release.modulo === 'engenharia') return ativos.has('obras')
     if (release.modulo === 'frete') return ativos.has('frete')
+    if (release.modulo === 'atendimento') return ativos.has('atendimentos')
     return true
   })
 }
