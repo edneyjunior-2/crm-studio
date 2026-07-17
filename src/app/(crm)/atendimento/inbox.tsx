@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/u
 import {
   assumirConversa, devolverAoBot, resolverConversa, marcarLida,
   salvarNumeroAtendimento, iniciarConversa, responderConversa, salvarContatoConversa,
+  buscarClientesPorNome, vincularClienteExistente,
 } from './atendimento-actions'
 
 export interface Conversa {
@@ -43,6 +44,16 @@ export interface ClienteComTelefone {
 /** Nome do cliente vinculado, ou o número cru se ainda não foi salvo como contato. */
 function nomeOuNumero(conv: Pick<Conversa, 'wa_number' | 'clientes'>): string {
   return conv.clientes?.razao_social || conv.wa_number || 'Sem número'
+}
+
+/**
+ * Últimos 8 dígitos de um telefone — números BR variam em DDI (55) e no 9º dígito
+ * do celular, mas os 8 dígitos finais são estáveis entre formatos. Mesma lógica de
+ * `atendimento-actions.ts` (duplicada de propósito: uma é server-only, a outra roda
+ * no cliente pra sugerir o match sem precisar de uma chamada extra ao servidor).
+ */
+function ultimosDigitos(tel: string): string {
+  return tel.replace(/\D/g, '').slice(-8)
 }
 
 export interface Mensagem {
@@ -216,6 +227,7 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento, cl
               conversa={selecionada}
               mensagens={mensagens}
               isPending={isPending}
+              clientesComTelefone={clientesComTelefone}
               onVoltar={() => setMobileView('lista')}
               onAssumir={() => executar(assumirConversa, selecionada.id, 'Conversa assumida.')}
               onDevolver={() => executar(devolverAoBot, selecionada.id, 'Conversa devolvida ao bot.')}
@@ -407,6 +419,7 @@ interface ThreadProps {
   conversa: Conversa
   mensagens: Mensagem[]
   isPending: boolean
+  clientesComTelefone: ClienteComTelefone[]
   onVoltar: () => void
   onAssumir: () => void
   onDevolver: () => void
@@ -414,7 +427,7 @@ interface ThreadProps {
   onMarcarLida: () => void
 }
 
-function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida }: ThreadProps) {
+function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida }: ThreadProps) {
   const router = useRouter()
   const status = conversa.status ?? 'bot'
   const [resposta, setResposta] = useState('')
@@ -470,6 +483,7 @@ function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolve
       {salvandoContato && (
         <SalvarContatoForm
           conversa={conversa}
+          clientesComTelefone={clientesComTelefone}
           onClose={() => setSalvandoContato(false)}
         />
       )}
@@ -523,10 +537,43 @@ function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolve
 }
 
 // ---------------------------------------------------------------------------
-// Salvar contato — cria um Cliente (quick-create) a partir de quem está
-// conversando, pra completar o cadastro depois em /clientes.
+// Salvar contato — vincula quem está do outro lado da conversa a um Cliente:
+// "Criar novo" (quick-create, o de sempre) ou "Vincular existente" (busca por
+// nome e aponta pra um cadastro já feito, pra não duplicar — ver ADR do bug
+// da Aislene: contato salvo sempre criava Cliente novo, mesmo já cadastrado).
 // ---------------------------------------------------------------------------
-function SalvarContatoForm({ conversa, onClose }: { conversa: Conversa; onClose: () => void }) {
+function SalvarContatoForm({
+  conversa,
+  clientesComTelefone,
+  onClose,
+}: {
+  conversa: Conversa
+  clientesComTelefone: ClienteComTelefone[]
+  onClose: () => void
+}) {
+  // Se o telefone da conversa já bate com um cliente cadastrado, sugere vincular
+  // direto — é exatamente o caso que gerava duplicata (nomes diferentes, mesmo tel).
+  const sugestao = conversa.wa_number
+    ? clientesComTelefone.find((c) => ultimosDigitos(c.contato_telefone) === ultimosDigitos(conversa.wa_number!))
+    : undefined
+  const [modo, setModo] = useState<'criar' | 'vincular'>(sugestao ? 'vincular' : 'criar')
+
+  return (
+    <div className="flex flex-col gap-2 border-b border-border bg-muted/40 px-4 py-3">
+      <div className="flex gap-1.5">
+        <FiltroPill ativo={modo === 'criar'} onClick={() => setModo('criar')}>Criar novo</FiltroPill>
+        <FiltroPill ativo={modo === 'vincular'} onClick={() => setModo('vincular')}>Vincular existente</FiltroPill>
+      </div>
+      {modo === 'criar' ? (
+        <CriarContatoForm conversa={conversa} onClose={onClose} />
+      ) : (
+        <VincularClienteForm conversa={conversa} sugestao={sugestao} onClose={onClose} />
+      )}
+    </div>
+  )
+}
+
+function CriarContatoForm({ conversa, onClose }: { conversa: Conversa; onClose: () => void }) {
   const router = useRouter()
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState(conversa.wa_number ?? '')
@@ -544,7 +591,7 @@ function SalvarContatoForm({ conversa, onClose }: { conversa: Conversa; onClose:
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-2 border-b border-border bg-muted/40 px-4 py-3">
+    <div className="flex flex-wrap items-end gap-2">
       <div className="flex flex-1 flex-col gap-1 min-w-40">
         <label className="text-[11px] font-medium text-muted-foreground">Nome do contato</label>
         <input
@@ -570,6 +617,118 @@ function SalvarContatoForm({ conversa, onClose }: { conversa: Conversa; onClose:
       <Button size="sm" variant="outline" onClick={onClose} disabled={salvando}>
         <X /> Cancelar
       </Button>
+    </div>
+  )
+}
+
+interface ClienteBusca {
+  id: string
+  razao_social: string
+  contato_telefone: string | null
+}
+
+function VincularClienteForm({
+  conversa,
+  sugestao,
+  onClose,
+}: {
+  conversa: Conversa
+  sugestao?: ClienteComTelefone
+  onClose: () => void
+}) {
+  const router = useRouter()
+  const [query, setQuery] = useState('')
+  const [resultados, setResultados] = useState<ClienteBusca[]>([])
+  const [buscando, setBuscando] = useState(false)
+  const [vinculando, startVincular] = useTransition()
+  const [clienteId, setClienteId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const termo = query.trim()
+    if (termo.length < 2) return
+    let cancelado = false
+    const timer = setTimeout(() => {
+      buscarClientesPorNome(termo)
+        .then((dados) => { if (!cancelado) setResultados(dados) })
+        .finally(() => { if (!cancelado) setBuscando(false) })
+    }, 300)
+    return () => { cancelado = true; clearTimeout(timer) }
+  }, [query])
+
+  function onQueryChange(v: string) {
+    setQuery(v)
+    if (v.trim().length < 2) { setResultados([]); setBuscando(false) }
+    else setBuscando(true) // já mostra "Buscando..." desde a digitação, não só quando o debounce dispara
+  }
+
+  function vincular(id: string) {
+    setClienteId(id)
+    startVincular(async () => {
+      const res = await vincularClienteExistente(conversa.id, id)
+      if (res.error) { toast.error(res.error); setClienteId(null); return }
+      toast.success('Contato vinculado.')
+      onClose()
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {sugestao && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+          <div className="flex flex-col">
+            <span className="text-[11px] text-muted-foreground">Mesmo telefone da conversa já cadastrado:</span>
+            <span className="text-sm font-medium text-foreground">{sugestao.razao_social}</span>
+          </div>
+          <Button size="sm" onClick={() => vincular(sugestao.id)} disabled={vinculando}>
+            {vinculando && clienteId === sugestao.id ? <Loader2 className="animate-spin" /> : <Check />} Vincular
+          </Button>
+        </div>
+      )}
+      <div className="flex flex-col gap-1 min-w-40">
+        <label className="text-[11px] font-medium text-muted-foreground">
+          {sugestao ? 'Ou buscar outro cliente pelo nome' : 'Buscar cliente pelo nome'}
+        </label>
+        <input
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Digite ao menos 2 letras..."
+          disabled={vinculando}
+          autoFocus={!sugestao}
+          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-foreground/40 disabled:opacity-60"
+        />
+      </div>
+      {query.trim().length >= 2 && (
+        <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-background">
+          {buscando ? (
+            <p className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" /> Buscando...
+            </p>
+          ) : resultados.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum cliente encontrado.</p>
+          ) : (
+            resultados.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => vincular(c.id)}
+                disabled={vinculando}
+                className="flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted disabled:opacity-60"
+              >
+                <span className="truncate font-medium text-foreground">{c.razao_social}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {vinculando && clienteId === c.id ? <Loader2 className="size-3.5 animate-spin" /> : c.contato_telefone}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={onClose} disabled={vinculando}>
+          <X /> Cancelar
+        </Button>
+      </div>
     </div>
   )
 }

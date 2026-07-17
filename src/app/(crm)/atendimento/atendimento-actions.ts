@@ -202,6 +202,110 @@ export async function salvarContatoConversa(
   return {}
 }
 
+/**
+ * Vincula a conversa a um Cliente JÁ EXISTENTE (sem criar nada) — usar quando quem
+ * está conversando já tem cadastro completo, pra não duplicar (ver buscarClientesPorNome).
+ */
+export async function vincularClienteExistente(
+  conversaId: string,
+  clienteId: string,
+): Promise<{ error?: string }> {
+  const { empresaId } = await authEmpresa()
+  const id = clienteId?.trim()
+  if (!id) return { error: 'Selecione um cliente.' }
+
+  const admin = createAdminClient()
+
+  const { data: conv } = await admin
+    .from('conversations')
+    .select('id')
+    .eq('id', conversaId)
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+  if (!conv) return { error: 'Acesso negado.' }
+
+  const { data: cliente } = await admin
+    .from('clientes')
+    .select('id')
+    .eq('id', id)
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+  if (!cliente) return { error: 'Cliente não encontrado.' }
+
+  const { error } = await admin
+    .from('conversations')
+    .update({ cliente_id: cliente.id })
+    .eq('id', conversaId)
+    .eq('empresa_id', empresaId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/atendimento')
+  return {}
+}
+
+/** Remove acentos e baixa a caixa — "José" e "jose" precisam casar na busca. */
+function normalizarTexto(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+/**
+ * Últimos 8 dígitos de um telefone, sem formatação. Números BR variam em como
+ * armazenam DDI (55) e o 9º dígito do celular — mas os 8 dígitos finais (o
+ * número "puro", sem DDD) são estáveis entre os formatos. Usado pra casar
+ * "(71)98858-5066" com "557188585066" (mesma linha, formatos diferentes).
+ */
+function ultimosDigitos(tel: string): string {
+  const digitos = tel.replace(/\D/g, '')
+  return digitos.slice(-8)
+}
+
+/**
+ * Busca clientes da empresa pelo nome (razão social ou nome do contato) ou telefone,
+ * pra oferecer "vincular a um cadastro existente" em vez de criar um Cliente duplicado.
+ *
+ * Feito em memória (não via `ilike` do Postgres) por dois motivos: `ilike` não ignora
+ * acento — "jose" não acharia "José", o que é a forma mais comum de digitar no Brasil
+ * e recriaria o próprio bug que esta função existe pra evitar — e assim também dá pra
+ * casar por telefone (formatos de máscara variam) na mesma busca, sem duas queries.
+ */
+export async function buscarClientesPorNome(
+  query: string,
+): Promise<{ id: string; razao_social: string; contato_telefone: string | null }[]> {
+  const termo = query?.trim()
+  if (!termo || termo.length < 2) return []
+
+  const { empresaId } = await authEmpresa()
+  const admin = createAdminClient()
+
+  const { data, error } = await admin
+    .from('clientes')
+    .select('id, razao_social, contato_nome, contato_telefone')
+    .eq('empresa_id', empresaId)
+    .order('razao_social')
+
+  if (error) {
+    console.error('[atendimento] erro ao buscar clientes por nome:', error.message)
+    return []
+  }
+
+  type Linha = { id: string; razao_social: string; contato_nome: string | null; contato_telefone: string | null }
+  const termoNorm = normalizarTexto(termo)
+  const termoDigitos = termo.replace(/\D/g, '')
+
+  const encontrados = ((data ?? []) as Linha[]).filter((c) => {
+    const casaNome =
+      normalizarTexto(c.razao_social).includes(termoNorm) ||
+      (c.contato_nome ? normalizarTexto(c.contato_nome).includes(termoNorm) : false)
+    const casaTelefone =
+      termoDigitos.length >= 4 && c.contato_telefone
+        ? ultimosDigitos(c.contato_telefone).includes(termoDigitos.slice(-8))
+        : false
+    return casaNome || casaTelefone
+  })
+
+  return encontrados.slice(0, 10).map(({ id, razao_social, contato_telefone }) => ({ id, razao_social, contato_telefone }))
+}
+
 /** Lista os clientes da empresa com telefone cadastrado, pra escolher ao iniciar uma conversa. */
 export async function listarClientesComTelefone(): Promise<
   { id: string; razao_social: string; contato_telefone: string }[]
