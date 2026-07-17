@@ -6,13 +6,14 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   MessagesSquare, Bot, User, CheckCheck, CornerUpLeft,
-  Search, Plus, Smartphone, Pencil, Check, X, Loader2, ArrowLeft, Send,
+  Search, Plus, Smartphone, Pencil, Check, X, Loader2, ArrowLeft, Send, UserPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select'
 import {
   assumirConversa, devolverAoBot, resolverConversa, marcarLida,
-  salvarNumeroAtendimento, iniciarConversa, responderConversa,
+  salvarNumeroAtendimento, iniciarConversa, responderConversa, salvarContatoConversa,
 } from './atendimento-actions'
 
 export interface Conversa {
@@ -29,6 +30,19 @@ export interface Conversa {
   labels: string[] | null
   created_at: string | null
   updated_at: string | null
+  cliente_id: string | null
+  clientes: { razao_social: string } | null
+}
+
+export interface ClienteComTelefone {
+  id: string
+  razao_social: string
+  contato_telefone: string
+}
+
+/** Nome do cliente vinculado, ou o número cru se ainda não foi salvo como contato. */
+function nomeOuNumero(conv: Pick<Conversa, 'wa_number' | 'clientes'>): string {
+  return conv.clientes?.razao_social || conv.wa_number || 'Sem número'
 }
 
 export interface Mensagem {
@@ -77,9 +91,10 @@ interface InboxProps {
   selecionada: Conversa | null
   mensagens: Mensagem[]
   numeroAtendimento: string | null
+  clientesComTelefone: ClienteComTelefone[]
 }
 
-export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento }: InboxProps) {
+export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento, clientesComTelefone }: InboxProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [busca, setBusca] = useState('')
@@ -174,7 +189,7 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento }: 
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium text-foreground">{conv.wa_number ?? 'Sem número'}</span>
+                      <span className="truncate text-sm font-medium text-foreground">{nomeOuNumero(conv)}</span>
                       <span className="shrink-0 text-xs text-muted-foreground">{formatarHorario(conv.last_inbound_at)}</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -216,7 +231,9 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento }: 
         </div>
       </div>
 
-      {novaAberta && <NovaConversaDialog onClose={() => setNovaAberta(false)} />}
+      {novaAberta && (
+        <NovaConversaDialog onClose={() => setNovaAberta(false)} clientes={clientesComTelefone} />
+      )}
     </div>
   )
 }
@@ -304,16 +321,23 @@ function NumeroAtendimento({ numero }: { numero: string | null }) {
 // ---------------------------------------------------------------------------
 // Nova conversa (humano inicia)
 // ---------------------------------------------------------------------------
-function NovaConversaDialog({ onClose }: { onClose: () => void }) {
+function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; clientes: ClienteComTelefone[] }) {
   const router = useRouter()
+  const [clienteId, setClienteId] = useState<string | undefined>(undefined)
   const [numero, setNumero] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [enviando, startEnviar] = useTransition()
 
+  function escolherCliente(id: string | undefined) {
+    setClienteId(id)
+    const cliente = clientes.find((c) => c.id === id)
+    if (cliente) setNumero(cliente.contato_telefone)
+  }
+
   function iniciar() {
     if (!numero.trim()) { toast.error('Informe o número.'); return }
     startEnviar(async () => {
-      const res = await iniciarConversa(numero, mensagem)
+      const res = await iniciarConversa(numero, mensagem, clienteId)
       if (res.error) { toast.error(res.error); return }
       toast.success('Conversa criada.')
       onClose()
@@ -330,6 +354,29 @@ function NovaConversaDialog({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} aria-label="Fechar" className="rounded p-1 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
         </div>
         <div className="flex flex-col gap-3">
+          {clientes.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Cliente já cadastrado (opcional)</label>
+              <Select value={clienteId} onValueChange={(v) => escolherCliente(v ?? undefined)}>
+                <SelectTrigger className="w-full">
+                  {clienteId ? (
+                    <span className="flex flex-1 truncate text-left">
+                      {clientes.find((c) => c.id === clienteId)?.razao_social ?? '—'}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Nenhum — digitar número manualmente</span>
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  {clientes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.razao_social} · {c.contato_telefone}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">Número do contato (com DDD)</label>
             <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ex.: (71) 99999-8888"
@@ -341,7 +388,8 @@ function NovaConversaDialog({ onClose }: { onClose: () => void }) {
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40" />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            O envio pelo WhatsApp ocorre quando o número estiver conectado na Meta. A conversa já fica registrada aqui.
+            Essa primeira mensagem fica registrada, mas o envio pelo WhatsApp ainda não acontece aqui — depois de criar,
+            abra a conversa e responda por lá para enviar de verdade.
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose} disabled={enviando}>Cancelar</Button>
@@ -371,6 +419,7 @@ function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolve
   const status = conversa.status ?? 'bot'
   const [resposta, setResposta] = useState('')
   const [enviando, startEnviar] = useTransition()
+  const [salvandoContato, setSalvandoContato] = useState(false)
 
   function enviar() {
     const texto = resposta.trim()
@@ -394,18 +443,36 @@ function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolve
           <ArrowLeft className="size-4" /> Conversas
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">{conversa.wa_number ?? 'Sem número'}</span>
+          {conversa.cliente_id ? (
+            <Link href={`/clientes/${conversa.cliente_id}`} className="text-sm font-semibold text-foreground hover:underline">
+              {nomeOuNumero(conversa)}
+            </Link>
+          ) : (
+            <span className="text-sm font-semibold text-foreground">{nomeOuNumero(conversa)}</span>
+          )}
           <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', STATUS_BADGE[status])}>
             {STATUS_LABEL[status]}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
+          {!conversa.cliente_id && (
+            <Button size="sm" variant="outline" disabled={isPending} onClick={() => setSalvandoContato(true)}>
+              <UserPlus /> Salvar contato
+            </Button>
+          )}
           {status !== 'humano' && <Button size="sm" variant="outline" disabled={isPending} onClick={onAssumir}><User /> Assumir</Button>}
           {status !== 'bot' && <Button size="sm" variant="outline" disabled={isPending} onClick={onDevolver}><Bot /> Devolver ao bot</Button>}
           {status !== 'resolvido' && <Button size="sm" variant="outline" disabled={isPending} onClick={onResolver}><CornerUpLeft /> Resolver</Button>}
           {(conversa.unread_count ?? 0) > 0 && <Button size="sm" variant="ghost" disabled={isPending} onClick={onMarcarLida}><CheckCheck /> Marcar lida</Button>}
         </div>
       </div>
+
+      {salvandoContato && (
+        <SalvarContatoForm
+          conversa={conversa}
+          onClose={() => setSalvandoContato(false)}
+        />
+      )}
 
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
         {mensagens.length === 0 ? (
@@ -452,5 +519,57 @@ function Thread({ conversa, mensagens, isPending, onVoltar, onAssumir, onDevolve
         </Button>
       </form>
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Salvar contato — cria um Cliente (quick-create) a partir de quem está
+// conversando, pra completar o cadastro depois em /clientes.
+// ---------------------------------------------------------------------------
+function SalvarContatoForm({ conversa, onClose }: { conversa: Conversa; onClose: () => void }) {
+  const router = useRouter()
+  const [nome, setNome] = useState('')
+  const [telefone, setTelefone] = useState(conversa.wa_number ?? '')
+  const [salvando, startSalvar] = useTransition()
+
+  function salvar() {
+    if (!nome.trim()) { toast.error('Informe o nome do contato.'); return }
+    startSalvar(async () => {
+      const res = await salvarContatoConversa(conversa.id, nome, telefone)
+      if (res.error) { toast.error(res.error); return }
+      toast.success('Contato salvo.')
+      onClose()
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 border-b border-border bg-muted/40 px-4 py-3">
+      <div className="flex flex-1 flex-col gap-1 min-w-40">
+        <label className="text-[11px] font-medium text-muted-foreground">Nome do contato</label>
+        <input
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Ex.: Maria Silva"
+          disabled={salvando}
+          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-foreground/40 disabled:opacity-60"
+        />
+      </div>
+      <div className="flex flex-1 flex-col gap-1 min-w-32">
+        <label className="text-[11px] font-medium text-muted-foreground">Telefone</label>
+        <input
+          value={telefone}
+          onChange={(e) => setTelefone(e.target.value)}
+          disabled={salvando}
+          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-foreground/40 disabled:opacity-60"
+        />
+      </div>
+      <Button size="sm" onClick={salvar} disabled={salvando || !nome.trim()}>
+        {salvando ? <Loader2 className="animate-spin" /> : <Check />} Salvar
+      </Button>
+      <Button size="sm" variant="outline" onClick={onClose} disabled={salvando}>
+        <X /> Cancelar
+      </Button>
+    </div>
   )
 }

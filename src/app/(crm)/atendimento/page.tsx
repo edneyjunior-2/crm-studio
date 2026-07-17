@@ -1,6 +1,7 @@
 import { getAuthUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Inbox, type Conversa, type Mensagem } from './inbox'
+import { listarClientesComTelefone } from './atendimento-actions'
 
 /**
  * Aba Atendimento — inbox de conversas do WhatsApp do SDR (robô Leila).
@@ -34,7 +35,7 @@ export default async function AtendimentoPage({
   const { data: conversas, error: convErr } = await admin
     .from('conversations')
     .select(
-      'id, wa_number, etapa, ia_ativa, encaminhado, status, assignee_id, last_inbound_at, unread_count, snooze_until, labels, created_at, updated_at'
+      'id, wa_number, etapa, ia_ativa, encaminhado, status, assignee_id, last_inbound_at, unread_count, snooze_until, labels, created_at, updated_at, cliente_id, clientes(razao_social)'
     )
     .eq('empresa_id', empresaId)
     .order('last_inbound_at', { ascending: false, nullsFirst: false })
@@ -54,7 +55,9 @@ export default async function AtendimentoPage({
     )
   }
 
-  const listaConversas = (conversas ?? []) as Conversa[]
+  // O embed `clientes(razao_social)` é to-one (via conversations.cliente_id), mas o
+  // supabase-js infere array por padrão sem tipos gerados — objeto de verdade em runtime.
+  const listaConversas = (conversas ?? []) as unknown as Conversa[]
 
   // Conversa selecionada e suas mensagens (ordem cronológica).
   const selecionada =
@@ -73,12 +76,15 @@ export default async function AtendimentoPage({
     mensagens = (msgs ?? []) as Mensagem[]
   }
 
+  const clientesComTelefone = await listarClientesComTelefone()
+
   return (
     <Inbox
       conversas={listaConversas}
       selecionada={selecionada}
       mensagens={mensagens}
       numeroAtendimento={numeroAtendimento}
+      clientesComTelefone={clientesComTelefone}
     />
   )
 }

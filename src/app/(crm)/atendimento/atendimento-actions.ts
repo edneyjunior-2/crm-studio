@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getAuthUser, getAuthAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createCliente } from '../clientes/actions'
 
 /**
  * Server actions do inbox de Atendimento (conversas do SDR / WhatsApp).
@@ -158,6 +159,65 @@ export async function responderConversa(id: string, texto: string): Promise<{ er
 }
 
 /**
+ * Salva quem está do outro lado de uma conversa como um Cliente (quick-create:
+ * nome + telefone, o resto fica em branco pra completar depois em /clientes).
+ * Reaproveita createCliente() — não duplica a lógica de insert/empresa_id/RLS.
+ */
+export async function salvarContatoConversa(
+  conversaId: string,
+  nome: string,
+  telefone: string,
+): Promise<{ error?: string }> {
+  const { empresaId } = await authEmpresa()
+  const nomeAparado = nome?.trim()
+  if (!nomeAparado) return { error: 'Informe o nome do contato.' }
+
+  const admin = createAdminClient()
+  const { data: conv } = await admin
+    .from('conversations')
+    .select('id')
+    .eq('id', conversaId)
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+  if (!conv) return { error: 'Acesso negado.' }
+
+  const formData = new FormData()
+  formData.set('razao_social', nomeAparado)
+  formData.set('tipo_pessoa', 'pf')
+  formData.set('contato_telefone', telefone?.trim() ?? '')
+
+  const resultado = await createCliente(formData)
+  if (resultado.error || !resultado.cliente) {
+    return { error: resultado.error ?? 'Falha ao salvar o contato.' }
+  }
+
+  const { error } = await admin
+    .from('conversations')
+    .update({ cliente_id: resultado.cliente.id })
+    .eq('id', conversaId)
+    .eq('empresa_id', empresaId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/atendimento')
+  return {}
+}
+
+/** Lista os clientes da empresa com telefone cadastrado, pra escolher ao iniciar uma conversa. */
+export async function listarClientesComTelefone(): Promise<
+  { id: string; razao_social: string; contato_telefone: string }[]
+> {
+  const { empresaId } = await authEmpresa()
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('clientes')
+    .select('id, razao_social, contato_telefone')
+    .eq('empresa_id', empresaId)
+    .not('contato_telefone', 'is', null)
+    .order('razao_social')
+  return (data ?? []) as { id: string; razao_social: string; contato_telefone: string }[]
+}
+
+/**
  * Inicia uma conversa manualmente (humano inicia — não o robô). Cria/reusa a
  * conversa pelo número e registra a 1ª mensagem.
  * TODO: o ENVIO real pelo WhatsApp depende do número conectado na Meta; por ora
@@ -166,6 +226,7 @@ export async function responderConversa(id: string, texto: string): Promise<{ er
 export async function iniciarConversa(
   numero: string,
   mensagem: string,
+  clienteId?: string,
 ): Promise<{ error?: string; id?: string }> {
   const { empresaId } = await authEmpresa()
   const num = numero?.replace(/\D/g, '')
@@ -173,6 +234,20 @@ export async function iniciarConversa(
   const msg = mensagem?.trim()
 
   const admin = createAdminClient()
+
+  // Se veio um cliente, confirma que é desta empresa antes de vincular — evita
+  // gravar cliente_id de outro tenant a partir de um UUID arbitrário.
+  let clienteIdValido: string | null = null
+  if (clienteId) {
+    const { data: cliente } = await admin
+      .from('clientes')
+      .select('id')
+      .eq('id', clienteId)
+      .eq('empresa_id', empresaId)
+      .maybeSingle()
+    clienteIdValido = cliente?.id ?? null
+  }
+
   const { data: existe } = await admin
     .from('conversations')
     .select('id')
@@ -191,11 +266,14 @@ export async function iniciarConversa(
         ia_ativa: false,
         etapa: 'abertura',
         last_inbound_at: new Date().toISOString(),
+        cliente_id: clienteIdValido,
       })
       .select('id')
       .single()
     if (error || !nova) return { error: error?.message ?? 'Falha ao iniciar a conversa.' }
     convId = nova.id
+  } else if (clienteIdValido) {
+    await admin.from('conversations').update({ cliente_id: clienteIdValido }).eq('id', convId)
   }
 
   if (msg) {
