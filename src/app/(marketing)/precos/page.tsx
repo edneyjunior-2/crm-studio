@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Check, Zap, Scale, HardHat, Truck } from 'lucide-react'
+import { Check, Zap, Scale, HardHat, Truck, SlidersHorizontal } from 'lucide-react'
 import { Reveal } from '@/components/marketing/motion'
 import { PRECO_POR_PLANO } from '@/lib/planos'
 
@@ -141,7 +141,7 @@ const FAQ = [
   },
   {
     q: 'Os módulos podem ser adaptados para o meu tipo de negócio?',
-    a: 'Sim — essa é a proposta do CRM Studio. Você ativa os módulos que fazem sentido para o seu setor, combina com add-ons e, se o seu segmento tiver um plano vertical (como advocacia ou engenharia), a combinação já vem pronta com o preço ajustado.',
+    a: 'Sim — essa é a proposta do CRM Studio. Você ativa os módulos que fazem sentido para o seu setor, combina com add-ons e, se o seu segmento tiver um plano vertical (como advocacia ou engenharia), a combinação já vem pronta com o preço ajustado. E quando o seu processo tem uma particularidade, ajustamos o módulo já existente para encaixar na sua rotina — não é um pacote fechado.',
   },
   {
     q: 'O que é o SDR WhatsApp?',
@@ -173,6 +173,18 @@ export default function PrecosPage() {
           <p className="mx-auto mt-6 max-w-lg text-lg text-muted-foreground">
             14 dias grátis para testar. Cartão só é cobrado no 15º dia. Ative só o que faz sentido para o seu negócio.
           </p>
+        </Reveal>
+      </section>
+
+      {/* Aviso de personalização */}
+      <section className="mx-auto max-w-[1180px] px-6 pb-10 sm:px-8">
+        <Reveal>
+          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-accent/20 bg-accent/5 px-5 py-4 text-center sm:flex-row sm:gap-3">
+            <SlidersHorizontal className="size-4 shrink-0 text-accent" />
+            <p className="text-[14px] font-medium text-foreground">
+              Nenhuma empresa trabalha igual à outra — por isso os módulos se ajustam ao seu processo, não o contrário.
+            </p>
+          </div>
         </Reveal>
       </section>
 

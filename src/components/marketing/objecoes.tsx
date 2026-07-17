@@ -11,6 +11,7 @@ const OBJECOES = [
   {
     q: 'Isso funciona pro tipo de negócio que eu tenho?',
     a: 'O núcleo — vendas, financeiro, contratos e clientes — serve pra qualquer empresa que vende e cobra. Em cima disso, você ativa módulos por setor: já existem versões prontas pra advocacia (processos, prazos) e engenharia (obras, orçamento SINAPI), e outras áreas com estoque, RH e mais. Você monta a combinação do seu negócio.',
+    micro: 'E se o seu jeito de trabalhar tiver uma particularidade? A gente ajusta os módulos existentes pra encaixar na sua rotina — a sua empresa não precisa se adaptar ao sistema.',
   },
   {
     q: 'Quanto custa? Vai encarecer quando meu time crescer?',
