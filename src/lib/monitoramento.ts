@@ -606,15 +606,26 @@ type HealthchecksStatus = 'up' | 'down' | 'grace' | 'paused' | 'new'
 function statusExternoParaSensor(status: HealthchecksStatus | undefined): 'ok' | 'alerta' | 'critico' {
   switch (status) {
     case 'up':
+    case 'new':
+      // 'new' NÃO é falha — o healthchecks.io calcula a próxima ocorrência
+      // esperada a partir de QUANDO o check foi criado (modo schedule/cron),
+      // não do passado. Um check recém-criado cujo primeiro horário esperado
+      // ainda não chegou (ex.: cron diário criado à tarde, próxima vez só
+      // amanhã) fica 'new' legitimamente — só vira 'down' se de fato perder
+      // um horário que já deveria ter acontecido depois da criação. Tratar
+      // 'new' como alerta duplicava (e badamente, sem saber o schedule) a
+      // regra de "dia/horário ainda não chegou" que o cronSaude interno já
+      // resolve corretamente via foraDaJanelaAtiva — reaproveitar o cálculo
+      // do próprio healthchecks.io em vez de reimplementar.
       return 'ok'
     case 'down':
       return 'critico'
     case 'grace':
     case 'paused':
-    case 'new':
     default:
-      // 'grace' = atrasado mas dentro da tolerância; 'paused' = alguém pausou;
-      // 'new'/undefined = nunca recebeu ping. Todos pedem atenção, nenhum é ok.
+      // 'grace' = já deveria ter pingado e está na tolerância antes de virar
+      // 'down'; 'paused' = alguém desligou o vigia manualmente — os dois
+      // merecem atenção.
       return 'alerta'
   }
 }
