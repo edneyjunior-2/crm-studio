@@ -1,6 +1,6 @@
 import { getAuthPlatformAdmin } from '@/lib/auth'
 import Link from 'next/link'
-import { Building2, LayoutDashboard, Bug, Calculator, Megaphone } from 'lucide-react'
+import { Building2, LayoutDashboard, Bug, Calculator, Megaphone, Activity } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -51,6 +51,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           >
             <Megaphone className="size-4 text-muted-foreground" />
             Ads
+          </Link>
+          <Link
+            href="/admin/monitoramento"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+          >
+            <Activity className="size-4 text-muted-foreground" />
+            Monitor da EJLABS
           </Link>
         </nav>
       </aside>

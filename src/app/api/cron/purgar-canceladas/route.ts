@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendAlertaInterno } from '@/lib/email'
 import { verificarCronSecret } from '@/lib/cron-auth'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { registrarExecucaoCron } from '@/lib/cron-execucoes'
 
 export const maxDuration = 300 // 5 min (Vercel Pro)
 
@@ -223,6 +224,7 @@ async function handler(req: NextRequest) {
 
   if (selErr) {
     console.error('purgar-canceladas: erro no select de candidatas:', selErr.message)
+    await registrarExecucaoCron(db, 'purgar-canceladas', false, { erro: selErr.message, avisadas: avisados })
     return NextResponse.json({ error: 'Falha ao consultar empresas.' }, { status: 500 })
   }
 
@@ -303,6 +305,13 @@ async function handler(req: NextRequest) {
       destaque: 'perigo',
     })
   }
+
+  // Instrumentação best-effort — nunca derruba a purga em si (já concluída acima).
+  await registrarExecucaoCron(db, 'purgar-canceladas', true, {
+    candidatas: elegiveis.length,
+    purgadas,
+    avisadas: avisados,
+  })
 
   return NextResponse.json({
     dryRun,

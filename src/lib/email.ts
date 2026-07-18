@@ -350,8 +350,8 @@ export async function sendReatribuicaoEmail({
   numeroProcesso: string
   assunto: string | null
   processoId: string
-}): Promise<void> {
-  if (!process.env.RESEND_API_KEY) return
+}): Promise<{ sent: boolean; reason?: string }> {
+  if (!process.env.RESEND_API_KEY) return { sent: false, reason: 'sem_api_key' }
 
   const resend = new Resend(process.env.RESEND_API_KEY)
   const url = `${getAppUrl()}/processos/${processoId}`
@@ -359,7 +359,7 @@ export async function sendReatribuicaoEmail({
   const safeNumero = escapeHtml(stripHeaders(numeroProcesso))
 
   try {
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: FROM,
       to: stripHeaders(to),
       subject: `Processo atribuído a você: ${numeroProcesso}`,
@@ -379,8 +379,14 @@ export async function sendReatribuicaoEmail({
         'CRM Studio. · e-mail automático de atribuição de processo',
       ),
     })
+    if (error) {
+      console.error('[email] Resend recusou o e-mail de reatribuição:', error)
+      return { sent: false, reason: error.message }
+    }
+    return { sent: true }
   } catch (err) {
     console.error('[email] falha ao enviar e-mail de reatribuição:', err)
+    return { sent: false, reason: err instanceof Error ? err.message : String(err) }
   }
 }
 

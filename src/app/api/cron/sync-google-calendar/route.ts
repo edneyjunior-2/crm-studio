@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verificarCronSecret } from '@/lib/cron-auth'
 import { sincronizarCalendarioUsuario } from '@/lib/google/calendar-sync'
+import { registrarExecucaoCron } from '@/lib/cron-execucoes'
 
 export const maxDuration = 300 // 5 min (Vercel Pro)
 
@@ -32,6 +33,7 @@ async function handler(req: NextRequest) {
     .not('google_refresh_token', 'is', null)
 
   if (errProfiles) {
+    await registrarExecucaoCron(db, 'sync-google-calendar', false, { erro: errProfiles.message })
     return NextResponse.json({ error: errProfiles.message }, { status: 500 })
   }
 
@@ -62,6 +64,9 @@ async function handler(req: NextRequest) {
       erros.push(`profile ${profileId}: ${msg}`)
     }
   }
+
+  // Instrumentação best-effort — nunca derruba a sincronização em si (já concluída acima).
+  await registrarExecucaoCron(db, 'sync-google-calendar', true, { importados, erros: erros.length })
 
   return NextResponse.json({
     usuarios_processados: usuariosProcessados,

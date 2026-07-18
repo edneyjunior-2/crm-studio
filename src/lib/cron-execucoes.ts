@@ -1,6 +1,11 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 
-export type CronSlug = 'atualizar-processos' | 'publicacoes-djen'
+export type CronSlug =
+  | 'atualizar-processos'
+  | 'publicacoes-djen'
+  | 'purgar-canceladas'
+  | 'sync-google-calendar'
+  | 'watchdog-sincronizacao'
 
 /** Best-effort: nunca lança — registrar a execução não pode derrubar o cron em si. */
 export async function registrarExecucaoCron(

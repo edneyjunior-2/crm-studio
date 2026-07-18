@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verificarCronSecret } from '@/lib/cron-auth'
-import { ultimaExecucaoCron, type CronSlug } from '@/lib/cron-execucoes'
+import { registrarExecucaoCron, ultimaExecucaoCron, type CronSlug } from '@/lib/cron-execucoes'
 import { sendAlertaInterno } from '@/lib/email'
 
 export const maxDuration = 30
@@ -24,7 +24,7 @@ const DIAS_ATIVOS = new Set([0, 1, 2, 3, 4]) // domingo-quinta — mesmo conjunt
  * início de janela (3h UTC) já passou — cobre corretamente sexta/sábado
  * (que apontam de volta pra quinta) sem alarme falso.
  */
-function inicioDaJanelaEsperada(agora: Date): Date {
+export function inicioDaJanelaEsperada(agora: Date): Date {
   const d = new Date(agora)
   for (let i = 0; i < 8; i++) {
     if (DIAS_ATIVOS.has(d.getUTCDay())) {
@@ -82,6 +82,10 @@ async function handler(req: NextRequest) {
       destaque:  'perigo',
     }).catch((e: unknown) => console.error('[watchdog] falha ao enviar alerta:', e))
   }
+
+  // Auto-registro do PRÓPRIO watchdog (novo — antes ele só registrava os crons
+  // que vigia, não a si mesmo). Best-effort — nunca derruba o vigia em si.
+  await registrarExecucaoCron(db, 'watchdog-sincronizacao', true, { alertas: alertas.length })
 
   return NextResponse.json({ ok: true, alertas: alertas.length })
 }

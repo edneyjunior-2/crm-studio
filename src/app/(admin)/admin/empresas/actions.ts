@@ -10,6 +10,18 @@ import { createCustomer, createSubscription, cancelSubscription } from '@/lib/as
 import { sendInviteEmail } from '@/lib/email'
 
 // ---------------------------------------------------------------------------
+// Monitor da EJLABS — registro best-effort de falha de envio de convite
+// (nunca lança; nunca pode derrubar o fluxo de criação de empresa)
+// ---------------------------------------------------------------------------
+async function registrarFalhaConvite(db: ReturnType<typeof createAdminClient>, email: string, erro: string): Promise<void> {
+  await db.from('monitoramento_falhas_email').insert({
+    tipo: 'convite_primeiro_acesso',
+    destinatario: email,
+    erro,
+  }).then(undefined, () => {}) // best-effort — nunca lança
+}
+
+// ---------------------------------------------------------------------------
 // Convite de primeiro acesso por e-mail (best-effort — nunca bloqueia a criação)
 // Gera o link de recovery (mesmo do botão "Link de acesso") e envia via Resend.
 // ---------------------------------------------------------------------------
@@ -33,14 +45,21 @@ async function enviarConvitePrimeiroAcesso(
     const link = data?.properties?.action_link
     if (error || !link) {
       console.error('[admin] não foi possível gerar o link de convite:', error?.message)
+      await registrarFalhaConvite(db, email, error?.message ?? 'link não gerado')
       return
     }
     const res = await sendInviteEmail({ to: email, nome, empresaNome, linkAcesso: link })
     if (!res.sent) {
       console.warn(`[admin] convite não enviado para ${email}: ${res.reason ?? 'desconhecido'}`)
+      await registrarFalhaConvite(db, email, res.reason ?? 'desconhecido')
     }
   } catch (err) {
     console.error('[admin] erro ao enviar convite de primeiro acesso:', err)
+    try {
+      await registrarFalhaConvite(db, email, err instanceof Error ? err.message : String(err))
+    } catch {
+      // nunca deixar o registro da falha virar uma NOVA falha não tratada
+    }
   }
 }
 

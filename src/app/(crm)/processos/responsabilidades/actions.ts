@@ -48,16 +48,25 @@ export async function reatribuirResponsavel(
       ])
       const email = authRow?.email
       if (email) {
-        await sendReatribuicaoEmail({
+        const resultado = await sendReatribuicaoEmail({
           to:             email,
           nomeAdvogado:   advPerfil?.full_name ?? email.split('@')[0],
           numeroProcesso: processo.numero_processo,
           assunto:        processo.assunto ?? null,
           processoId,
         })
+        if (!resultado.sent) {
+          await admin.from('monitoramento_falhas_email').insert({
+            tipo: 'reatribuicao_processo',
+            referencia_id: processoId,
+            destinatario: email,
+            erro: resultado.reason ?? 'desconhecido',
+          }).then(undefined, () => {})
+        }
       }
-    } catch {
-      // Falha de e-mail não cancela a reatribuição
+    } catch (e) {
+      // Falha de e-mail não cancela a reatribuição — apenas loga (nada era logado antes)
+      console.error('[responsabilidades] falha ao notificar novo responsável por e-mail:', e)
     }
   }
 

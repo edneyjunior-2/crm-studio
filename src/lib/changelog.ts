@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-17-atendimento-leila-nunca-fica-muda',
+    data: '2026-07-17',
+    titulo: 'A assistente de WhatsApp não deixa mais nenhum cliente sem resposta',
+    tipo: 'correcao',
+    modulo: 'atendimento',
+    itens: [
+      'Corrigimos uma falha em que, se acontecesse uma instabilidade momentânea (na conexão ou no serviço de inteligência), a mensagem do cliente ficava sem resposta e a assistente não tentava de novo — mesmo depois que tudo voltava ao normal',
+      'Agora, se algo falhar na hora de responder, o sistema tenta de novo automaticamente até a mensagem ser de fato respondida — nenhum lead fica no vácuo',
+    ],
+  },
+  {
     id: '2026-07-17-atendimento-agendamento-leila',
     data: '2026-07-17',
     titulo: 'Leila agora marca reunião de verdade, com confirmação da equipe',
