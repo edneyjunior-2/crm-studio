@@ -187,35 +187,31 @@ async function sensorLeilaHandoff(db: AdminClient): Promise<SensorComputado> {
   const nome = 'Leila — handoff pro pipeline'
   const cutoff = isoHorasAtras(24)
 
-  const { count: encaminhadas, error: errConv } = await db
-    .from('conversations')
-    .select('id', { count: 'exact', head: true })
-    .eq('encaminhado', true)
-    .gt('updated_at', cutoff)
-  if (errConv) throw errConv
+  // Antes: comparava contagem de conversas encaminhadas vs negócios NOVOS
+  // criados — dava falso positivo sempre que o handoff funcionava mas
+  // REUTILIZAVA um negócio já aberto do mesmo cliente (comportamento correto
+  // e comum do /api/leads/ingest, não é falha). Agora: app-sdr registra a
+  // falha de verdade em monitoramento_falhas_email (tipo='handoff_leila')
+  // quando o POST pro CRM lança — sinal preciso, sem ambiguidade de reuso.
+  const { data: falhas, error } = await db
+    .from('monitoramento_falhas_email')
+    .select('id, destinatario, erro, criado_em')
+    .eq('tipo', 'handoff_leila')
+    .gt('criado_em', cutoff)
+    .order('criado_em', { ascending: false })
+  if (error) throw error
 
-  const { count: negociosWhatsapp, error: errNeg } = await db
-    .from('negocios')
-    .select('id', { count: 'exact', head: true })
-    .eq('origem', 'whatsapp')
-    .gt('created_at', cutoff)
-  if (errNeg) throw errNeg
-
-  const nEncaminhadas = encaminhadas ?? 0
-  const nNegocios = negociosWhatsapp ?? 0
-
-  if (nEncaminhadas === 0) {
-    return { chave, nome, area: AREA_LEILA, status: 'ok', detalhe: 'nenhum handoff da Leila nas últimas 24h' }
+  const n = falhas?.length ?? 0
+  if (n === 0) {
+    return { chave, nome, area: AREA_LEILA, status: 'ok', detalhe: 'nenhuma falha de handoff registrada nas últimas 24h' }
   }
-  const ok = nNegocios >= nEncaminhadas * 0.5
+  const exemplo = falhas![0]
   return {
     chave,
     nome,
     area: AREA_LEILA,
-    status: ok ? 'ok' : 'critico',
-    detalhe: ok
-      ? `${nEncaminhadas} conversa(s) encaminhada(s), ${nNegocios} negócio(s) criado(s) via whatsapp — handoff saudável`
-      : `${nEncaminhadas} conversas marcadas como encaminhadas pela Leila nas últimas 24h, mas só ${nNegocios} negócios com origem=whatsapp foram criados no mesmo período — handoff pode estar falhando (ver /api/leads/ingest)`,
+    status: 'critico',
+    detalhe: `${n} falha(s) de handoff pro CRM nas últimas 24h — última: ${exemplo.destinatario} (${exemplo.erro})`,
   }
 }
 
