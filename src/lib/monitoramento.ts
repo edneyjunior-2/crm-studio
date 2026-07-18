@@ -642,7 +642,15 @@ async function sensoresCronExterno(): Promise<SensorComputado[]> {
     return fallback('HEALTHCHECKS_API_KEY não configurada — vigia externo desligado')
   }
 
-  type ChecksResponse = { checks: Array<{ name: string; status: HealthchecksStatus; last_ping: string | null }> }
+  type ChecksResponse = {
+    checks: Array<{
+      name: string
+      status: HealthchecksStatus
+      last_ping: string | null
+      timeout?: number
+      grace?: number
+    }>
+  }
   let checks: ChecksResponse['checks']
   try {
     const res = await fetch('https://healthchecks.io/api/v3/checks/', {
@@ -672,7 +680,11 @@ async function sensoresCronExterno(): Promise<SensorComputado[]> {
       nome: cfg.nome,
       area: AREA_INFRA,
       status: statusExternoParaSensor(check.status),
-      detalhe: `status no healthchecks.io: ${check.status}${check.last_ping ? ` · último ping: ${check.last_ping}` : ' · nunca pingou'}`,
+      detalhe:
+        `status no healthchecks.io: ${check.status}` +
+        `${check.last_ping ? ` · último ping: ${check.last_ping}` : ' · nunca pingou'}` +
+        `${check.timeout ? ` · period: ${Math.round(check.timeout / 60)}min` : ''}` +
+        `${check.grace ? ` · grace: ${Math.round(check.grace / 60)}min` : ''}`,
     }
   })
 }
