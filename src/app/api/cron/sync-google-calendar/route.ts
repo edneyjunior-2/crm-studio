@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verificarCronSecret } from '@/lib/cron-auth'
 import { sincronizarCalendarioUsuario } from '@/lib/google/calendar-sync'
 import { registrarExecucaoCron } from '@/lib/cron-execucoes'
+import { pingHealthcheck } from '@/lib/healthcheck-ping'
 
 export const maxDuration = 300 // 5 min (Vercel Pro)
 
@@ -24,6 +25,10 @@ async function handler(req: NextRequest) {
   if (!verificarCronSecret(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Observabilidade (achado de auditoria 2026-07-18) — fire-and-forget, nunca
+  // lança nem atrasa a sincronização real abaixo.
+  pingHealthcheck('HEALTHCHECKS_URL_CALENDAR')
 
   const db = createAdminClient()
 

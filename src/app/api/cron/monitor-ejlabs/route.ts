@@ -3,9 +3,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verificarCronSecret } from '@/lib/cron-auth'
 import { sendAlertaInterno } from '@/lib/email'
 import { computarSensores } from '@/lib/monitoramento'
+import { pingHealthcheck } from '@/lib/healthcheck-ping'
 
 /**
- * Monitor da EJLABS — "cérebro" do sistema de observabilidade interna.
+ * Monitor CRM Studio — "cérebro" do sistema de observabilidade interna.
  * Spec: .claude/specs/monitor-ejlabs-sensores-cron.md
  *
  * A cada execução (10 em 10min, ver vercel.json), recomputa TODOS os sensores
@@ -33,6 +34,11 @@ async function handler(req: NextRequest) {
   if (!verificarCronSecret(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Observabilidade (achado de auditoria 2026-07-18) — fire-and-forget, nunca
+  // lança nem atrasa a computação real abaixo.
+  pingHealthcheck('HEALTHCHECKS_URL_MONITOR')
+
   const db = createAdminClient()
   const sensores = await computarSensores(db)
 
@@ -72,8 +78,8 @@ async function handler(req: NextRequest) {
   if (alertasParaEnviar.length > 0) {
     await sendAlertaInterno({
       to: process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com',
-      assunto: `[Monitor da EJLABS] ${alertasParaEnviar.length} sensor(es) com problema`,
-      titulo: 'Monitor da EJLABS detectou um problema',
+      assunto: `[Monitor CRM Studio] ${alertasParaEnviar.length} sensor(es) com problema`,
+      titulo: 'Monitor CRM Studio detectou um problema',
       descricao: 'O cron de monitoramento encontrou pelo menos um sensor fora do estado OK.',
       linhas: alertasParaEnviar,
       destaque: 'perigo',

@@ -4,6 +4,7 @@ import { sendAlertaInterno } from '@/lib/email'
 import { verificarCronSecret } from '@/lib/cron-auth'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { registrarExecucaoCron } from '@/lib/cron-execucoes'
+import { pingHealthcheck } from '@/lib/healthcheck-ping'
 
 export const maxDuration = 300 // 5 min (Vercel Pro)
 
@@ -166,6 +167,10 @@ async function handler(req: NextRequest) {
   if (!verificarCronSecret(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Observabilidade (achado de auditoria 2026-07-18) — fire-and-forget, nunca
+  // lança nem atrasa a purga real abaixo.
+  pingHealthcheck('HEALTHCHECKS_URL_PURGA')
 
   const dryRun = req.nextUrl.searchParams.get('dryRun') === '1'
   const db = createAdminClient()

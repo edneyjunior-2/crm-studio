@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verificarCronSecret } from '@/lib/cron-auth'
 import { registrarExecucaoCron, ultimaExecucaoCron, type CronSlug } from '@/lib/cron-execucoes'
 import { sendAlertaInterno } from '@/lib/email'
+import { pingHealthcheck } from '@/lib/healthcheck-ping'
 
 export const maxDuration = 30
 
@@ -17,7 +18,7 @@ export const maxDuration = 30
 // quinta mais recente, para não disparar alarme falso.
 const ALERTA_EMAIL = process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com'
 // Exportado: reusado por src/lib/monitoramento.ts pra saber se HOJE é um dia em que
-// os crons de sincronização jurídica sequer deveriam ter rodado (Monitor da EJLABS).
+// os crons de sincronização jurídica sequer deveriam ter rodado (Monitor CRM Studio).
 export const DIAS_ATIVOS = new Set([0, 1, 2, 3, 4]) // domingo-quinta — mesmo conjunto do vercel.json
 
 /**
@@ -53,6 +54,10 @@ async function handler(req: NextRequest) {
   if (!verificarCronSecret(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Observabilidade (achado de auditoria 2026-07-18) — fire-and-forget, nunca
+  // lança nem atrasa a checagem real abaixo.
+  pingHealthcheck('HEALTHCHECKS_URL_WATCHDOG')
 
   const db = createAdminClient()
   const cutoff = inicioDaJanelaEsperada(new Date())
