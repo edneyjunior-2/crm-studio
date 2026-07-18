@@ -16,7 +16,9 @@ export const maxDuration = 30
 // nesses dias que a "janela esperada" abaixo precisa olhar pra trás até a
 // quinta mais recente, para não disparar alarme falso.
 const ALERTA_EMAIL = process.env.ALERTA_EMAIL ?? 'edneyjuniords@gmail.com'
-const DIAS_ATIVOS = new Set([0, 1, 2, 3, 4]) // domingo-quinta — mesmo conjunto do vercel.json
+// Exportado: reusado por src/lib/monitoramento.ts pra saber se HOJE é um dia em que
+// os crons de sincronização jurídica sequer deveriam ter rodado (Monitor da EJLABS).
+export const DIAS_ATIVOS = new Set([0, 1, 2, 3, 4]) // domingo-quinta — mesmo conjunto do vercel.json
 
 /**
  * Início da última janela em que os crons de sincronização deveriam ter rodado,

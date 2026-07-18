@@ -1,7 +1,19 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { ultimaExecucaoCron, type CronSlug } from '@/lib/cron-execucoes'
-import { inicioDaJanelaEsperada } from '@/app/api/cron/watchdog-sincronizacao/route'
+import { inicioDaJanelaEsperada, DIAS_ATIVOS } from '@/app/api/cron/watchdog-sincronizacao/route'
+
+/**
+ * true quando HOJE (UTC) não é um dos dias em que os crons de sincronização
+ * jurídica (atualizar-processos/DataJud, publicacoes-djen/DJEN) sequer
+ * deveriam rodar (vercel.json: a cada 15min, 3h-10h UTC, domingo-quinta).
+ * Nesses dias, ficar parado é o estado NORMAL por design, não uma falha — os
+ * sensores que dependem dessa escala usam isto pra reportar 'ok' em vez de
+ * 'alerta', e assim não disparam e-mail de alarme por 2 dias seguidos à toa.
+ */
+function foraDaJanelaAtiva(agora: Date): boolean {
+  return !DIAS_ATIVOS.has(agora.getUTCDay())
+}
 
 /**
  * Monitor da EJLABS — lib de sensores.
@@ -399,6 +411,8 @@ type ConfigCronSaude = {
   nome: string
   slug: CronSlug
   janelaEsperada: (agora: Date) => Date
+  /** true = este cron só roda domingo-quinta; em sex/sáb, ausência de execução é normal. */
+  somenteDiasAtivos?: boolean
 }
 
 const CONFIGS_CRON_SAUDE: ConfigCronSaude[] = [
@@ -407,12 +421,14 @@ const CONFIGS_CRON_SAUDE: ConfigCronSaude[] = [
     nome: 'Cron — atualizar-processos (DataJud)',
     slug: 'atualizar-processos',
     janelaEsperada: inicioDaJanelaEsperada,
+    somenteDiasAtivos: true,
   },
   {
     chave: 'cron-publicacoes-djen',
     nome: 'Cron — publicacoes-djen (DJEN)',
     slug: 'publicacoes-djen',
     janelaEsperada: inicioDaJanelaEsperada,
+    somenteDiasAtivos: true,
   },
   {
     chave: 'cron-purgar-canceladas',
@@ -435,6 +451,19 @@ const CONFIGS_CRON_SAUDE: ConfigCronSaude[] = [
 ]
 
 async function sensorCronSaude(db: AdminClient, cfg: ConfigCronSaude): Promise<SensorComputado> {
+  // Dia em que este cron nem deveria rodar (sex/sáb pros de sincronização jurídica) —
+  // ficar em silêncio é o estado NORMAL, não alarme. Curto-circuita ANTES de olhar
+  // pra cron_execucoes: mesmo "nunca registrou execução" não é alerta aqui.
+  if (cfg.somenteDiasAtivos && foraDaJanelaAtiva(new Date())) {
+    return {
+      chave: cfg.chave,
+      nome: cfg.nome,
+      area: AREA_INFRA,
+      status: 'ok',
+      detalhe: 'dormente por escala (só roda dom-qui) — normal em sex/sáb, retoma domingo ~3h UTC',
+    }
+  }
+
   const ultima = await ultimaExecucaoCron(db, cfg.slug)
 
   // "!ok" é sempre crítico, mesmo que a execução tenha sido recente (regra explícita
@@ -480,6 +509,19 @@ async function sensoresCronSaude(db: AdminClient): Promise<SensorComputado[]> {
 async function sensorDatajudFilaTribunal(db: AdminClient): Promise<SensorComputado> {
   const chave = 'datajud-fila-tribunal'
   const nome = 'DataJud — fila de sincronização por tribunal'
+
+  // Mesma regra do cron que alimenta esta fila (atualizar-processos, só dom-qui):
+  // em sex/sáb a fila não avança por design — reportar isso como alerta só
+  // confundiria com um problema real. Curto-circuita antes da query.
+  if (foraDaJanelaAtiva(new Date())) {
+    return {
+      chave,
+      nome,
+      area: AREA_INFRA,
+      status: 'ok',
+      detalhe: 'dormente por escala (a sincronização só roda dom-qui) — normal em sex/sáb, retoma domingo ~3h UTC',
+    }
+  }
 
   // ponytail: sem RPC/view nova pra fazer o GROUP BY no banco (fora da lane —
   // só posso mexer nos arquivos listados na spec) — busca as linhas cruas com
