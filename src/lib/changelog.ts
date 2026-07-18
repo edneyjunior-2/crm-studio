@@ -40,6 +40,17 @@ export const CHANGELOG: Release[] = [
     ],
   },
   {
+    id: '2026-07-18-atendimento-leila-nao-esquece-reuniao',
+    data: '2026-07-18',
+    titulo: 'A Leila não "esquece" mais que já marcou a reunião',
+    tipo: 'correcao',
+    modulo: 'atendimento',
+    itens: [
+      'Corrigimos uma falha em que, depois de marcar a reunião de diagnóstico com o cliente, a assistente podia mandar a lista de horários disponíveis de novo na mensagem seguinte — como se nada tivesse sido agendado',
+      'Agora, uma vez que a reunião está confirmada, ela não volta atrás: só responde com cordialidade a qualquer mensagem depois disso',
+    ],
+  },
+  {
     id: '2026-07-17-atendimento-leila-ouve-audio',
     data: '2026-07-17',
     titulo: 'Leila agora ouve os áudios que os clientes mandam no WhatsApp',
