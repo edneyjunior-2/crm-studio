@@ -866,8 +866,22 @@ export async function salvarConfigSdrEmpresa(formData: FormData) {
   const escritorio = (formData.get('nome_escritorio')    as string)?.trim() || null
   const assistente = (formData.get('nome_assistente')    as string)?.trim() || 'Leila'
   const tom        = (formData.get('tom_de_voz')         as string)?.trim() || null
+  const topicos    = (formData.get('topicos_proibidos')      as string)?.trim() || null
+  const horaInicio = (formData.get('horario_inicio')          as string)?.trim() || null
+  const horaFim    = (formData.get('horario_fim')              as string)?.trim() || null
+  const diasUteis  = formData.getAll('dias_uteis').map((d) => Number(d)).filter((d) => Number.isInteger(d))
+  const palavras   = (formData.get('palavras_chave_handoff')  as string)?.trim() || null
+  const msgHorario = (formData.get('mensagem_fora_horario')    as string)?.trim() || null
+  const msgHandoff = (formData.get('mensagem_handoff')          as string)?.trim() || null
 
   if (!waPhone) return { error: 'Informe o número/ID do WhatsApp (phone_number_id da Meta).' }
+
+  const horaRegex = /^([01]\d|2[0-3]):[0-5]\d$/
+  if ((horaInicio && !horaFim) || (!horaInicio && horaFim)) {
+    return { error: 'Preencha o início E o fim do horário de expediente (ou deixe os dois em branco).' }
+  }
+  if (horaInicio && !horaRegex.test(horaInicio)) return { error: 'Horário de início inválido — use o formato HH:MM.' }
+  if (horaFim && !horaRegex.test(horaFim)) return { error: 'Horário de fim inválido — use o formato HH:MM.' }
 
   const admin = createAdminClient()
 
@@ -879,11 +893,18 @@ export async function salvarConfigSdrEmpresa(formData: FormData) {
     .maybeSingle()
 
   const campos = {
-    wa_phone_number_id: waPhone,
-    nome_escritorio:    escritorio,
-    nome_assistente:    assistente,
-    tom_de_voz:         tom,
-    updated_at:         new Date().toISOString(),
+    wa_phone_number_id:     waPhone,
+    nome_escritorio:        escritorio,
+    nome_assistente:        assistente,
+    tom_de_voz:             tom,
+    topicos_proibidos:      topicos,
+    horario_inicio:         horaInicio,
+    horario_fim:            horaFim,
+    dias_uteis:             horaInicio && horaFim ? (diasUteis.length ? diasUteis : []) : null,
+    palavras_chave_handoff: palavras,
+    mensagem_fora_horario:  msgHorario,
+    mensagem_handoff:       msgHandoff,
+    updated_at:             new Date().toISOString(),
   }
 
   const { error } = existente?.id

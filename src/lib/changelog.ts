@@ -27,6 +27,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-18-atendimento-leila-topicos-horario-handoff',
+    data: '2026-07-18',
+    titulo: 'Mais controle sobre como a Leila atende: assuntos proibidos, horário e transferência automática',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Agora dá pra dizer quais assuntos a assistente de WhatsApp nunca deve comentar, além das regras padrão',
+      'Você pode definir um horário de expediente — fora dele, ela avisa automaticamente em vez de tentar continuar a conversa sozinha',
+      'Também dá pra cadastrar palavras que, quando o cliente escrever, transferem a conversa na hora para alguém da sua equipe',
+      'Tudo isso fica em Configurações → Agente SDR, junto com o nome e o tom de voz que você já configura hoje',
+    ],
+  },
+  {
     id: '2026-07-17-atendimento-leila-ouve-audio',
     data: '2026-07-17',
     titulo: 'Leila agora ouve os áudios que os clientes mandam no WhatsApp',

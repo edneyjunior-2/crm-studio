@@ -64,7 +64,7 @@ export default async function ConfiguracoesPage() {
     empresaId
       ? admin
           .from('clientes_sdr')
-          .select('wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz')
+          .select('wa_phone_number_id, nome_escritorio, nome_assistente, tom_de_voz, topicos_proibidos, horario_inicio, horario_fim, dias_uteis, palavras_chave_handoff, mensagem_fora_horario, mensagem_handoff')
           .eq('empresa_id', empresaId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -79,10 +79,17 @@ export default async function ConfiguracoesPage() {
   const blocosComprados = limiteUsuarios === -1 ? 0 : Math.round((limiteUsuarios - LIMITES_POR_PLANO[plano].usuarios) / 10)
 
   const sdr = (sdrResult.data ?? null) as {
-    wa_phone_number_id: string | null
-    nome_escritorio:    string | null
-    nome_assistente:    string | null
-    tom_de_voz:         string | null
+    wa_phone_number_id:      string | null
+    nome_escritorio:         string | null
+    nome_assistente:         string | null
+    tom_de_voz:              string | null
+    topicos_proibidos:       string | null
+    horario_inicio:          string | null
+    horario_fim:             string | null
+    dias_uteis:              number[] | null
+    palavras_chave_handoff:  string | null
+    mensagem_fora_horario:   string | null
+    mensagem_handoff:        string | null
   } | null
 
   // Status de pagamento (faturas em aberto + status da empresa) — calculado no
@@ -332,11 +339,18 @@ export default async function ConfiguracoesPage() {
         <ConfigSdrSection
           ativo={modulosDisponiveis.includes('sdr' as Modulo)}
           config={{
-            wa_phone_number_id: sdr?.wa_phone_number_id ?? null,
-            nome_escritorio:    sdr?.nome_escritorio ?? null,
-            nome_assistente:    sdr?.nome_assistente ?? null,
-            tom_de_voz:         sdr?.tom_de_voz ?? null,
-            sugestao_sdr:       empresa?.sugestao_sdr ?? null,
+            wa_phone_number_id:     sdr?.wa_phone_number_id ?? null,
+            nome_escritorio:        sdr?.nome_escritorio ?? null,
+            nome_assistente:        sdr?.nome_assistente ?? null,
+            tom_de_voz:             sdr?.tom_de_voz ?? null,
+            topicos_proibidos:      sdr?.topicos_proibidos ?? null,
+            horario_inicio:         sdr?.horario_inicio ?? null,
+            horario_fim:            sdr?.horario_fim ?? null,
+            dias_uteis:             sdr?.dias_uteis ?? null,
+            palavras_chave_handoff: sdr?.palavras_chave_handoff ?? null,
+            mensagem_fora_horario:  sdr?.mensagem_fora_horario ?? null,
+            mensagem_handoff:       sdr?.mensagem_handoff ?? null,
+            sugestao_sdr:           empresa?.sugestao_sdr ?? null,
           }}
         />
       </section>

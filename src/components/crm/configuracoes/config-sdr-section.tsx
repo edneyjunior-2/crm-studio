@@ -6,12 +6,29 @@ import { Bot, Check, Loader2, Copy, Lightbulb, Sparkles, Lock } from 'lucide-rea
 import { salvarConfigSdrEmpresa } from '@/app/(crm)/configuracoes/actions'
 
 interface ConfigSdr {
-  wa_phone_number_id: string | null
-  nome_escritorio:    string | null
-  nome_assistente:    string | null
-  tom_de_voz:         string | null
-  sugestao_sdr?:      string | null
+  wa_phone_number_id:      string | null
+  nome_escritorio:         string | null
+  nome_assistente:         string | null
+  tom_de_voz:              string | null
+  topicos_proibidos?:      string | null
+  horario_inicio?:         string | null
+  horario_fim?:            string | null
+  dias_uteis?:             number[] | null
+  palavras_chave_handoff?: string | null
+  mensagem_fora_horario?:  string | null
+  mensagem_handoff?:       string | null
+  sugestao_sdr?:           string | null
 }
+
+const DIAS_SEMANA = [
+  { valor: 1, label: 'Seg' },
+  { valor: 2, label: 'Ter' },
+  { valor: 3, label: 'Qua' },
+  { valor: 4, label: 'Qui' },
+  { valor: 5, label: 'Sex' },
+  { valor: 6, label: 'Sáb' },
+  { valor: 7, label: 'Dom' },
+]
 
 const EXEMPLOS_TOM = [
   {
@@ -34,9 +51,20 @@ export function ConfigSdrSection({ config, ativo = true }: { config: ConfigSdr |
   const [escritorio, setEscritorio] = useState(config?.nome_escritorio ?? '')
   const [assistente, setAssistente] = useState(config?.nome_assistente ?? 'Leila')
   const [tom, setTom]               = useState(config?.tom_de_voz ?? '')
+  const [topicos, setTopicos]       = useState(config?.topicos_proibidos ?? '')
+  const [horaInicio, setHoraInicio] = useState(config?.horario_inicio ?? '')
+  const [horaFim, setHoraFim]       = useState(config?.horario_fim ?? '')
+  const [dias, setDias]             = useState<number[]>(config?.dias_uteis ?? [1, 2, 3, 4, 5])
+  const [palavras, setPalavras]     = useState(config?.palavras_chave_handoff ?? '')
+  const [msgHorario, setMsgHorario] = useState(config?.mensagem_fora_horario ?? '')
+  const [msgHandoff, setMsgHandoff] = useState(config?.mensagem_handoff ?? '')
   const [erro, setErro]             = useState<string | null>(null)
   const [ok, setOk]                 = useState(false)
   const [salvando, startSalvar]     = useTransition()
+
+  function alternarDia(valor: number) {
+    setDias((atual) => (atual.includes(valor) ? atual.filter((d) => d !== valor) : [...atual, valor].sort()))
+  }
 
   const sugestao = config?.sugestao_sdr ?? null
 
@@ -49,6 +77,13 @@ export function ConfigSdrSection({ config, ativo = true }: { config: ConfigSdr |
     fd.set('nome_escritorio', escritorio)
     fd.set('nome_assistente', assistente)
     fd.set('tom_de_voz', tom)
+    fd.set('topicos_proibidos', topicos)
+    fd.set('horario_inicio', horaInicio)
+    fd.set('horario_fim', horaFim)
+    dias.forEach((d) => fd.append('dias_uteis', String(d)))
+    fd.set('palavras_chave_handoff', palavras)
+    fd.set('mensagem_fora_horario', msgHorario)
+    fd.set('mensagem_handoff', msgHandoff)
     startSalvar(async () => {
       const res = await salvarConfigSdrEmpresa(fd)
       if (res.error) { setErro(res.error); return }
@@ -155,6 +190,96 @@ export function ConfigSdrSection({ config, ativo = true }: { config: ConfigSdr |
               placeholder="Descreva como o agente deve se comunicar com os leads…"
               className={inputClass}
             />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Tópicos que a assistente nunca deve comentar <span className="text-muted-foreground/60">(opcional)</span>
+            </label>
+            <textarea
+              value={topicos}
+              onChange={(e) => setTopicos(e.target.value)}
+              rows={2}
+              placeholder="Ex.: não comentar sobre concorrentes, não falar de processos de outros clientes…"
+              className={inputClass}
+            />
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+            <label className="text-xs font-medium text-muted-foreground">
+              Horário de expediente <span className="text-muted-foreground/60">(opcional — fora dele, a assistente avisa em vez de tentar atender)</span>
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="time"
+                value={horaInicio}
+                onChange={(e) => setHoraInicio(e.target.value)}
+                className={`${inputClass} w-auto`}
+              />
+              <span className="text-xs text-muted-foreground">até</span>
+              <input
+                type="time"
+                value={horaFim}
+                onChange={(e) => setHoraFim(e.target.value)}
+                className={`${inputClass} w-auto`}
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {DIAS_SEMANA.map((d) => (
+                <button
+                  key={d.valor}
+                  type="button"
+                  onClick={() => alternarDia(d.valor)}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    dias.includes(d.valor)
+                      ? 'border-foreground bg-foreground text-background'
+                      : 'border-border bg-background text-muted-foreground'
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            {(horaInicio || horaFim) && (
+              <div className="flex flex-col gap-1.5 pt-1">
+                <label className="text-xs font-medium text-muted-foreground">Mensagem fora do expediente</label>
+                <textarea
+                  value={msgHorario}
+                  onChange={(e) => setMsgHorario(e.target.value)}
+                  rows={2}
+                  placeholder="Ex.: No momento estamos fora do horário de atendimento. Assim que reabrirmos, te respondemos!"
+                  className={inputClass}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+            <label className="text-xs font-medium text-muted-foreground">
+              Transferir pra humano quando o lead disser <span className="text-muted-foreground/60">(opcional — uma palavra/frase por linha)</span>
+            </label>
+            <textarea
+              value={palavras}
+              onChange={(e) => setPalavras(e.target.value)}
+              rows={2}
+              placeholder={'Ex.:\nfalar com atendente\nquero um humano'}
+              className={inputClass}
+            />
+            <p className="text-[11px] text-muted-foreground/70">
+              Se o lead escrever qualquer uma dessas frases, a conversa passa direto pra um atendente da sua equipe.
+            </p>
+            {palavras.trim() && (
+              <div className="flex flex-col gap-1.5 pt-1">
+                <label className="text-xs font-medium text-muted-foreground">Mensagem ao transferir</label>
+                <textarea
+                  value={msgHandoff}
+                  onChange={(e) => setMsgHandoff(e.target.value)}
+                  rows={2}
+                  placeholder="Ex.: Vou te transferir pra alguém da nossa equipe, só um instante! 🙂"
+                  className={inputClass}
+                />
+              </div>
+            )}
           </div>
 
           {erro && <p className="text-xs text-destructive">{erro}</p>}
