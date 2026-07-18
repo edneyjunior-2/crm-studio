@@ -57,7 +57,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
           >
             <Activity className="size-4 text-muted-foreground" />
-            Monitor da EJLABS
+            Centro de Monitoramento CRM Studio
           </Link>
         </nav>
       </aside>

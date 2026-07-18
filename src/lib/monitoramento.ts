@@ -16,7 +16,7 @@ function foraDaJanelaAtiva(agora: Date): boolean {
 }
 
 /**
- * Monitor da EJLABS — lib de sensores.
+ * Centro de Monitoramento CRM Studio — lib de sensores.
  * Spec: .claude/specs/monitor-ejlabs-sensores-cron.md
  *
  * Tipo compartilhado com o painel admin e o endpoint de leitura do widget do
@@ -573,6 +573,103 @@ async function sensorDatajudFilaTribunal(db: AdminClient): Promise<SensorComputa
   }
 }
 
+// ── 3.12 cron-externo (healthchecks.io) ──────────────────────────────────
+// Vigia de FORA do sistema: prova que a Vercel disparou o cron, mesmo se o
+// app inteiro estivesse fora do ar — cenário que os sensores acima (rodam
+// dentro do próprio app, via monitor-ejlabs) não conseguem detectar. Achado
+// de auditoria 2026-07-18: nenhum dos 6 crons tinha o vigia externo
+// realmente configurado na Vercel até então (código chamava pingHealthcheck,
+// mas a env var nunca existiu).
+
+type CheckExterno = {
+  chave: string
+  nome: string
+  /** substring que identifica este cron no NOME do check no healthchecks.io */
+  matchName: string
+}
+
+const CHECKS_EXTERNOS_ESPERADOS: CheckExterno[] = [
+  { chave: 'hc-atualizar-processos', nome: 'Vigia externo — atualizar-processos', matchName: 'atualizar-processos' },
+  { chave: 'hc-publicacoes-djen', nome: 'Vigia externo — publicacoes-djen', matchName: 'publicacoes-djen' },
+  { chave: 'hc-purgar-canceladas', nome: 'Vigia externo — purgar-canceladas', matchName: 'purgar-canceladas' },
+  { chave: 'hc-sync-google-calendar', nome: 'Vigia externo — sync-google-calendar', matchName: 'sync-google-calendar' },
+  { chave: 'hc-watchdog-sincronizacao', nome: 'Vigia externo — watchdog-sincronizacao', matchName: 'watchdog-sincronizacao' },
+  {
+    chave: 'hc-monitor-ejlabs',
+    nome: 'Vigia externo — Centro de Monitoramento (o próprio vigia)',
+    matchName: 'monitor-ejlabs',
+  },
+]
+
+type HealthchecksStatus = 'up' | 'down' | 'grace' | 'paused' | 'new'
+
+function statusExternoParaSensor(status: HealthchecksStatus | undefined): 'ok' | 'alerta' | 'critico' {
+  switch (status) {
+    case 'up':
+      return 'ok'
+    case 'down':
+      return 'critico'
+    case 'grace':
+    case 'paused':
+    case 'new':
+    default:
+      // 'grace' = atrasado mas dentro da tolerância; 'paused' = alguém pausou;
+      // 'new'/undefined = nunca recebeu ping. Todos pedem atenção, nenhum é ok.
+      return 'alerta'
+  }
+}
+
+async function sensoresCronExterno(): Promise<SensorComputado[]> {
+  const apiKey = process.env.HEALTHCHECKS_API_KEY
+
+  const fallback = (detalhe: string): SensorComputado[] =>
+    CHECKS_EXTERNOS_ESPERADOS.map((c) => ({
+      chave: c.chave,
+      nome: c.nome,
+      area: AREA_INFRA,
+      status: 'alerta' as const,
+      detalhe,
+    }))
+
+  if (!apiKey) {
+    return fallback('HEALTHCHECKS_API_KEY não configurada — vigia externo desligado')
+  }
+
+  type ChecksResponse = { checks: Array<{ name: string; status: HealthchecksStatus; last_ping: string | null }> }
+  let checks: ChecksResponse['checks']
+  try {
+    const res = await fetch('https://healthchecks.io/api/v3/checks/', {
+      headers: { 'X-Api-Key': apiKey },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const body = (await res.json()) as ChecksResponse
+    checks = body.checks ?? []
+  } catch (e) {
+    return fallback(`falha ao consultar a API do healthchecks.io: ${msg(e)}`)
+  }
+
+  return CHECKS_EXTERNOS_ESPERADOS.map((cfg) => {
+    const check = checks.find((c) => c.name.toLowerCase().includes(cfg.matchName.toLowerCase()))
+    if (!check) {
+      return {
+        chave: cfg.chave,
+        nome: cfg.nome,
+        area: AREA_INFRA,
+        status: 'alerta' as const,
+        detalhe: 'nenhum check encontrado no healthchecks.io com esse nome — ainda não foi criado?',
+      }
+    }
+    return {
+      chave: cfg.chave,
+      nome: cfg.nome,
+      area: AREA_INFRA,
+      status: statusExternoParaSensor(check.status),
+      detalhe: `status no healthchecks.io: ${check.status}${check.last_ping ? ` · último ping: ${check.last_ping}` : ' · nunca pingou'}`,
+    }
+  })
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────
 
 export async function computarSensores(db: AdminClient): Promise<SensorComputado[]> {
@@ -588,6 +685,7 @@ export async function computarSensores(db: AdminClient): Promise<SensorComputado
     emailsFalhos,
     cronSaude,
     datajudFilaTribunal,
+    cronExterno,
   ] = await Promise.all([
     comFallback('leila-buraco-negro', 'Leila — mensagens de lead sem resposta', AREA_LEILA, () =>
       sensorLeilaBuracoNegro(db),
@@ -624,6 +722,10 @@ export async function computarSensores(db: AdminClient): Promise<SensorComputado
     comFallback('datajud-fila-tribunal', 'DataJud — fila de sincronização por tribunal', AREA_INFRA, () =>
       sensorDatajudFilaTribunal(db),
     ),
+    comFallbackMulti(
+      CHECKS_EXTERNOS_ESPERADOS.map((c) => ({ chave: c.chave, nome: c.nome, area: AREA_INFRA })),
+      () => sensoresCronExterno(),
+    ),
   ])
 
   return [
@@ -638,5 +740,6 @@ export async function computarSensores(db: AdminClient): Promise<SensorComputado
     emailsFalhos,
     ...cronSaude,
     datajudFilaTribunal,
+    ...cronExterno,
   ]
 }

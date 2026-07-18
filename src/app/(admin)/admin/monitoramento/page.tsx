@@ -73,7 +73,12 @@ export default async function MonitoramentoPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Monitor da EJLABS</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Centro de Monitoramento{' '}
+            <span className="font-logo font-extrabold tracking-[-0.03em]">
+              CRM Studio<span className="text-accent">.</span>
+            </span>
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Status dos sensores operacionais · o cron recalcula a cada 10 minutos
           </p>

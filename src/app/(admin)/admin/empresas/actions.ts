@@ -10,7 +10,7 @@ import { createCustomer, createSubscription, cancelSubscription } from '@/lib/as
 import { sendInviteEmail } from '@/lib/email'
 
 // ---------------------------------------------------------------------------
-// Monitor da EJLABS — registro best-effort de falha de envio de convite
+// Centro de Monitoramento CRM Studio — registro best-effort de falha de envio de convite
 // (nunca lança; nunca pode derrubar o fluxo de criação de empresa)
 // ---------------------------------------------------------------------------
 async function registrarFalhaConvite(db: ReturnType<typeof createAdminClient>, email: string, erro: string): Promise<void> {
