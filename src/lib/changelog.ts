@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-17-atendimento-leila-ouve-audio',
+    data: '2026-07-17',
+    titulo: 'Leila agora ouve os áudios que os clientes mandam no WhatsApp',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Antes, se o cliente mandasse uma mensagem de voz em vez de digitar, a assistente simplesmente não respondia — agora ela escuta o áudio e responde normalmente, como se a mensagem tivesse sido digitada',
+      'Não precisa configurar nada: já funciona em qualquer conversa, do jeito que o cliente preferir mandar a mensagem',
+    ],
+  },
+  {
     id: '2026-07-17-atendimento-leila-nunca-fica-muda',
     data: '2026-07-17',
     titulo: 'A assistente de WhatsApp não deixa mais nenhum cliente sem resposta',
