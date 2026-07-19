@@ -15,9 +15,12 @@ import { pingHealthcheck } from '@/lib/healthcheck-ping'
  * endpoint do widget do Mac (outros streams) só LEEM essa tabela — não
  * recomputam nada.
  *
- * Alerta por e-mail só quando um sensor MUDA para fora de 'ok' (1ª detecção)
- * ou quando já se passaram 2h desde o último alerta pra aquele sensor (evita
- * spam a cada 10min enquanto o problema persiste).
+ * Alerta por e-mail só quando já se passaram 2h desde o último alerta pra
+ * aquele sensor (1ª detecção sempre alerta, já que nunca teve alerta antes).
+ * Isso vale igual pra "problema novo" e pra "sensor oscilando entre ok e não
+ * -ok" — sem esse throttle único, um sensor que flapa (ex.: vigia externo com
+ * tolerância apertada demais no healthchecks.io) manda e-mail quase a cada
+ * rodada, porque cada volta ao estado ruim contava como detecção nova.
  */
 export const maxDuration = 60
 
@@ -55,9 +58,16 @@ async function handler(req: NextRequest) {
     const agoraOk = s.status === 'ok'
     const desde = agoraOk ? null : (eraOk ? new Date().toISOString() : anterior!.desde)
 
+    // Antes, "eraOk && !agoraOk" pulava o throttle de 2h e alertava na hora em
+    // TODA transição ok->não-ok — inclusive as repetidas de um sensor
+    // OSCILANDO (ex.: vigia externo com Grace apertado demais, flapando
+    // ok/alerta a cada ciclo do cron) ficava mandando e-mail quase toda
+    // rodada, porque cada volta ao estado ruim contava como "nova detecção".
+    // Só o throttle de 2h decide agora — 1ª detecção alerta igual (nunca tem
+    // ultimo_alerta_em ainda), mas uma oscilação rápida não reabre a janela.
     const duasHorasSemAlerta =
       !anterior?.ultimo_alerta_em || (Date.now() - new Date(anterior.ultimo_alerta_em).getTime()) > 2 * 60 * 60 * 1000
-    const devealertar = !agoraOk && ((eraOk && !agoraOk) || duasHorasSemAlerta)
+    const devealertar = !agoraOk && duasHorasSemAlerta
 
     await db.from('monitoramento_status').upsert({
       chave: s.chave,
