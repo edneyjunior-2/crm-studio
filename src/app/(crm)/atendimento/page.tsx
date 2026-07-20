@@ -35,7 +35,7 @@ export default async function AtendimentoPage({
   const { data: conversas, error: convErr } = await admin
     .from('conversations')
     .select(
-      'id, wa_number, etapa, ia_ativa, encaminhado, status, assignee_id, last_inbound_at, unread_count, snooze_until, labels, created_at, updated_at, cliente_id, clientes(razao_social)'
+      'id, wa_number, etapa, ia_ativa, encaminhado, status, assignee_id, last_inbound_at, unread_count, snooze_until, labels, arquivada, created_at, updated_at, cliente_id, clientes(razao_social)'
     )
     .eq('empresa_id', empresaId)
     .order('last_inbound_at', { ascending: false, nullsFirst: false })

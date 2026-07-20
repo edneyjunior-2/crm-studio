@@ -12,6 +12,7 @@ import { MODULOS } from '@/lib/modulos'
 import { PRECO_ADDON, NOME_ADDON, ADDON_BLOCO_USUARIOS, ADDONS_EMPILHAVEIS } from '@/lib/addons'
 import { temAddon, limiteUsuariosEfetivo } from '@/lib/addons-server'
 import { appUrl } from '@/lib/site-url'
+import { atualizarFotoPerfilWhatsApp } from '@/lib/whatsapp-cloud'
 import { z } from 'zod'
 
 // ---------------------------------------------------------------------------
@@ -1059,4 +1060,37 @@ export async function contratarAddon(slug: string): Promise<{ error?: string; ch
     const msg = err instanceof Error ? err.message : String(err)
     return { error: `Erro ao iniciar o checkout: ${msg}` }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Foto do perfil comercial do WhatsApp (a foto que o cliente vê no app dele)
+// ---------------------------------------------------------------------------
+
+const FOTO_WHATSAPP_MIMES = ['image/jpeg', 'image/png']
+/** Limite da Meta para a foto do perfil comercial. */
+const FOTO_WHATSAPP_MAX_BYTES = 5 * 1024 * 1024
+
+/**
+ * Troca a foto do perfil comercial do WhatsApp da empresa. Admin only — a
+ * mudança é visível para todos os clientes que conversam com o número.
+ */
+export async function atualizarFotoWhatsApp(formData: FormData): Promise<{ ok: boolean; erro?: string }> {
+  await getAuthAdmin()
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, erro: 'Selecione uma imagem para enviar.' }
+  }
+  if (!FOTO_WHATSAPP_MIMES.includes(file.type)) {
+    return { ok: false, erro: 'Formato não suportado. Envie a foto em JPEG ou PNG.' }
+  }
+  if (file.size > FOTO_WHATSAPP_MAX_BYTES) {
+    return { ok: false, erro: 'Arquivo muito grande. A Meta aceita fotos de até 5 MB.' }
+  }
+
+  const resultado = await atualizarFotoPerfilWhatsApp(await file.arrayBuffer(), file.type)
+  if (!resultado.ok) return { ok: false, erro: resultado.erro }
+
+  revalidatePath('/configuracoes')
+  return { ok: true }
 }

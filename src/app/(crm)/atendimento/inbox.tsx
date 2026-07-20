@@ -7,12 +7,14 @@ import { toast } from 'sonner'
 import {
   MessagesSquare, Bot, User, CheckCheck, CornerUpLeft,
   Search, Plus, Smartphone, Pencil, Check, X, Loader2, ArrowLeft, Send, UserPlus,
+  Archive, ArchiveRestore,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select'
 import {
   assumirConversa, devolverAoBot, resolverConversa, marcarLida,
+  arquivarConversa, desarquivarConversa,
   salvarNumeroAtendimento, iniciarConversa, reabrirConversaComTemplate, responderConversa,
   salvarContatoConversa, buscarClientesPorNome, vincularClienteExistente,
 } from './atendimento-actions'
@@ -29,6 +31,7 @@ export interface Conversa {
   unread_count: number | null
   snooze_until: string | null
   labels: string[] | null
+  arquivada: boolean | null
   created_at: string | null
   updated_at: string | null
   cliente_id: string | null
@@ -109,7 +112,7 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento, cl
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [busca, setBusca] = useState('')
-  const [filtro, setFiltro] = useState<'todas' | 'nao_lidas'>('todas')
+  const [filtro, setFiltro] = useState<'todas' | 'nao_lidas' | 'arquivadas'>('todas')
   const [novaAberta, setNovaAberta] = useState(false)
   const [mobileView, setMobileView] = useState<'lista' | 'thread'>('lista')
 
@@ -124,11 +127,17 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento, cl
 
   const termo = busca.trim().toLowerCase()
   const filtradas = conversas.filter((c) => {
+    // Arquivadas só aparecem na aba própria; nas demais ficam ocultas.
+    if (filtro === 'arquivadas') {
+      if (!c.arquivada) return false
+    } else if (c.arquivada) {
+      return false
+    }
     if (filtro === 'nao_lidas' && (c.unread_count ?? 0) === 0) return false
     if (termo && !(c.wa_number ?? '').toLowerCase().includes(termo)) return false
     return true
   })
-  const naoLidasTotal = conversas.filter((c) => (c.unread_count ?? 0) > 0).length
+  const naoLidasTotal = conversas.filter((c) => !c.arquivada && (c.unread_count ?? 0) > 0).length
 
   return (
     <div className="flex flex-col gap-4">
@@ -169,6 +178,9 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento, cl
               </FiltroPill>
               <FiltroPill ativo={filtro === 'nao_lidas'} onClick={() => setFiltro('nao_lidas')}>
                 Não lidas{naoLidasTotal > 0 ? ` (${naoLidasTotal})` : ''}
+              </FiltroPill>
+              <FiltroPill ativo={filtro === 'arquivadas'} onClick={() => setFiltro('arquivadas')}>
+                Arquivadas
               </FiltroPill>
             </div>
           </div>
@@ -233,6 +245,11 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento, cl
               onDevolver={() => executar(devolverAoBot, selecionada.id, 'Conversa devolvida ao bot.')}
               onResolver={() => executar(resolverConversa, selecionada.id, 'Conversa resolvida.')}
               onMarcarLida={() => executar(marcarLida, selecionada.id, 'Marcada como lida.')}
+              onArquivar={() =>
+                selecionada.arquivada
+                  ? executar(desarquivarConversa, selecionada.id, 'Conversa desarquivada.')
+                  : executar(arquivarConversa, selecionada.id, 'Conversa arquivada.')
+              }
             />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
@@ -459,6 +476,7 @@ interface ThreadProps {
   onDevolver: () => void
   onResolver: () => void
   onMarcarLida: () => void
+  onArquivar: () => void
 }
 
 /**
@@ -494,7 +512,7 @@ function MidiaMensagem({ mediaUrl, mediaMime }: { mediaUrl: string | null; media
   )
 }
 
-function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida }: ThreadProps) {
+function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida, onArquivar }: ThreadProps) {
   const router = useRouter()
   const status = conversa.status ?? 'bot'
   const [resposta, setResposta] = useState('')
@@ -543,6 +561,9 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
           {status !== 'humano' && <Button size="sm" variant="outline" disabled={isPending} onClick={onAssumir}><User /> Assumir</Button>}
           {status !== 'bot' && <Button size="sm" variant="outline" disabled={isPending} onClick={onDevolver}><Bot /> Devolver ao bot</Button>}
           {status !== 'resolvido' && <Button size="sm" variant="outline" disabled={isPending} onClick={onResolver}><CornerUpLeft /> Resolver</Button>}
+          {conversa.arquivada
+            ? <Button size="sm" variant="outline" disabled={isPending} onClick={onArquivar}><ArchiveRestore /> Desarquivar</Button>
+            : <Button size="sm" variant="outline" disabled={isPending} onClick={onArquivar}><Archive /> Arquivar</Button>}
           {(conversa.unread_count ?? 0) > 0 && <Button size="sm" variant="ghost" disabled={isPending} onClick={onMarcarLida}><CheckCheck /> Marcar lida</Button>}
         </div>
       </div>

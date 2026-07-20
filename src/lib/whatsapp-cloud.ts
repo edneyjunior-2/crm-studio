@@ -114,7 +114,8 @@ export async function enviarMensagemWhatsApp(
 }
 
 /**
- * Envia o template aprovado `retomar_atendimento` (pt_BR, categoria UTILITY) —
+ * Envia o template `retomar_atendimento` (pt_BR; consta como MARKETING na
+ * Meta, em análise em 2026-07-20) —
  * único jeito de reabrir contato fora da janela de 24h (a Meta rejeita texto
  * livre nesse caso, ver `CODIGO_FORA_DA_JANELA_24H`). Corpo do template: "Olá
  * {{1}}, aqui é {{2}}. Estamos entrando em contato para dar continuidade ao
@@ -147,4 +148,124 @@ export async function enviarTemplateWhatsApp(
       ],
     },
   })
+}
+
+// ---------------------------------------------------------------------------
+// Foto do perfil comercial — a foto que o CLIENTE vê no WhatsApp dele
+// ---------------------------------------------------------------------------
+
+export type FotoWhatsAppUrlResultado = { ok: true; url: string | null } | { ok: false; erro: string }
+export type FotoWhatsAppUploadResultado = { ok: true } | { ok: false; erro: string }
+
+/**
+ * true quando TODAS as credenciais necessárias pra TROCAR a foto existem —
+ * incluindo `WHATSAPP_APP_ID`, que a leitura da foto não usa. A UI usa isso
+ * pra desabilitar o upload com aviso claro em vez de deixar o usuário
+ * escolher um arquivo e só então tomar o erro.
+ */
+export function uploadFotoWhatsAppConfigurado(): boolean {
+  return Boolean(
+    process.env.WHATSAPP_PHONE_NUMBER_ID &&
+    process.env.WHATSAPP_ACCESS_TOKEN &&
+    process.env.WHATSAPP_APP_ID,
+  )
+}
+
+/** fetch com timeout de 15s que nunca lança — erro de rede vira `null`. */
+async function fetchGraphApi(url: string, init: RequestInit): Promise<Response | null> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15_000)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+/**
+ * URL da foto atual do perfil comercial do WhatsApp. `url: null` quando o
+ * número ainda não tem foto. Nunca lança — erro vira resultado tipado.
+ */
+export async function obterFotoPerfilWhatsApp(): Promise<FotoWhatsAppUrlResultado> {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  if (!phoneNumberId || !accessToken) {
+    return { ok: false, erro: 'Integração com o WhatsApp não está configurada.' }
+  }
+
+  const res = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/whatsapp_business_profile?fields=profile_picture_url`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  if (!res || !res.ok) {
+    return { ok: false, erro: 'Não foi possível consultar o perfil do WhatsApp agora.' }
+  }
+
+  const corpo = (await res.json().catch(() => null)) as
+    | { data?: { profile_picture_url?: string }[] }
+    | null
+  return { ok: true, url: corpo?.data?.[0]?.profile_picture_url ?? null }
+}
+
+/**
+ * Troca a foto do perfil comercial do WhatsApp. Fluxo em 3 passos da Meta:
+ * (1) abre uma sessão na Resumable Upload API (exige o APP ID do app Meta —
+ * env `WHATSAPP_APP_ID`), (2) sobe o binário e recebe um handle `h`,
+ * (3) aplica o handle em `whatsapp_business_profile`. A foto aparece para o
+ * cliente no WhatsApp dele (pode levar alguns minutos para propagar).
+ *
+ * Nunca lança — sempre devolve resultado tipado, mesmo em erro de rede.
+ */
+export async function atualizarFotoPerfilWhatsApp(
+  bytes: ArrayBuffer,
+  mimeType: string,
+): Promise<FotoWhatsAppUploadResultado> {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  const appId = process.env.WHATSAPP_APP_ID
+  if (!phoneNumberId || !accessToken || !appId) {
+    return { ok: false, erro: 'Integração com o WhatsApp não está configurada (variáveis de ambiente ausentes).' }
+  }
+
+  // 1) Sessão de upload
+  const sessaoRes = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${appId}/uploads?file_length=${bytes.byteLength}&file_type=${encodeURIComponent(mimeType)}`,
+    { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  const sessao = sessaoRes ? ((await sessaoRes.json().catch(() => null)) as { id?: string } | null) : null
+  if (!sessaoRes?.ok || !sessao?.id) {
+    return { ok: false, erro: 'A Meta não aceitou o início do envio da foto. Tente novamente.' }
+  }
+
+  // 2) Binário → handle (a Resumable Upload API exige "OAuth" no header, não "Bearer")
+  const uploadRes = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${sessao.id}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `OAuth ${accessToken}`, file_offset: '0' },
+      body: bytes,
+    },
+  )
+  const upload = uploadRes ? ((await uploadRes.json().catch(() => null)) as { h?: string } | null) : null
+  if (!uploadRes?.ok || !upload?.h) {
+    return { ok: false, erro: 'Falha ao enviar a foto para a Meta. Tente novamente.' }
+  }
+
+  // 3) Aplica no perfil comercial
+  const perfilRes = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/whatsapp_business_profile`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', profile_picture_handle: upload.h }),
+    },
+  )
+  if (!perfilRes?.ok) {
+    const corpo = perfilRes ? ((await perfilRes.json().catch(() => null)) as GraphApiErroResposta | null) : null
+    const detalhe = corpo?.error?.message
+    return { ok: false, erro: detalhe ? `A Meta recusou a foto: ${detalhe}` : 'A Meta recusou a foto. Tente novamente.' }
+  }
+  return { ok: true }
 }

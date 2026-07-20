@@ -65,6 +65,35 @@ export async function resolverConversa(id: string): Promise<{ error?: string }> 
   return {}
 }
 
+/** Arquiva a conversa: sai da lista principal e vai pra aba "Arquivadas".
+ *  Não toca no `status` (que pertence ao fluxo do bot) — é só organização. */
+export async function arquivarConversa(id: string): Promise<{ error?: string }> {
+  const { empresaId } = await authEmpresa()
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('conversations')
+    .update({ arquivada: true })
+    .eq('id', id)
+    .eq('empresa_id', empresaId)
+  if (error) return { error: error.message }
+  revalidatePath('/atendimento')
+  return {}
+}
+
+/** Tira a conversa da aba "Arquivadas" e devolve pra lista principal. */
+export async function desarquivarConversa(id: string): Promise<{ error?: string }> {
+  const { empresaId } = await authEmpresa()
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('conversations')
+    .update({ arquivada: false })
+    .eq('id', id)
+    .eq('empresa_id', empresaId)
+  if (error) return { error: error.message }
+  revalidatePath('/atendimento')
+  return {}
+}
+
 /** Zera o contador de não lidas da conversa. */
 export async function marcarLida(id: string): Promise<{ error?: string }> {
   const { empresaId } = await authEmpresa()

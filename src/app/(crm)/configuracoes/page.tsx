@@ -26,6 +26,8 @@ import { getPipelineConfig } from '@/lib/pipeline-config'
 import { PipelineConfigSection } from '@/components/crm/configuracoes/pipeline-config-section'
 import { getProcessosConfig } from '@/lib/processos-config'
 import { ProcessosConfigSection } from '@/components/crm/configuracoes/processos-config-section'
+import { FotoWhatsappSection } from '@/components/crm/configuracoes/foto-whatsapp-section'
+import { obterFotoPerfilWhatsApp, uploadFotoWhatsAppConfigurado } from '@/lib/whatsapp-cloud'
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient()
@@ -169,6 +171,12 @@ export default async function ConfiguracoesPage() {
   ) as Modulo[]
   const modulosEmpresa = modulosDisponiveis.map((slug) => ({ slug, label: MODULO_LABEL[slug] }))
   const modulosOcultos: string[] = empresa?.modulos_ocultos ?? []
+
+  // Foto do perfil comercial do WhatsApp — só para quem tem o módulo de
+  // atendimento (sdr): as credenciais são as do número da empresa, e a foto
+  // trocada aqui aparece para os clientes no WhatsApp deles.
+  const temAtendimento = modulosDisponiveis.includes('sdr' as Modulo)
+  const fotoWa = temAtendimento ? await obterFotoPerfilWhatsApp() : null
 
   return (
     <div className="flex flex-col gap-8">
@@ -333,6 +341,16 @@ export default async function ConfiguracoesPage() {
           role={profile?.role ?? 'admin'}
         />
       </section>
+
+      {/* Foto do WhatsApp — só para quem tem o módulo de atendimento ativo */}
+      {temAtendimento && (
+        <section>
+          <FotoWhatsappSection
+            fotoUrl={fotoWa?.ok ? fotoWa.url : null}
+            integracaoOk={(fotoWa?.ok ?? false) && uploadFotoWhatsAppConfigurado()}
+          />
+        </section>
+      )}
 
       {/* SDR — aparece sempre; desabilitado se módulo não estiver ativo */}
       <section>

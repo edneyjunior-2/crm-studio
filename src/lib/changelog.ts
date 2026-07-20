@@ -27,6 +27,28 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-atendimento-arquivar-conversas',
+    data: '2026-07-20',
+    titulo: 'Organize seu Atendimento: agora dá para arquivar conversas',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Conversas antigas ou encerradas não precisam mais ocupar espaço na sua lista: abra a conversa e clique em "Arquivar"',
+      'Uma nova aba "Arquivadas" guarda tudo o que você arquivou — nada é apagado, e dá para desarquivar a qualquer momento',
+    ],
+  },
+  {
+    id: '2026-07-20-atendimento-foto-empresa-whatsapp',
+    data: '2026-07-20',
+    titulo: 'Defina a foto da sua empresa no WhatsApp direto pelo CRM',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Em Configurações, agora você envia a foto de perfil da sua empresa no WhatsApp — é a foto que seus clientes veem quando conversam com você por lá',
+      'A tela mostra a foto atual do seu número e avisa quando a troca foi aceita (pode levar alguns minutos para atualizar no celular dos clientes)',
+    ],
+  },
+  {
     id: '2026-07-20-contratos-assinatura-remetente-correto',
     data: '2026-07-20',
     titulo: 'E-mail de assinatura mostra o nome do seu escritório, não um e-mail avulso',
