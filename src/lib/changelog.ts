@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-contratos-assinatura-remetente-correto',
+    data: '2026-07-20',
+    titulo: 'E-mail de assinatura mostra o nome do seu escritório, não um e-mail avulso',
+    tipo: 'correcao',
+    itens: [
+      'Quando você manda um contrato para assinatura, o e-mail que a pessoa recebe agora mostra o nome da sua empresa como remetente, em vez de um e-mail que ela não reconhece',
+      'O aviso de "documento assinado" agora vai para quem enviou o contrato — não chega mais um e-mail avulso pra outra pessoa a cada assinatura concluída',
+    ],
+  },
+  {
     id: '2026-07-20-gerador-contratos-dropdown-ilegivel',
     data: '2026-07-20',
     titulo: 'Corrigido: campos como Estado Civil ficavam ilegíveis no Gerador de Contratos',

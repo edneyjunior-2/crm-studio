@@ -109,6 +109,21 @@ export async function criarDocumentoAssinatura(params: {
   nomeArquivo: string
   signatarios: Array<{ nome: string; email?: string; telefone?: string }>
   modalidade: ModalidadeAssinatura
+  /**
+   * Nome exibido como remetente no e-mail de solicitação de assinatura
+   * ("Sua assinatura foi solicitada por X"). Sem isso, o ZapSign mostra o
+   * e-mail da conta da PLATAFORMA (único ZapSign compartilhado por todos os
+   * tenants) — confunde o signatário, que não sabe quem é esse e-mail.
+   * Documentado em `brand_name` (docs.zapsign.com.br/documentos/criar-documento).
+   */
+  brandName?: string
+  /**
+   * E-mails que recebem a cópia do documento quando TODOS assinam (campo
+   * `observers` do ZapSign, limite de 20). Sem isso, esse aviso cai só na
+   * conta da plataforma — quem efetivamente pediu a assinatura (usuário do
+   * tenant) nunca fica sabendo que foi assinado.
+   */
+  observers?: string[]
 }): Promise<{ token: string; linkAssinatura: string; signatarios: ZapSignSignatarioStatus[] }> {
   const apiKey = process.env.ZAPSIGN_API_KEY
   if (!apiKey) {
@@ -124,6 +139,8 @@ export async function criarDocumentoAssinatura(params: {
     base64_pdf: params.pdfBase64,
     lang: 'pt-br',
     signers: params.signatarios.map((s) => mapearSignatario(s, params.modalidade)),
+    ...(params.brandName ? { brand_name: params.brandName.slice(0, 100) } : {}),
+    ...(params.observers?.length ? { observers: params.observers } : {}),
   })
 
   // NOTA: assinatura em PARALELO (todos recebem o link de uma vez, assinam em

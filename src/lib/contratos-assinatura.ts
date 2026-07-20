@@ -34,9 +34,22 @@ export async function dispararAssinaturaZapSign(params: {
 
   const { data: empresa } = await admin
     .from('empresas')
-    .select('config')
+    .select('nome, config')
     .eq('id', params.empresaId)
     .maybeSingle()
+
+  // E-mail de quem clicou em "Enviar para assinatura" — vira `observers` no
+  // ZapSign (recebe o aviso de "documento assinado"). Sem isso, esse aviso
+  // cai só na conta da plataforma, não em quem do tenant realmente pediu.
+  let emailEnviadoPor: string | undefined
+  if (params.enviadoPor) {
+    const { data: authRow } = await admin
+      .from('profiles_auth')
+      .select('email')
+      .eq('id', params.enviadoPor)
+      .maybeSingle()
+    emailEnviadoPor = authRow?.email ?? undefined
+  }
 
   const config = (empresa?.config as Record<string, unknown> | null) ?? {}
   const modalidadeConfig = config.contrato_nivel_assinatura as string | undefined
@@ -59,6 +72,8 @@ export async function dispararAssinaturaZapSign(params: {
       nomeArquivo: params.nomeArquivo,
       signatarios: params.signatarios,
       modalidade,
+      brandName: empresa?.nome ?? undefined,
+      observers: emailEnviadoPor ? [emailEnviadoPor] : undefined,
     })
   } catch (err) {
     console.error('[dispararAssinaturaZapSign] erro ao criar documento no ZapSign:', err)
