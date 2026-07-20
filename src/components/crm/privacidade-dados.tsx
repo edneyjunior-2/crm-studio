@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Shield, Download, FileText, ExternalLink, Loader2 } from 'lucide-react'
+import { Shield, Download, FileText, ExternalLink, Loader2, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,6 +32,7 @@ export function PrivacidadeDados({
   const [telefone, setTelefone] = useState(encarregadoTelefone ?? '')
   const [isPending, startTransition] = useTransition()
   const [exportLoading, setExportLoading] = useState<ExportTipo | null>(null)
+  const [aberto, setAberto] = useState(false)
 
   const podeVerFinanceiro = role === 'admin' || role === 'socio'
 
@@ -86,18 +87,30 @@ export function PrivacidadeDados({
     : 'Não registrado'
 
   return (
-    <div className="flex flex-col gap-8">
-      {/* Cabeçalho da seção */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Shield className="size-4 text-muted-foreground" />
-          <h3 className="text-base font-medium text-foreground">Privacidade &amp; Dados (LGPD)</h3>
+    <div className="flex flex-col gap-4">
+      {/* Cabeçalho da seção — clicável, recolhe/expande o restante */}
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        aria-expanded={aberto}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Shield className="size-4 text-muted-foreground" />
+            <h3 className="text-base font-medium text-foreground">Privacidade &amp; Dados (LGPD)</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Indique o Encarregado de Dados (DPO) da sua empresa e exporte seus dados a qualquer momento.
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Indique o Encarregado de Dados (DPO) da sua empresa e exporte seus dados a qualquer momento.
-        </p>
-      </div>
+        <ChevronDown
+          className={`size-4 shrink-0 text-muted-foreground transition-transform ${aberto ? '' : '-rotate-90'}`}
+        />
+      </button>
 
+      {aberto && (
+      <div className="flex flex-col gap-8">
       {/* Card: Encarregado/DPO */}
       <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-4">
         <div>
@@ -261,6 +274,8 @@ export function PrivacidadeDados({
           </a>
         </div>
       </div>
+      </div>
+      )}
     </div>
   )
 }

@@ -47,7 +47,10 @@ const EXEMPLOS_TOM = [
 
 export function ConfigSdrSection({ config, ativo = true }: { config: ConfigSdr | null; ativo?: boolean }) {
   const router = useRouter()
-  const [wa, setWa]                 = useState(config?.wa_phone_number_id ?? '')
+  // wa_phone_number_id não é mais editável nesta tela (é plumbing de integração,
+  // configurado pelo time do CRM Studio no onboarding — não pelo cliente). O
+  // valor atual só é preservado no submit, nunca alterado por aqui.
+  const [wa] = useState(config?.wa_phone_number_id ?? '')
   const [escritorio, setEscritorio] = useState(config?.nome_escritorio ?? '')
   const [assistente, setAssistente] = useState(config?.nome_assistente ?? 'Leila')
   const [tom, setTom]               = useState(config?.tom_de_voz ?? '')
@@ -148,27 +151,14 @@ export function ConfigSdrSection({ config, ativo = true }: { config: ConfigSdr |
       {ativo && <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
         {/* Formulário */}
         <div className="flex flex-col gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Número do WhatsApp <span className="text-muted-foreground/60">(phone_number_id da Meta)</span>
-              </label>
-              <input
-                value={wa}
-                onChange={(e) => setWa(e.target.value)}
-                placeholder="Ex.: 109987… (ou deixe em branco)"
-                className={inputClass}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Nome da assistente</label>
-              <input
-                value={assistente}
-                onChange={(e) => setAssistente(e.target.value)}
-                placeholder="Ex.: Leila, Sofia, Ana…"
-                className={inputClass}
-              />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Nome da assistente</label>
+            <input
+              value={assistente}
+              onChange={(e) => setAssistente(e.target.value)}
+              placeholder="Ex.: Leila, Sofia, Ana…"
+              className={inputClass}
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
