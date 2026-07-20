@@ -13,8 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select'
 import {
   assumirConversa, devolverAoBot, resolverConversa, marcarLida,
-  salvarNumeroAtendimento, iniciarConversa, responderConversa, salvarContatoConversa,
-  buscarClientesPorNome, vincularClienteExistente,
+  salvarNumeroAtendimento, iniciarConversa, reabrirConversaComTemplate, responderConversa,
+  salvarContatoConversa, buscarClientesPorNome, vincularClienteExistente,
 } from './atendimento-actions'
 
 export interface Conversa {
@@ -339,6 +339,10 @@ function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; client
   const [numero, setNumero] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [enviando, startEnviar] = useTransition()
+  const [reabrindo, startReabrir] = useTransition()
+  // true quando iniciarConversa devolveu foraDaJanela24h — troca os botões pela
+  // opção de reabrir com o template aprovado em vez do texto livre digitado acima.
+  const [foraDaJanela, setForaDaJanela] = useState(false)
 
   function escolherCliente(id: string | undefined) {
     setClienteId(id)
@@ -350,8 +354,23 @@ function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; client
     if (!numero.trim()) { toast.error('Informe o número.'); return }
     startEnviar(async () => {
       const res = await iniciarConversa(numero, mensagem, clienteId)
-      if (res.error) { toast.error(res.error); return }
+      if (res.error) {
+        if (res.foraDaJanela24h) { setForaDaJanela(true); return }
+        toast.error(res.error)
+        return
+      }
       toast.success('Conversa criada.')
+      onClose()
+      if (res.id) router.push(`/atendimento?c=${res.id}`)
+      else router.refresh()
+    })
+  }
+
+  function reabrirComTemplate() {
+    startReabrir(async () => {
+      const res = await reabrirConversaComTemplate(numero, clienteId)
+      if (res.error) { toast.error(res.error); return }
+      toast.success('Mensagem-modelo enviada. Assim que o cliente responder, dá pra conversar livremente.')
       onClose()
       if (res.id) router.push(`/atendimento?c=${res.id}`)
       else router.refresh()
@@ -399,16 +418,31 @@ function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; client
             <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} rows={3} placeholder="Escreva a mensagem inicial..."
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40" />
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Essa primeira mensagem fica registrada, mas o envio pelo WhatsApp ainda não acontece aqui — depois de criar,
-            abra a conversa e responda por lá para enviar de verdade.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose} disabled={enviando}>Cancelar</Button>
-            <Button onClick={iniciar} disabled={enviando}>
-              {enviando ? <Loader2 className="animate-spin" /> : <Plus />} Iniciar
-            </Button>
-          </div>
+          {foraDaJanela ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+              <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+                Esse contato não fala com você há mais de 24h — o WhatsApp exige uma mensagem-modelo
+                para reabrir contato. Ao confirmar, será enviada a <strong>mensagem padrão aprovada</strong>,
+                não o texto digitado acima. Assim que ele responder, a conversa reabre e você volta a
+                conversar livremente.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={() => setForaDaJanela(false)} disabled={reabrindo}>
+                  <X /> Voltar
+                </Button>
+                <Button size="sm" onClick={reabrirComTemplate} disabled={reabrindo}>
+                  {reabrindo ? <Loader2 className="animate-spin" /> : <Send />} Reabrir conversa
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={onClose} disabled={enviando}>Cancelar</Button>
+              <Button onClick={iniciar} disabled={enviando}>
+                {enviando ? <Loader2 className="animate-spin" /> : <Plus />} Iniciar
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

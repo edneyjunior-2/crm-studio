@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-atendimento-reabrir-conversa-24h',
+    data: '2026-07-20',
+    titulo: 'Reabra uma conversa parada há mais de 24h com um clique',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Quando um cliente não fala com você há mais de 24 horas, o WhatsApp bloqueia o envio de uma mensagem livre — agora dá para reabrir a conversa com um clique',
+      'Ao reabrir, é enviada uma mensagem-modelo aprovada avisando que você está retomando o contato; assim que o cliente responder, vocês voltam a conversar livremente',
+    ],
+  },
+  {
     id: '2026-07-20-configuracoes-mais-limpa',
     data: '2026-07-20',
     titulo: 'Tela de Configurações mais simples',
