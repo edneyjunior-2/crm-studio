@@ -12,6 +12,7 @@ import { TourBoasVindas } from '@/components/crm/tour-boas-vindas'
 import { SyncDataJudProvider } from '@/components/crm/sync-datajud-provider'
 import { ReuniaoConfirmacaoPopup } from '@/components/crm/reuniao-confirmacao-popup'
 import { resolverAvatarUrl } from '@/lib/avatar'
+import { conteudoDoParceiro } from '@/lib/portal-parceiro'
 import type { Profile } from '@/types'
 
 export default async function CRMLayout({
@@ -96,8 +97,20 @@ export default async function CRMLayout({
   const modulosUsuario = (role === 'admin' || modulosPermitidos == null)
     ? modulosEmpresa
     : new Set([...modulosEmpresa].filter((m) => modulosPermitidos.includes(m)))
-  const modulosAtivos = Array.from(modulosUsuario)
+  let modulosAtivos = Array.from(modulosUsuario)
     .filter((m) => !modulosOcultos.includes(m))
+
+  // Portal do parceiro: esconde do menu a aba que estaria permanentemente
+  // vazia. Escritório jurídico liga o parceiro ao PROCESSO, empresa comercial
+  // liga ao NEGÓCIO — quem só tem um dos dois não deve ver o outro. Só o menu
+  // muda; requireModulo não usa esta lista, então a rota segue acessível por
+  // URL e mostra o estado vazio em vez de ricochetear.
+  if (role === 'parceiro') {
+    const { temNegocios, temProcessos } = await conteudoDoParceiro()
+    modulosAtivos = modulosAtivos.filter(
+      (m) => (m !== 'pipeline' || temNegocios) && (m !== 'processos' || temProcessos)
+    )
+  }
 
   // Contagem inicial do badge de não lidas (item "WhatsApp") — só busca se o
   // módulo estiver ativo pra este usuário, pra não gerar query à toa. Falha

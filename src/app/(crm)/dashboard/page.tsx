@@ -20,6 +20,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { AddonAssinaturaBanner } from '@/components/crm/addon-assinatura-banner'
 import { ADDON_ASSINATURA } from '@/lib/addons'
 import { temAddon } from '@/lib/addons-server'
+import { conteudoDoParceiro, landingDoParceiro } from '@/lib/portal-parceiro'
 
 // Paleta de cores hex para os donuts (por tipo/posição)
 const CORES_TIPO: Record<string, string> = {
@@ -67,13 +68,38 @@ function formatDate(dateStr: string): string {
 
 export default async function DashboardPage() {
   // Usa o cache do layout — zero round-trip extra ao Supabase Auth
-  const { supabase, user, role, empresaId, plano } = await getAuthUser()
+  const { supabase, user, role, empresaId, plano, modulosPermitidos } = await getAuthUser()
   if (!user) redirect('/login')
 
   // Parceiro (externo) não tem dashboard — mostraria pipeline/financeiro do
-  // escritório inteiro, fora do escopo dele. Home dele é o pipeline, que existe
-  // em todo tenant (processos só na advocacia).
-  if (role === 'parceiro') redirect('/pipeline')
+  // escritório inteiro, fora do escopo dele. Cai na primeira aba com conteúdo:
+  // negócios (empresa comercial) ou processos (escritório jurídico). Sem nada
+  // indicado ainda, fica aqui mesmo com um estado vazio — redirecionar pras
+  // comissões daria loop em tenant sem o módulo (ver landingDoParceiro).
+  if (role === 'parceiro') {
+    const destino = landingDoParceiro(await conteudoDoParceiro(), modulosPermitidos)
+    if (destino) redirect(destino)
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
+            Portal do parceiro
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Aqui você acompanha o que indicou.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-10 text-center">
+          {/* Cobre os dois caminhos que chegam aqui: nada indicado ainda, ou
+              acesso ajustado pelo escritório (admin desmarcou o módulo). */}
+          <p className="text-sm text-muted-foreground">
+            Não há nada para acompanhar por aqui no momento. Assim que o
+            escritório registrar uma indicação sua, ela aparece nesta tela.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const today = todayISO()
   const sevenDaysLater = plusDaysISO(7)
