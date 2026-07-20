@@ -9,6 +9,9 @@ export interface Profile {
   google_access_token?: string | null
   google_refresh_token?: string | null
   google_token_expiry?: string | null
+  /** Path interno no Storage (bucket 'avatars'), não uma URL pública — resolver
+   *  sempre via src/lib/avatar.ts (createSignedUrl). */
+  avatar_path?: string | null
 }
 
 export interface Solucao {

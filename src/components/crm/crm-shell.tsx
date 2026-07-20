@@ -14,9 +14,11 @@ interface CRMShellProps {
   isPlatformAdmin?: boolean
   /** Contagem inicial de conversas não lidas (badge do item "WhatsApp"), vinda do server. */
   unreadWhatsappInicial?: number
+  /** Signed URL da foto de perfil do usuário logado, já resolvida no layout (server). */
+  avatarUrl?: string | null
 }
 
-export function CRMShell({ profile, modulosAtivos, children, empresaId, empresaNome, isPlatformAdmin, unreadWhatsappInicial }: CRMShellProps) {
+export function CRMShell({ profile, modulosAtivos, children, empresaId, empresaNome, isPlatformAdmin, unreadWhatsappInicial, avatarUrl }: CRMShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -29,6 +31,7 @@ export function CRMShell({ profile, modulosAtivos, children, empresaId, empresaN
         empresaId={empresaId}
         empresaNome={empresaNome}
         unreadWhatsappInicial={unreadWhatsappInicial}
+        avatarUrl={avatarUrl}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar
@@ -36,6 +39,7 @@ export function CRMShell({ profile, modulosAtivos, children, empresaId, empresaN
           onMenuClick={() => setSidebarOpen(true)}
           isPlatformAdmin={isPlatformAdmin ?? false}
           empresaNome={empresaNome ?? null}
+          avatarUrl={avatarUrl}
         />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 crm-grid-texture">{children}</main>
       </div>

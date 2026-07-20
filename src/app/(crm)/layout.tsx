@@ -11,6 +11,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { TourBoasVindas } from '@/components/crm/tour-boas-vindas'
 import { SyncDataJudProvider } from '@/components/crm/sync-datajud-provider'
 import { ReuniaoConfirmacaoPopup } from '@/components/crm/reuniao-confirmacao-popup'
+import { resolverAvatarUrl } from '@/lib/avatar'
 import type { Profile } from '@/types'
 
 export default async function CRMLayout({
@@ -54,12 +55,17 @@ export default async function CRMLayout({
       .single(),
     supabase
       .from('profiles')
-      .select('id, full_name, role, created_at, senha_temporaria')
+      .select('id, full_name, role, created_at, senha_temporaria, avatar_path')
       .eq('id', user.id)
       .single(),
   ])
 
   if (!profile) redirect('/login')
+
+  // Signed URL da foto de perfil (bucket privado) — resolvida uma vez aqui e
+  // repassada pra Sidebar/Topbar via CRMShell. Nunca lança: null vira
+  // fallback de iniciais na UI.
+  const avatarUrl = await resolverAvatarUrl(supabase, profile.avatar_path)
 
   // Trava de completar 1º acesso (spec onboarding-senha-pos-pagamento, Parte
   // C+D): enquanto a senha ainda for a aleatória gerada no cadastro (nunca
@@ -131,6 +137,7 @@ export default async function CRMLayout({
           empresaNome={empresaData?.nome ?? null}
           isPlatformAdmin={isPlatformAdmin}
           unreadWhatsappInicial={unreadWhatsappInicial}
+          avatarUrl={avatarUrl}
         >{children}</CRMShell>
 
         <Toaster richColors position="top-right" />

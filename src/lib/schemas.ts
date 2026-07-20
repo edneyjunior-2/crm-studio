@@ -208,3 +208,14 @@ export const negocioSchema = z.object({
     .transform((v) => v || null),
   observacoes: z.string().optional().nullable(),
 })
+
+// Foto de perfil (Minha Conta) — valida metadados do File antes do upload pro
+// Storage. Tamanho/tipo espelham o bucket 'avatars' (ver migration
+// 20260720120000_avatar_perfil.sql), mas a checagem aqui roda primeiro, com
+// mensagem em pt-BR pro usuário — o Storage rejeitaria só com erro técnico.
+export const avatarUploadSchema = z.object({
+  type: z.enum(['image/jpeg', 'image/png', 'image/webp'], {
+    message: 'Formato não suportado. Envie uma foto em JPEG, PNG ou WEBP.',
+  }),
+  size: z.number().max(3 * 1024 * 1024, 'Arquivo muito grande. Limite de 3 MB.'),
+})

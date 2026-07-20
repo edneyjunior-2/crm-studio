@@ -50,9 +50,11 @@ interface TopbarProps {
   onMenuClick?: () => void
   isPlatformAdmin?: boolean
   empresaNome?: string | null
+  /** Signed URL da foto de perfil do usuário logado. Null/undefined → fallback de iniciais. */
+  avatarUrl?: string | null
 }
 
-export function Topbar({ profile, onMenuClick, isPlatformAdmin = false, empresaNome }: TopbarProps) {
+export function Topbar({ profile, onMenuClick, isPlatformAdmin = false, empresaNome, avatarUrl }: TopbarProps) {
   const pathname = usePathname()
   const title = getPageTitle(pathname)
   const { resolvedTheme, setTheme } = useTheme()
@@ -109,8 +111,13 @@ export function Topbar({ profile, onMenuClick, isPlatformAdmin = false, empresaN
             {{ admin: 'Administrador', socio: 'Sócio', comercial: 'Comercial', parceiro: 'Parceiro' }[profile.role] ?? profile.role}
           </span>
         </div>
-        <div className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground ring-2 ring-primary/20">
-          {getInitials(profile.full_name)}
+        <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-xs font-semibold text-primary-foreground ring-2 ring-primary/20">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- signed URL do Storage, não é um asset estático
+            <img src={avatarUrl} alt={profile.full_name} className="size-full object-cover" />
+          ) : (
+            getInitials(profile.full_name)
+          )}
         </div>
       </div>
     </header>
