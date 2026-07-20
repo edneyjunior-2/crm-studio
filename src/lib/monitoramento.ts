@@ -222,21 +222,25 @@ async function sensorAtendimentoEntregaFalha(db: AdminClient): Promise<SensorCom
   const nome = 'Atendimento — falhas de entrega de mensagem'
   const cutoff = isoHorasAtras(6)
 
-  const { count, error } = await db
+  const { data: falhas, error } = await db
     .from('messages')
-    .select('id', { count: 'exact', head: true })
+    .select('id, delivery_erro')
     .eq('delivery_status', 'failed')
     .gt('created_at', cutoff)
   if (error) throw error
 
-  const n = count ?? 0
+  const n = falhas?.length ?? 0
   const status = n === 0 ? 'ok' : n <= 4 ? 'alerta' : 'critico'
+  const motivo = falhas?.find((f) => f.delivery_erro)?.delivery_erro
   return {
     chave,
     nome,
     area: AREA_ATENDIMENTO,
     status,
-    detalhe: `${n} mensagem(ns) com falha de entrega nas últimas 6h`,
+    detalhe:
+      n === 0
+        ? `${n} mensagem(ns) com falha de entrega nas últimas 6h`
+        : `${n} mensagem(ns) com falha de entrega nas últimas 6h${motivo ? ` — motivo: ${motivo}` : ' — motivo não informado pela Meta'}`,
   }
 }
 
