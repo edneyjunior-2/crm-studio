@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-contratos-signatario-vira-cliente',
+    data: '2026-07-20',
+    titulo: 'Corrigido: quem assina o contrato virava parceiro, não cliente',
+    tipo: 'correcao',
+    modulo: 'advocacia',
+    itens: [
+      'No Gerador de Contratos, os dados de quem assina o contrato agora são cadastrados automaticamente como Cliente do escritório — antes iam, por engano, para a lista de Parceiros',
+    ],
+  },
+  {
     id: '2026-07-20-versao-do-sistema',
     data: '2026-07-20',
     titulo: 'Agora você vê a versão do CRM Studio',

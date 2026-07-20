@@ -379,3 +379,83 @@ export async function importarClientes(
   revalidatePath('/clientes')
   return { importados, pulados }
 }
+
+/**
+ * Cadastro automático do CLIENTE a partir dos dados do Gerador de Contratos —
+ * mesmo gatilho de `salvarParceiroDoContrato` (parceiros/actions.ts), mas para
+ * tenants de advocacia: quem assina o contrato ali é cliente do escritório,
+ * nunca um parceiro (bug relatado por cliente em 2026-07-20 — a tela
+ * cadastrava todo signatário como parceiro, herdado do CRM Aurum original,
+ * onde a contraparte do contrato É um parceiro de representação comercial).
+ * Dedup por CNPJ/CPF, mesmo padrão do parceiro: contrato gerado de novo pro
+ * mesmo cliente atualiza o cadastro em vez de duplicar.
+ */
+export async function salvarClienteDoContrato(input: {
+  mode: 'pf' | 'pj'
+  fields: Record<string, string>
+}): Promise<{ error?: string; created?: boolean; nome?: string }> {
+  const { supabase, user, role } = await getAuthUser()
+  if (!['admin', 'socio'].includes(role)) {
+    return { error: 'Apenas admin ou sócio podem cadastrar clientes.' }
+  }
+
+  const f = input.fields ?? {}
+  const pf = input.mode === 'pf'
+  const limpar = (v?: string) => (v && v.trim() ? v.trim() : null)
+
+  const razaoSocial = pf ? limpar(f.PF_NOME) : limpar(f.PARCEIRO_RAZAO)
+  if (!razaoSocial) return { error: 'Faltou o nome do cliente no contrato.' }
+
+  const cnpj = pf ? null : limpar(f.PARCEIRO_CNPJ)
+  const cpf = pf ? limpar(f.PF_CPF) : null
+  const contatoNome = pf ? null : limpar(f.REP_NOME)
+  const contatoEmail = pf ? limpar(f.PF_EMAIL) : limpar(f.REP_EMAIL)
+
+  const observacoes = (pf
+    ? [
+        f.PF_PROFISSAO && `Profissão: ${f.PF_PROFISSAO}`,
+        f.PF_ESTADO_CIVIL && `Estado civil: ${f.PF_ESTADO_CIVIL}`,
+        f.PF_RG && `RG: ${f.PF_RG}`,
+        f.PF_NACIONALIDADE && `Nacionalidade: ${f.PF_NACIONALIDADE}`,
+      ]
+    : [
+        f.REP_CARGO && `Representante: ${f.REP_NOME} (${f.REP_CARGO})`,
+        f.REP_CPF && `CPF do rep.: ${f.REP_CPF}`,
+      ]
+  ).filter(Boolean).join(' · ') || null
+
+  const dados = {
+    razao_social: razaoSocial,
+    tipo_pessoa: input.mode,
+    cnpj,
+    cpf,
+    contato_nome: contatoNome,
+    contato_email: contatoEmail,
+    observacoes,
+    responsavel_id: user.id,
+  }
+
+  // Deduplicação por documento — mesma lógica de salvarParceiroDoContrato.
+  let existenteId: string | null = null
+  if (cnpj) {
+    const { data, error } = await supabase.from('clientes').select('id').eq('cnpj', cnpj).limit(1).maybeSingle()
+    if (error) return { error: error.message }
+    existenteId = data?.id ?? null
+  } else if (cpf) {
+    const { data, error } = await supabase.from('clientes').select('id').eq('cpf', cpf).limit(1).maybeSingle()
+    if (error) return { error: error.message }
+    existenteId = data?.id ?? null
+  }
+
+  if (existenteId) {
+    const { error } = await supabase.from('clientes').update(dados).eq('id', existenteId)
+    if (error) return { error: error.message }
+    revalidatePath('/clientes')
+    return { created: false, nome: razaoSocial }
+  }
+
+  const { error } = await supabase.from('clientes').insert({ ...dados, created_by: user.id })
+  if (error) return { error: error.message }
+  revalidatePath('/clientes')
+  return { created: true, nome: razaoSocial }
+}

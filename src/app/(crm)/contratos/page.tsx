@@ -20,14 +20,19 @@ export default async function ContratosPage() {
   // addon-assinatura-eletronica-zapsign.md). Sem empresa (conta órfã) não há
   // como ter o add-on — default false (fail-closed, mesmo espírito de temAddon).
   let temAssinaturaEletronica = false
+  // 'processos' ativo → tenant de advocacia: quem assina o contrato é CLIENTE
+  // do escritório, nunca parceiro (ver salvarClienteDoContrato). Mesmo critério
+  // de minha-conta/page.tsx (ehAdvocacia).
+  let ehAdvocacia = false
 
   if (empresaId) {
     const db = createAdminClient()
     const [{ data: empresa }, addonOk] = await Promise.all([
-      db.from('empresas').select('config').eq('id', empresaId).single(),
+      db.from('empresas').select('config, modulos_ativos').eq('id', empresaId).single(),
       temAddon(db, empresaId, ADDON_ASSINATURA),
     ])
     temAssinaturaEletronica = addonOk
+    ehAdvocacia = ((empresa?.modulos_ativos as string[] | null) ?? []).includes('processos')
 
     const config = (empresa?.config as Record<string, unknown> | null) ?? {}
     const templatePath = config.contrato_template_path as string | undefined
@@ -65,6 +70,7 @@ export default async function ContratosPage() {
       signatarioEmail={signatarioEmail}
       temAssinaturaEletronica={temAssinaturaEletronica}
       empresaId={empresaId}
+      ehAdvocacia={ehAdvocacia}
     />
   )
 }

@@ -6,6 +6,7 @@ import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, P
 import { toast } from 'sonner'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
+import { salvarClienteDoContrato } from '@/app/(crm)/clientes/actions'
 import {
   salvarContratoGerado,
   excluirContratoGerado,
@@ -508,6 +509,7 @@ export function ContratosView({
   signatarioEmail = '',
   temAssinaturaEletronica = false,
   empresaId,
+  ehAdvocacia = false,
 }: {
   templateUrl?: string | null
   emRevisao?: boolean
@@ -528,6 +530,10 @@ export function ContratosView({
    *  (defesa em profundidade; a RLS de SELECT em contratos_gerados já isola por
    *  empresa_id). Sem empresaId (conta órfã), o canal simplesmente não assina. */
   empresaId?: string | null
+  /** Tenant de advocacia (módulo 'processos' ativo): quem assina o contrato
+   *  gerado é CLIENTE do escritório, não parceiro — ver passo 1 do handler
+   *  de postMessage abaixo. */
+  ehAdvocacia?: boolean
 }) {
   const router = useRouter()
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -659,18 +665,21 @@ export function ContratosView({
       ultimoDoc.current = chave
 
       startTransition(async () => {
-        // 1. Cadastro automático do parceiro
-        const resParceiro = await salvarParceiroDoContrato({
-          mode: p.mode as 'pf' | 'pj',
-          fields: p.fields!,
-        })
-        if (resParceiro.error) {
-          toast.error(`Não foi possível cadastrar o parceiro: ${resParceiro.error}`)
+        // 1. Cadastro automático — CLIENTE pra tenant de advocacia (quem assina
+        // o contrato é cliente do escritório), PARCEIRO pros demais (modelo
+        // original de representação comercial, onde a contraparte é mesmo um
+        // parceiro).
+        const resAuto = ehAdvocacia
+          ? await salvarClienteDoContrato({ mode: p.mode as 'pf' | 'pj', fields: p.fields! })
+          : await salvarParceiroDoContrato({ mode: p.mode as 'pf' | 'pj', fields: p.fields! })
+        const rotulo = ehAdvocacia ? 'Cliente' : 'Parceiro'
+        if (resAuto.error) {
+          toast.error(`Não foi possível cadastrar o ${rotulo.toLowerCase()}: ${resAuto.error}`)
         } else {
           toast.success(
-            resParceiro.created
-              ? `Parceiro "${resParceiro.nome}" cadastrado automaticamente`
-              : `Parceiro "${resParceiro.nome}" atualizado a partir do contrato`,
+            resAuto.created
+              ? `${rotulo} "${resAuto.nome}" cadastrado automaticamente`
+              : `${rotulo} "${resAuto.nome}" atualizado a partir do contrato`,
           )
         }
 
