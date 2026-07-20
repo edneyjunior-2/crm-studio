@@ -5,7 +5,10 @@ import { redirect } from 'next/navigation'
 import { getAuthUser, getAuthAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createCliente } from '../clientes/actions'
-import { enviarMensagemWhatsApp, enviarTemplateWhatsApp } from '@/lib/whatsapp-cloud'
+import {
+  enviarMensagemWhatsApp, enviarTemplateWhatsApp, marcarMensagemComoLidaWhatsApp,
+  uploadMidiaWhatsApp, enviarMidiaWhatsApp, type TipoMidiaWhatsApp,
+} from '@/lib/whatsapp-cloud'
 
 /**
  * Server actions do inbox de Atendimento (conversas do SDR / WhatsApp).
@@ -104,6 +107,102 @@ export async function marcarLida(id: string): Promise<{ error?: string }> {
     .eq('id', id)
     .eq('empresa_id', empresaId)
   if (error) return { error: error.message }
+
+  // Leitura real no WhatsApp do cliente (✓✓ azul) — best-effort: a última
+  // mensagem inbound é marcada como lida na Meta. Falha aqui NUNCA derruba a
+  // action — zerar unread_count (acima) já é o efeito que importa pro CRM.
+  const { data: ultimaInbound } = await admin
+    .from('messages')
+    .select('wa_message_id')
+    .eq('conversation_id', id)
+    .eq('direction', 'in')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (ultimaInbound?.wa_message_id) {
+    await marcarMensagemComoLidaWhatsApp(ultimaInbound.wa_message_id).catch(() => {})
+  }
+
+  revalidatePath('/atendimento')
+  return {}
+}
+
+const MIMES_MIDIA_ENVIO: Record<string, TipoMidiaWhatsApp> = {
+  'image/jpeg': 'image',
+  'image/png': 'image',
+  'image/webp': 'image',
+  'audio/mpeg': 'audio',
+  'audio/ogg': 'audio',
+  'audio/mp4': 'audio',
+  'application/pdf': 'document',
+}
+const TAMANHO_MAXIMO_MIDIA_BYTES = 4 * 1024 * 1024
+
+/**
+ * Envia uma mídia (imagem/áudio/documento) pra conversa, direto pra Graph API
+ * da Meta (não passa pelo app-sdr — ver spec atendimento-paridade-whatsapp.md
+ * sobre por quê). Sobe o mesmo arquivo pro bucket privado `whatsapp-media`
+ * pra ter uma URL própria de exibir no inbox (a URL da Meta expira e exige
+ * header de auth, não dá pra usar direto num <img src>).
+ */
+export async function enviarMidiaConversa(
+  conversationId: string,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const { empresaId } = await authEmpresa()
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) return { error: 'Selecione um arquivo para enviar.' }
+  const tipo = MIMES_MIDIA_ENVIO[file.type]
+  if (!tipo) return { error: 'Formato não suportado. Envie imagem (JPEG/PNG/WEBP), áudio (MP3/OGG) ou PDF.' }
+  if (file.size > TAMANHO_MAXIMO_MIDIA_BYTES) return { error: 'Arquivo muito grande. Limite de 4 MB.' }
+  const legenda = (formData.get('legenda') as string | null)?.trim() || undefined
+
+  const admin = createAdminClient()
+  const { data: conv } = await admin
+    .from('conversations')
+    .select('id, wa_number')
+    .eq('id', conversationId)
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+  if (!conv?.wa_number) return { error: 'Acesso negado.' }
+
+  const bytes = await file.arrayBuffer()
+
+  const upload = await uploadMidiaWhatsApp(bytes, file.type)
+  if (!upload.ok) return { error: upload.erro }
+
+  const envio = await enviarMidiaWhatsApp(conv.wa_number, upload.mediaId, tipo, legenda)
+
+  // Nossa própria cópia (bucket privado) — mesmo padrão do avatar/timbrados: guarda
+  // só o PATH, nunca uma URL pública (a página resolve com signed URL sob demanda).
+  const extensao = file.type.split('/')[1]?.split(';')[0] ?? 'bin'
+  const path = `${empresaId}/${conversationId}/${crypto.randomUUID()}.${extensao}`
+  const { error: uploadStorageErro } = await admin.storage.from('whatsapp-media').upload(path, bytes, {
+    contentType: file.type,
+  })
+
+  // Se só o upload ao bucket falhar (Meta e DB ok), media_url fica null mas
+  // media_mime continua setado — MidiaMensagem já trata esse caso exibindo
+  // "Mídia indisponível" (não é um balão em branco).
+  const { error: msgErr } = await admin.from('messages').insert({
+    conversation_id: conversationId,
+    direction: 'out',
+    author_type: 'humano',
+    texto: legenda ?? null,
+    media_url: uploadStorageErro ? null : path,
+    media_mime: file.type,
+    delivery_status: envio.ok ? 'sent' : 'failed',
+    wa_message_id: envio.ok ? envio.messageId : null,
+    payload: envio.ok ? null : { erro: envio.erro },
+  })
+  if (msgErr) return { error: `Arquivo enviado, mas falhou ao registrar a mensagem: ${msgErr.message}` }
+  if (!envio.ok) return { error: envio.erro }
+
+  // Paridade com o texto normal (proxy pro app-sdr): assumir a conversa manualmente
+  // também muda o status pra 'humano' e cala o bot.
+  await admin.from('conversations').update({ status: 'humano', ia_ativa: false }).eq('id', conversationId)
+
   revalidatePath('/atendimento')
   return {}
 }

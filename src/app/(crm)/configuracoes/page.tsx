@@ -27,7 +27,7 @@ import { PipelineConfigSection } from '@/components/crm/configuracoes/pipeline-c
 import { getProcessosConfig } from '@/lib/processos-config'
 import { ProcessosConfigSection } from '@/components/crm/configuracoes/processos-config-section'
 import { FotoWhatsappSection } from '@/components/crm/configuracoes/foto-whatsapp-section'
-import { obterFotoPerfilWhatsApp, uploadFotoWhatsAppConfigurado } from '@/lib/whatsapp-cloud'
+import { obterFotoPerfilWhatsApp, uploadFotoWhatsAppConfigurado, obterPerfilComercialWhatsApp } from '@/lib/whatsapp-cloud'
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient()
@@ -177,6 +177,7 @@ export default async function ConfiguracoesPage() {
   // trocada aqui aparece para os clientes no WhatsApp deles.
   const temAtendimento = modulosDisponiveis.includes('sdr' as Modulo)
   const fotoWa = temAtendimento ? await obterFotoPerfilWhatsApp() : null
+  const perfilWa = temAtendimento ? await obterPerfilComercialWhatsApp() : null
 
   return (
     <div className="flex flex-col gap-8">
@@ -348,6 +349,8 @@ export default async function ConfiguracoesPage() {
           <FotoWhatsappSection
             fotoUrl={fotoWa?.ok ? fotoWa.url : null}
             integracaoOk={(fotoWa?.ok ?? false) && uploadFotoWhatsAppConfigurado()}
+            perfil={perfilWa?.ok ? perfilWa.perfil : null}
+            perfilOk={perfilWa?.ok ?? false}
           />
         </section>
       )}

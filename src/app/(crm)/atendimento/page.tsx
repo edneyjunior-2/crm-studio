@@ -60,7 +60,7 @@ export default async function AtendimentoPage({
     const { data: msgs } = await admin
       .from('messages')
       .select(
-        'id, conversation_id, direction, texto, author_type, delivery_status, media_url, media_mime, created_at'
+        'id, conversation_id, direction, texto, author_type, delivery_status, delivery_erro, media_url, media_mime, created_at'
       )
       .eq('conversation_id', selecionada.id)
       .order('created_at', { ascending: true })

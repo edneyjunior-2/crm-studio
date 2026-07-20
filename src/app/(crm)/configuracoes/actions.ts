@@ -12,7 +12,7 @@ import { MODULOS } from '@/lib/modulos'
 import { PRECO_ADDON, NOME_ADDON, ADDON_BLOCO_USUARIOS, ADDONS_EMPILHAVEIS } from '@/lib/addons'
 import { temAddon, limiteUsuariosEfetivo } from '@/lib/addons-server'
 import { appUrl } from '@/lib/site-url'
-import { atualizarFotoPerfilWhatsApp } from '@/lib/whatsapp-cloud'
+import { atualizarFotoPerfilWhatsApp, atualizarPerfilComercialWhatsApp } from '@/lib/whatsapp-cloud'
 import { z } from 'zod'
 
 // ---------------------------------------------------------------------------
@@ -212,6 +212,10 @@ export async function excluirConta(
 
 const roleSchema = z.enum(['admin', 'socio', 'comercial', 'parceiro'])
 
+/** Abas do portal do parceiro externo. Espelhado no backfill da migration
+ *  20260720140000_portal_parceiro_pipeline_financeiro.sql — mudou aqui, mude lá. */
+const PORTAL_PARCEIRO_MODULOS = ['pipeline', 'financeiro', 'comissoes', 'processos'] as const
+
 export async function createUser(
   email: string,
   role: string,
@@ -225,10 +229,14 @@ export async function createUser(
   role = roleResult.data
 
   // Parceiro é um usuário EXTERNO — a RBAC por usuário (modulos_permitidos)
-  // restringe o menu a Processos. A fronteira real é a RLS (parceiro_id =
-  // auth.uid() em processos_juridicos + zero acesso às tabelas-filhas), mas
-  // travar o menu aqui evita a UI confusa de mostrar módulos inacessíveis.
-  const modulosPermitidosConvite = role === 'parceiro' ? ['processos'] : undefined
+  // restringe o menu ao portal dele: os negócios que indicou, as próprias
+  // comissões e (só na advocacia) os processos que trouxe. A fronteira real é a
+  // RLS; travar o menu aqui evita a UI confusa de mostrar módulos inacessíveis.
+  // 'comissoes' acompanha 'financeiro' porque a tela dele é /financeiro/comissoes.
+  // 'processos' some sozinho em tenant sem advocacia (interseção com
+  // modulosEfetivos no layout do CRM) — não precisa de condicional por vertical.
+  const modulosPermitidosConvite =
+    role === 'parceiro' ? PORTAL_PARCEIRO_MODULOS : undefined
 
   // Hoisted: precisa existir ANTES do check de limite — limiteUsuariosEfetivo
   // lê empresa_addons com o client admin (spec addon-bloco-10-usuarios.md).
@@ -483,11 +491,11 @@ export async function updateUserRole(
     .single()
   if (!target || target.empresa_id !== empresaId) return { error: 'Usuário não encontrado.' }
 
-  // Virou parceiro (externo): trava o menu em Processos mesmo que antes tivesse
-  // acesso mais amplo (ou nenhuma restrição). Mesma lógica do convite direto —
-  // ver createUser. A RLS é quem garante o isolamento de dado; isto é só o menu.
+  // Virou parceiro (externo): trava o menu no portal dele mesmo que antes
+  // tivesse acesso mais amplo (ou nenhuma restrição). Mesma lógica do convite
+  // direto — ver createUser. A RLS garante o isolamento de dado; isto é só menu.
   const updatePayload: { role: string; modulos_permitidos?: string[] } = { role }
-  if (role === 'parceiro') updatePayload.modulos_permitidos = ['processos']
+  if (role === 'parceiro') updatePayload.modulos_permitidos = [...PORTAL_PARCEIRO_MODULOS]
 
   const { error } = await supabase
     .from('profiles')
@@ -1089,6 +1097,26 @@ export async function atualizarFotoWhatsApp(formData: FormData): Promise<{ ok: b
   }
 
   const resultado = await atualizarFotoPerfilWhatsApp(await file.arrayBuffer(), file.type)
+  if (!resultado.ok) return { ok: false, erro: resultado.erro }
+
+  revalidatePath('/configuracoes')
+  return { ok: true }
+}
+
+/**
+ * Atualiza os campos de texto do perfil comercial do WhatsApp (about,
+ * descrição, endereço, e-mail, site). Admin only — mesma visibilidade da foto.
+ */
+export async function atualizarPerfilWhatsApp(dados: {
+  about: string | null
+  description: string | null
+  address: string | null
+  email: string | null
+  websites: string[]
+}): Promise<{ ok: boolean; erro?: string }> {
+  await getAuthAdmin()
+
+  const resultado = await atualizarPerfilComercialWhatsApp(dados)
   if (!resultado.ok) return { ok: false, erro: resultado.erro }
 
   revalidatePath('/configuracoes')

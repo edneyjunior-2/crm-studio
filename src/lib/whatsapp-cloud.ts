@@ -269,3 +269,163 @@ export async function atualizarFotoPerfilWhatsApp(
   }
   return { ok: true }
 }
+
+// ---------------------------------------------------------------------------
+// Confirmação de leitura real + indicador "digitando…"
+// ---------------------------------------------------------------------------
+
+export type MarcarLidaWhatsAppResultado = { ok: true } | { ok: false; erro: string }
+
+/**
+ * Marca a mensagem `waMessageId` (a última recebida do cliente) como lida no
+ * WhatsApp dele (✓✓ azul) e mostra "digitando…" por ~25s ou até a próxima
+ * mensagem enviada. Best-effort: quem chama nunca deve falhar por causa desta
+ * função — ela só devolve um resultado tipado, nunca lança.
+ */
+export async function marcarMensagemComoLidaWhatsApp(waMessageId: string): Promise<MarcarLidaWhatsAppResultado> {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  if (!phoneNumberId || !accessToken) {
+    return { ok: false, erro: 'Integração com o WhatsApp não está configurada.' }
+  }
+
+  const res = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        status: 'read',
+        message_id: waMessageId,
+        typing_indicator: { type: 'text' },
+      }),
+    },
+  )
+  if (!res?.ok) return { ok: false, erro: 'A Meta não confirmou a leitura da mensagem.' }
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Envio de mídia pelo atendente (imagem, áudio, documento)
+// ---------------------------------------------------------------------------
+
+export type UploadMidiaResultado = { ok: true; mediaId: string } | { ok: false; erro: string }
+export type TipoMidiaWhatsApp = 'image' | 'audio' | 'document'
+
+/**
+ * Sobe o binário pro endpoint de mídia da Meta (`/media`) e devolve o media id
+ * a ser referenciado no envio da mensagem (AC5). Nunca lança.
+ */
+export async function uploadMidiaWhatsApp(bytes: ArrayBuffer, mimeType: string): Promise<UploadMidiaResultado> {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  if (!phoneNumberId || !accessToken) {
+    return { ok: false, erro: 'Integração com o WhatsApp não está configurada.' }
+  }
+
+  const form = new FormData()
+  form.append('messaging_product', 'whatsapp')
+  form.append('file', new Blob([bytes], { type: mimeType }))
+
+  const res = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/media`,
+    { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: form },
+  )
+  const corpo = res ? ((await res.json().catch(() => null)) as { id?: string } | null) : null
+  if (!res?.ok || !corpo?.id) return { ok: false, erro: 'Falha ao enviar o arquivo para a Meta. Tente novamente.' }
+  return { ok: true, mediaId: corpo.id }
+}
+
+/**
+ * Envia uma mensagem de mídia (imagem/áudio/documento) já upada (ver
+ * `uploadMidiaWhatsApp`). Áudio não aceita legenda na API da Meta — `legenda`
+ * é ignorada nesse caso.
+ */
+export async function enviarMidiaWhatsApp(
+  numeroDigitos: string,
+  mediaId: string,
+  tipo: TipoMidiaWhatsApp,
+  legenda?: string,
+): Promise<EnvioWhatsAppResultado> {
+  const midia: Record<string, unknown> = { id: mediaId }
+  if (legenda && tipo !== 'audio') midia.caption = legenda
+
+  return enviarParaGraphApi({
+    messaging_product: 'whatsapp',
+    to: paraE164BR(numeroDigitos),
+    type: tipo,
+    [tipo]: midia,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Perfil comercial completo (about, descrição, endereço, e-mail, site)
+// ---------------------------------------------------------------------------
+
+export interface PerfilComercialWhatsApp {
+  about: string | null
+  address: string | null
+  description: string | null
+  email: string | null
+  websites: string[] | null
+}
+
+export type PerfilComercialResultado = { ok: true; perfil: PerfilComercialWhatsApp } | { ok: false; erro: string }
+export type AtualizarPerfilResultado = { ok: true } | { ok: false; erro: string }
+
+const CAMPOS_PERFIL = 'about,address,description,email,websites'
+
+/** Lê os campos do perfil comercial (além da foto, já coberta por obterFotoPerfilWhatsApp). */
+export async function obterPerfilComercialWhatsApp(): Promise<PerfilComercialResultado> {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  if (!phoneNumberId || !accessToken) {
+    return { ok: false, erro: 'Integração com o WhatsApp não está configurada.' }
+  }
+
+  const res = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/whatsapp_business_profile?fields=${CAMPOS_PERFIL}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  if (!res || !res.ok) return { ok: false, erro: 'Não foi possível consultar o perfil do WhatsApp agora.' }
+
+  const corpo = (await res.json().catch(() => null)) as { data?: PerfilComercialWhatsApp[] } | null
+  const perfil = corpo?.data?.[0]
+  return {
+    ok: true,
+    perfil: {
+      about: perfil?.about ?? null,
+      address: perfil?.address ?? null,
+      description: perfil?.description ?? null,
+      email: perfil?.email ?? null,
+      websites: perfil?.websites ?? null,
+    },
+  }
+}
+
+/** Atualiza o subconjunto editável do perfil comercial. Nunca lança. */
+export async function atualizarPerfilComercialWhatsApp(
+  dados: Partial<PerfilComercialWhatsApp>,
+): Promise<AtualizarPerfilResultado> {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  if (!phoneNumberId || !accessToken) {
+    return { ok: false, erro: 'Integração com o WhatsApp não está configurada.' }
+  }
+
+  const res = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/whatsapp_business_profile`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', ...dados }),
+    },
+  )
+  if (!res?.ok) {
+    const corpo = res ? ((await res.json().catch(() => null)) as GraphApiErroResposta | null) : null
+    const detalhe = corpo?.error?.message
+    return { ok: false, erro: detalhe ? `A Meta recusou a alteração: ${detalhe}` : 'A Meta recusou a alteração. Tente novamente.' }
+  }
+  return { ok: true }
+}

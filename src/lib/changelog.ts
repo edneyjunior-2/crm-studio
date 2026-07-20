@@ -27,6 +27,72 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-atendimento-envio-midia',
+    data: '2026-07-20',
+    titulo: 'Envie foto, áudio ou PDF direto no Atendimento',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Agora dá para mandar uma imagem, um áudio ou um documento PDF para o cliente sem sair do Atendimento — clique no clipe ao lado da caixa de mensagem',
+      'O que você digitou na caixa antes de anexar vira a legenda da foto ou do documento enviado',
+    ],
+  },
+  {
+    id: '2026-07-20-atendimento-confirmacao-leitura',
+    data: '2026-07-20',
+    titulo: 'O cliente agora vê quando você leu e está respondendo',
+    tipo: 'melhoria',
+    modulo: 'atendimento',
+    itens: [
+      'Ao abrir uma conversa, a mensagem do cliente é marcada como lida de verdade no WhatsApp dele (os dois tracinhos azuis) e ele vê "digitando…" enquanto você responde',
+    ],
+  },
+  {
+    id: '2026-07-20-atendimento-status-entrega',
+    data: '2026-07-20',
+    titulo: 'Saiba se sua mensagem chegou e foi lida',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Cada mensagem que você envia agora mostra um indicador: enviada, entregue ou já lida pelo cliente — igual ao WhatsApp do celular',
+      'Se uma mensagem falhar ao entregar, aparece um aviso com o motivo direto no balão',
+    ],
+  },
+  {
+    id: '2026-07-20-atendimento-perfil-whatsapp-completo',
+    data: '2026-07-20',
+    titulo: 'Complete o perfil da sua empresa no WhatsApp',
+    tipo: 'novidade',
+    modulo: 'atendimento',
+    itens: [
+      'Em Configurações, além da foto, agora dá para preencher a frase de status, a descrição da empresa, o endereço, o e-mail e o site que aparecem no seu perfil comercial do WhatsApp',
+    ],
+  },
+  {
+    id: '2026-07-20-atendimento-video-documento',
+    data: '2026-07-20',
+    titulo: 'Vídeos e documentos recebidos agora aparecem melhor no Atendimento',
+    tipo: 'melhoria',
+    modulo: 'atendimento',
+    itens: [
+      'Vídeos enviados pelo cliente já tocam direto na conversa, sem precisar baixar',
+      'Documentos aparecem com um ícone e o tipo do arquivo, em vez de um link genérico "Ver anexo"',
+    ],
+  },
+  {
+    id: '2026-07-20-portal-parceiro',
+    data: '2026-07-20',
+    titulo: 'Portal do parceiro: ele acompanha os negócios que indicou e o que tem a receber',
+    tipo: 'novidade',
+    modulo: 'geral',
+    itens: [
+      'Quem você cadastra como parceiro agora pode ter acesso ao sistema e ver, sozinho, os negócios que indicou — sem precisar te ligar pra perguntar como está o andamento',
+      'Na aba Financeiro o parceiro vê só as próprias comissões, separadas entre o que ainda tem a receber e o que já foi pago',
+      'Ele enxerga exclusivamente o que é dele: nada da sua carteira de clientes, do seu funil completo ou do financeiro do escritório',
+      'Para ligar um parceiro ao acesso, edite o cadastro dele em Parceiros e escolha o usuário no campo "Acesso ao portal"',
+    ],
+  },
+  {
     id: '2026-07-20-atendimento-remove-numero-tecnico',
     data: '2026-07-20',
     titulo: 'Tela de Atendimento mais limpa',

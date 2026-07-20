@@ -1,20 +1,20 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition, type ChangeEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   MessagesSquare, Bot, User, CheckCheck, CornerUpLeft,
   Search, Plus, Check, X, Loader2, ArrowLeft, Send, UserPlus,
-  Archive, ArchiveRestore,
+  Archive, ArchiveRestore, AlertCircle, FileText, Paperclip,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select'
 import {
   assumirConversa, devolverAoBot, resolverConversa, marcarLida,
-  arquivarConversa, desarquivarConversa,
+  arquivarConversa, desarquivarConversa, enviarMidiaConversa,
   iniciarConversa, reabrirConversaComTemplate, responderConversa,
   salvarContatoConversa, buscarClientesPorNome, vincularClienteExistente,
 } from './atendimento-actions'
@@ -66,6 +66,7 @@ export interface Mensagem {
   texto: string | null
   author_type: 'lead' | 'bot' | 'humano' | 'sistema' | null
   delivery_status: string | null
+  delivery_erro: string | null
   media_url: string | null
   media_mime: string | null
   created_at: string | null
@@ -436,19 +437,55 @@ function MidiaMensagem({ mediaUrl, mediaMime }: { mediaUrl: string | null; media
     return <audio controls src={mediaUrl} className="mb-1 max-w-full" />
   }
 
+  if (mediaMime.startsWith('video/')) {
+    return <video controls src={mediaUrl} className="mb-1 max-w-full rounded-lg" />
+  }
+
+  const rotulo = mediaMime === 'application/pdf' ? 'Documento PDF' : 'Arquivo'
   return (
-    <a href={mediaUrl} target="_blank" rel="noreferrer" className="mb-1 block underline underline-offset-2 opacity-90">
-      Ver anexo
+    <a
+      href={mediaUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="mb-1 flex items-center gap-2 rounded-lg border border-current/20 px-2.5 py-2 opacity-90 hover:opacity-100"
+    >
+      <FileText className="size-4 shrink-0" />
+      <span className="text-sm underline underline-offset-2">{rotulo}</span>
     </a>
   )
 }
+
+/**
+ * ✓/✓✓/✓✓ azul do WhatsApp — só faz sentido pra mensagem ENVIADA (direction
+ * 'out'). O backend (webhook do app-sdr) já atualiza `delivery_status` via
+ * `statuses[]` da Meta; aqui é só a exibição.
+ */
+function StatusEntrega({ status, erro }: { status: string | null; erro: string | null }) {
+  if (status === 'read') return <CheckCheck className="size-3.5 text-blue-400" />
+  if (status === 'delivered') return <CheckCheck className="size-3.5 opacity-70" />
+  if (status === 'sent') return <Check className="size-3.5 opacity-70" />
+  if (status === 'failed') {
+    return (
+      <span title={erro ?? 'Falha ao entregar'}>
+        <AlertCircle className="size-3.5 text-destructive" />
+      </span>
+    )
+  }
+  return null
+}
+
+/** MIME aceito no anexo — mesma allow-list validada de novo no server (enviarMidiaConversa). */
+const MIME_MIDIA_ENVIO = ['image/jpeg', 'image/png', 'image/webp', 'audio/mpeg', 'audio/ogg', 'audio/mp4', 'application/pdf']
+const TAMANHO_MAXIMO_MIDIA_BYTES = 4 * 1024 * 1024
 
 function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida, onArquivar }: ThreadProps) {
   const router = useRouter()
   const status = conversa.status ?? 'bot'
   const [resposta, setResposta] = useState('')
   const [enviando, startEnviar] = useTransition()
+  const [enviandoAnexo, setEnviandoAnexo] = useState(false)
   const [salvandoContato, setSalvandoContato] = useState(false)
+  const anexoRef = useRef<HTMLInputElement>(null)
 
   function enviar() {
     const texto = resposta.trim()
@@ -459,6 +496,34 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
       setResposta('')
       router.refresh()
     })
+  }
+
+  async function enviarAnexo(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!MIME_MIDIA_ENVIO.includes(file.type)) {
+      toast.error('Formato não suportado. Envie imagem (JPEG/PNG/WEBP), áudio (MP3/OGG) ou PDF.')
+      e.target.value = ''
+      return
+    }
+    if (file.size > TAMANHO_MAXIMO_MIDIA_BYTES) {
+      toast.error('Arquivo muito grande. Limite de 4 MB.')
+      e.target.value = ''
+      return
+    }
+
+    setEnviandoAnexo(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    if (resposta.trim()) formData.append('legenda', resposta.trim())
+    const res = await enviarMidiaConversa(conversa.id, formData)
+    setEnviandoAnexo(false)
+    e.target.value = ''
+
+    if (res.error) { toast.error(res.error); return }
+    setResposta('')
+    router.refresh()
   }
 
   return (
@@ -521,6 +586,11 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
                   naDireita ? 'rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm bg-muted text-foreground')}>
                   <MidiaMensagem mediaUrl={msg.media_url} mediaMime={msg.media_mime} />
                   {msg.texto || (msg.media_mime ? '' : '(sem texto)')}
+                  {naDireita && (
+                    <div className="mt-1 flex justify-end">
+                      <StatusEntrega status={msg.delivery_status} erro={msg.delivery_erro} />
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -532,6 +602,22 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
         onSubmit={(e) => { e.preventDefault(); enviar() }}
         className="flex items-end gap-2 border-t border-border px-4 py-3"
       >
+        <input
+          ref={anexoRef}
+          type="file"
+          accept={MIME_MIDIA_ENVIO.join(',')}
+          onChange={enviarAnexo}
+          className="hidden"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          disabled={enviando || enviandoAnexo}
+          onClick={() => anexoRef.current?.click()}
+          title="Anexar imagem, áudio ou PDF"
+        >
+          {enviandoAnexo ? <Loader2 className="animate-spin" /> : <Paperclip />}
+        </Button>
         <textarea
           value={resposta}
           onChange={(e) => setResposta(e.target.value)}

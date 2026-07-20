@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   compress: true,
   experimental: {
     optimizePackageImports: ['lucide-react', '@base-ui/react'],
+    // 4.5mb é o teto REAL da Vercel pra corpo de Server Action (Hobby/Pro, não
+    // configurável) — declarar aqui só deixa explícito o limite da plataforma,
+    // não aumenta nada além dele. Usado pelo envio de mídia no Atendimento
+    // (avatar/timbrado continuam bem abaixo disso).
+    serverActions: { bodySizeLimit: '4.5mb' },
   },
   async headers() {
     // CSP em modo REPORT-ONLY: não bloqueia nada ainda — só reporta violações no
