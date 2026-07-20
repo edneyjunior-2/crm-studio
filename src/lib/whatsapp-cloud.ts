@@ -36,22 +36,19 @@ function paraE164BR(numeroDigitos: string): string {
 }
 
 /**
- * Envia uma mensagem de texto livre para `numeroDigitos` (só dígitos, com ou
- * sem DDI). Nunca lança — sempre devolve um resultado tipado, mesmo em erro
- * de rede/timeout, pra quem chama poder mostrar isso ao usuário sem derrubar
- * a Server Action.
+ * POST genérico em `/{phone_number_id}/messages` — usado tanto pra texto livre
+ * quanto pra template (a única diferença entre `enviarMensagemWhatsApp` e
+ * `enviarTemplateWhatsApp` é o corpo da requisição). Nunca lança — sempre
+ * devolve um resultado tipado, mesmo em erro de rede/timeout/parsing, pra quem
+ * chama poder mostrar isso ao usuário sem derrubar a Server Action.
  */
-export async function enviarMensagemWhatsApp(
-  numeroDigitos: string,
-  texto: string,
-): Promise<EnvioWhatsAppResultado> {
+async function enviarParaGraphApi(body: Record<string, unknown>): Promise<EnvioWhatsAppResultado> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
   if (!phoneNumberId || !accessToken) {
     return { ok: false, erro: 'Integração com o WhatsApp não está configurada (variáveis de ambiente ausentes).' }
   }
 
-  const to = paraE164BR(numeroDigitos)
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 15_000)
 
@@ -63,12 +60,7 @@ export async function enviarMensagemWhatsApp(
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to,
-        type: 'text',
-        text: { body: texto },
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     })
   } catch (e) {
@@ -101,4 +93,58 @@ export async function enviarMensagemWhatsApp(
     return { ok: false, erro: 'A Meta aceitou o envio, mas não retornou o ID da mensagem.' }
   }
   return { ok: true, messageId }
+}
+
+/**
+ * Envia uma mensagem de texto livre para `numeroDigitos` (só dígitos, com ou
+ * sem DDI). Nunca lança — sempre devolve um resultado tipado, mesmo em erro
+ * de rede/timeout, pra quem chama poder mostrar isso ao usuário sem derrubar
+ * a Server Action.
+ */
+export async function enviarMensagemWhatsApp(
+  numeroDigitos: string,
+  texto: string,
+): Promise<EnvioWhatsAppResultado> {
+  return enviarParaGraphApi({
+    messaging_product: 'whatsapp',
+    to: paraE164BR(numeroDigitos),
+    type: 'text',
+    text: { body: texto },
+  })
+}
+
+/**
+ * Envia o template aprovado `retomar_atendimento` (pt_BR, categoria UTILITY) —
+ * único jeito de reabrir contato fora da janela de 24h (a Meta rejeita texto
+ * livre nesse caso, ver `CODIGO_FORA_DA_JANELA_24H`). Corpo do template: "Olá
+ * {{1}}, aqui é {{2}}. Estamos entrando em contato para dar continuidade ao
+ * seu atendimento. Pode responder esta mensagem quando for possível."
+ *
+ * `nomeCliente` vai em {{1}} (nome do cliente, ou um fallback genérico tipo
+ * "Cliente" quando não há cadastro vinculado) e `nomeAtendente` vai em {{2}}
+ * (nome de quem está atendendo + empresa, ex.: "Fulano, da Empresa X").
+ */
+export async function enviarTemplateWhatsApp(
+  numeroDigitos: string,
+  nomeCliente: string,
+  nomeAtendente: string,
+): Promise<EnvioWhatsAppResultado> {
+  return enviarParaGraphApi({
+    messaging_product: 'whatsapp',
+    to: paraE164BR(numeroDigitos),
+    type: 'template',
+    template: {
+      name: 'retomar_atendimento',
+      language: { code: 'pt_BR' },
+      components: [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: nomeCliente },
+            { type: 'text', text: nomeAtendente },
+          ],
+        },
+      ],
+    },
+  })
 }

@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { getAuthUser, getAuthAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createCliente } from '../clientes/actions'
-import { enviarMensagemWhatsApp } from '@/lib/whatsapp-cloud'
+import { enviarMensagemWhatsApp, enviarTemplateWhatsApp } from '@/lib/whatsapp-cloud'
 
 /**
  * Server actions do inbox de Atendimento (conversas do SDR / WhatsApp).
@@ -14,13 +14,13 @@ import { enviarMensagemWhatsApp } from '@/lib/whatsapp-cloud'
  * escrevemos via admin client (service_role). A autorização + isolamento de tenant
  * são garantidos aqui: resolvemos a empresa do usuário e filtramos por empresa_id.
  */
-async function authEmpresa(): Promise<{ empresaId: string }> {
+async function authEmpresa(): Promise<{ empresaId: string; userId: string }> {
   // Tenant EFETIVO: para platform admin é empresa_ativa_id; p/ usuário comum é empresa_id.
   // (Não reler profiles.empresa_id direto: daria vazio/órfão p/ platform admin.)
-  const { empresaId, role } = await getAuthUser()
+  const { empresaId, role, user } = await getAuthUser()
   if (role === 'parceiro') throw new Error('Acesso negado.')
   if (!empresaId) redirect('/login')
-  return { empresaId }
+  return { empresaId, userId: user.id }
 }
 
 /** Humano assume a conversa: status=humano e o bot cala (ia_ativa=false). */
@@ -349,29 +349,18 @@ export async function listarClientesComTelefone(): Promise<
 }
 
 /**
- * Inicia uma conversa manualmente (humano inicia — não o robô). Cria/reusa a
- * conversa pelo número, envia a 1ª mensagem de verdade pelo WhatsApp Cloud API
- * (nº2, chat humano — ver src/lib/whatsapp-cloud.ts) e registra o resultado.
- *
- * Fora da janela de 24h desde a última mensagem do cliente, a Meta rejeita
- * envio de texto livre (exige template aprovado) — nesse caso a conversa/
- * mensagem ainda ficam registradas (delivery_status='failed'), e devolvemos
- * um erro explicando a janela em vez do erro genérico da Graph API.
+ * Cria (ou reusa, casando por `wa_number`) a conversa desta empresa para
+ * `num`, vinculando a `clienteId` quando informado (confirmando antes que é
+ * desta empresa, pra não gravar cliente_id de outro tenant a partir de um UUID
+ * arbitrário). Extraído de `iniciarConversa` — é o mesmo passo inicial de
+ * `reabrirConversaComTemplate`, só muda o que é enviado depois.
  */
-export async function iniciarConversa(
-  numero: string,
-  mensagem: string,
+async function criarOuReusarConversa(
+  empresaId: string,
+  admin: ReturnType<typeof createAdminClient>,
+  num: string,
   clienteId?: string,
 ): Promise<{ error?: string; id?: string }> {
-  const { empresaId } = await authEmpresa()
-  const num = numero?.replace(/\D/g, '')
-  if (!num || num.length < 10) return { error: 'Número inválido (use DDD + número).' }
-  const msg = mensagem?.trim()
-
-  const admin = createAdminClient()
-
-  // Se veio um cliente, confirma que é desta empresa antes de vincular — evita
-  // gravar cliente_id de outro tenant a partir de um UUID arbitrário.
   let clienteIdValido: string | null = null
   if (clienteId) {
     const { data: cliente } = await admin
@@ -411,6 +400,36 @@ export async function iniciarConversa(
     await admin.from('conversations').update({ cliente_id: clienteIdValido }).eq('id', convId)
   }
 
+  return { id: convId }
+}
+
+/**
+ * Inicia uma conversa manualmente (humano inicia — não o robô). Cria/reusa a
+ * conversa pelo número, envia a 1ª mensagem de verdade pelo WhatsApp Cloud API
+ * (nº2, chat humano — ver src/lib/whatsapp-cloud.ts) e registra o resultado.
+ *
+ * Fora da janela de 24h desde a última mensagem do cliente, a Meta rejeita
+ * envio de texto livre (exige template aprovado) — nesse caso a conversa/
+ * mensagem ainda ficam registradas (delivery_status='failed'), devolvemos um
+ * erro explicando a janela, e `foraDaJanela24h: true` (estruturado, além do
+ * texto) pra UI oferecer "Reabrir conversa" (reabrirConversaComTemplate) em
+ * vez de só um toast genérico.
+ */
+export async function iniciarConversa(
+  numero: string,
+  mensagem: string,
+  clienteId?: string,
+): Promise<{ error?: string; id?: string; foraDaJanela24h?: boolean }> {
+  const { empresaId } = await authEmpresa()
+  const num = numero?.replace(/\D/g, '')
+  if (!num || num.length < 10) return { error: 'Número inválido (use DDD + número).' }
+  const msg = mensagem?.trim()
+
+  const admin = createAdminClient()
+  const conv = await criarOuReusarConversa(empresaId, admin, num, clienteId)
+  if (conv.error || !conv.id) return { error: conv.error ?? 'Falha ao iniciar a conversa.' }
+  const convId = conv.id
+
   if (msg) {
     const envio = await enviarMensagemWhatsApp(num, msg)
 
@@ -424,8 +443,69 @@ export async function iniciarConversa(
       payload: envio.ok ? null : { erro: envio.erro },
     })
     if (msgErr) return { error: `Conversa criada, mas falhou ao registrar a mensagem: ${msgErr.message}`, id: convId }
-    if (!envio.ok) return { error: envio.erro, id: convId }
+    if (!envio.ok) return { error: envio.erro, id: convId, foraDaJanela24h: envio.foraDaJanela24h }
   }
+
+  revalidatePath('/atendimento')
+  return { id: convId }
+}
+
+/**
+ * Reabre contato fora da janela de 24h enviando o template aprovado pela Meta
+ * (`retomar_atendimento`) em vez de texto livre — a Graph API rejeita texto
+ * livre nesse caso (ver iniciarConversa/foraDaJanela24h). Cria/reusa a
+ * conversa igual iniciarConversa (criarOuReusarConversa) e grava a mensagem
+ * enviada (texto renderizado do template, não o que o usuário digitaria numa
+ * mensagem livre — aqui não há campo de mensagem livre, é sempre o template).
+ *
+ * Nome do cliente ({{1}} do template): `clientes.razao_social` quando
+ * `clienteId` foi passado e pertence a esta empresa; senão "Cliente" (sem
+ * cadastro vinculado ainda, ex.: número novo). Nome do atendente ({{2}}):
+ * nome do usuário logado + ", da " + nome da empresa/tenant.
+ */
+export async function reabrirConversaComTemplate(
+  numero: string,
+  clienteId?: string,
+): Promise<{ error?: string; id?: string }> {
+  const { empresaId, userId } = await authEmpresa()
+  const num = numero?.replace(/\D/g, '')
+  if (!num || num.length < 10) return { error: 'Número inválido (use DDD + número).' }
+
+  const admin = createAdminClient()
+  const conv = await criarOuReusarConversa(empresaId, admin, num, clienteId)
+  if (conv.error || !conv.id) return { error: conv.error ?? 'Falha ao iniciar a conversa.' }
+  const convId = conv.id
+
+  let nomeCliente = 'Cliente'
+  if (clienteId) {
+    const { data: cliente } = await admin
+      .from('clientes')
+      .select('razao_social')
+      .eq('id', clienteId)
+      .eq('empresa_id', empresaId)
+      .maybeSingle()
+    if (cliente?.razao_social) nomeCliente = cliente.razao_social
+  }
+
+  const [{ data: profile }, { data: empresa }] = await Promise.all([
+    admin.from('profiles').select('full_name').eq('id', userId).maybeSingle(),
+    admin.from('empresas').select('nome').eq('id', empresaId).maybeSingle(),
+  ])
+  const nomeAtendente = `${profile?.full_name ?? 'Atendente'}, da ${empresa?.nome ?? 'nossa empresa'}`
+
+  const envio = await enviarTemplateWhatsApp(num, nomeCliente, nomeAtendente)
+
+  const { error: msgErr } = await admin.from('messages').insert({
+    conversation_id: convId,
+    direction: 'out',
+    author_type: 'humano',
+    texto: `Olá ${nomeCliente}, aqui é ${nomeAtendente}. Estamos entrando em contato para dar continuidade ao seu atendimento. Pode responder esta mensagem quando for possível.`,
+    delivery_status: envio.ok ? 'sent' : 'failed',
+    wa_message_id: envio.ok ? envio.messageId : null,
+    payload: envio.ok ? null : { erro: envio.erro },
+  })
+  if (msgErr) return { error: `Conversa criada, mas falhou ao registrar a mensagem: ${msgErr.message}`, id: convId }
+  if (!envio.ok) return { error: envio.erro, id: convId }
 
   revalidatePath('/atendimento')
   return { id: convId }
