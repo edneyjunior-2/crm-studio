@@ -27,6 +27,24 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-gerador-contratos-dropdown-ilegivel',
+    data: '2026-07-20',
+    titulo: 'Corrigido: campos como Estado Civil ficavam ilegíveis no Gerador de Contratos',
+    tipo: 'correcao',
+    itens: [
+      'Em alguns computadores (dependendo do tema claro/escuro do navegador), as opções de campos como Sexo, Estado Civil e Cargo apareciam com o texto quase invisível ao abrir a lista — agora o campo sempre mostra as opções com contraste correto, não importa o tema do seu navegador',
+    ],
+  },
+  {
+    id: '2026-07-20-clientes-editar-dados-em-branco',
+    data: '2026-07-20',
+    titulo: 'Corrigido: editar cliente abria com os campos em branco',
+    tipo: 'correcao',
+    itens: [
+      'Ao clicar no lápis de editar na lista de Clientes, os dados do cliente já vêm preenchidos na janela — antes, em alguns casos, o formulário abria vazio mesmo com o cliente já cadastrado',
+    ],
+  },
+  {
     id: '2026-07-20-atendimento-reabrir-conversa-24h',
     data: '2026-07-20',
     titulo: 'Reabra uma conversa parada há mais de 24h com um clique',

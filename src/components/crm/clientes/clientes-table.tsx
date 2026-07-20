@@ -210,6 +210,7 @@ export function ClientesTable({ clientes }: ClientesTableProps) {
       )}
 
       <ClienteForm
+        key={editingCliente?.id ?? 'nenhum'}
         cliente={editingCliente ?? undefined}
         open={editingCliente !== null}
         onOpenChange={(isOpen) => {
