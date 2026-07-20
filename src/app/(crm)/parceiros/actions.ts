@@ -4,6 +4,39 @@ import { revalidatePath } from 'next/cache'
 import { getAuthFinanceiro, getAuthUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+export interface ImpactoExclusaoParceiro {
+  negocios: number
+  clientes: number
+  processos: number
+  usuarioVinculado: string | null
+}
+
+/**
+ * Conta o que fica órfão (parceiro_id -> NULL, via ON DELETE SET NULL) se este
+ * cadastro for excluído, e se há um login do portal vinculado — a exclusão não
+ * apaga o login, só zera meus_parceiro_ids() pra ele, esvaziando o portal dele
+ * em silêncio. Usado no dialog de confirmação antes do delete de verdade.
+ */
+export async function getImpactoExclusaoParceiro(id: string): Promise<ImpactoExclusaoParceiro> {
+  const { supabase } = await getAuthFinanceiro()
+
+  const [negocios, clientes, processos, parceiro] = await Promise.all([
+    supabase.from('negocios').select('id', { count: 'exact', head: true }).eq('parceiro_id', id),
+    supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('parceiro_id', id),
+    supabase.from('processos_juridicos').select('id', { count: 'exact', head: true }).eq('indicador_parceiro_id', id),
+    supabase.from('parceiros').select('profile_id, profile:profiles!profile_id(full_name)').eq('id', id).maybeSingle(),
+  ])
+
+  const profileEmbed = parceiro.data?.profile as { full_name: string }[] | { full_name: string } | null
+  const profile = Array.isArray(profileEmbed) ? (profileEmbed[0] ?? null) : profileEmbed
+  return {
+    negocios: negocios.count ?? 0,
+    clientes: clientes.count ?? 0,
+    processos: processos.count ?? 0,
+    usuarioVinculado: parceiro.data?.profile_id ? (profile?.full_name ?? null) : null,
+  }
+}
+
 export async function createParceiro(formData: FormData): Promise<{ error?: string }> {
   const { supabase, user } = await getAuthFinanceiro()
   const userId = user.id

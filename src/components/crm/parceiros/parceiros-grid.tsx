@@ -19,7 +19,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { ParceiroForm } from './parceiro-form'
-import { deleteParceiro } from '@/app/(crm)/parceiros/actions'
+import { deleteParceiro, getImpactoExclusaoParceiro, type ImpactoExclusaoParceiro } from '@/app/(crm)/parceiros/actions'
 import type { Parceiro } from '@/types'
 
 interface ParceirosGridProps {
@@ -38,6 +38,19 @@ function formatDate(dateStr: string | null): string {
 
 function DeleteButton({ id }: { id: string }) {
   const [isPending, startTransition] = useTransition()
+  const [impacto, setImpacto] = useState<ImpactoExclusaoParceiro | null>(null)
+  const [carregandoImpacto, setCarregandoImpacto] = useState(false)
+
+  // Busca sob demanda (só ao abrir o dialog) — contar em toda a listagem seria
+  // 4 queries × N parceiros na tela sem ninguém pedir.
+  function handleOpenChange(open: boolean) {
+    if (!open || impacto || carregandoImpacto) return
+    setCarregandoImpacto(true)
+    getImpactoExclusaoParceiro(id)
+      .then(setImpacto)
+      .catch(() => setImpacto(null))
+      .finally(() => setCarregandoImpacto(false))
+  }
 
   function handleDelete() {
     startTransition(async () => {
@@ -50,8 +63,10 @@ function DeleteButton({ id }: { id: string }) {
     })
   }
 
+  const totalVinculos = impacto ? impacto.negocios + impacto.clientes + impacto.processos : 0
+
   return (
-    <AlertDialog>
+    <AlertDialog onOpenChange={handleOpenChange}>
       <AlertDialogTrigger
         render={
           <Button
@@ -66,8 +81,27 @@ function DeleteButton({ id }: { id: string }) {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Excluir parceiro?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Esta ação não pode ser desfeita. O parceiro será removido permanentemente.
+          <AlertDialogDescription render={<div className="flex flex-col gap-2 text-left" />}>
+            <p>Esta ação não pode ser desfeita. O parceiro será removido permanentemente.</p>
+            {carregandoImpacto && (
+              <p className="text-xs text-muted-foreground">Verificando vínculos...</p>
+            )}
+            {impacto && totalVinculos > 0 && (
+              <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                {impacto.negocios > 0 && `${impacto.negocios} negócio(s)`}
+                {impacto.negocios > 0 && (impacto.clientes > 0 || impacto.processos > 0) && ', '}
+                {impacto.clientes > 0 && `${impacto.clientes} cliente(s)`}
+                {impacto.clientes > 0 && impacto.processos > 0 && ', '}
+                {impacto.processos > 0 && `${impacto.processos} processo(s)`}
+                {' '}ficarão sem indicador marcado.
+              </p>
+            )}
+            {impacto?.usuarioVinculado && (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {impacto.usuarioVinculado} tem acesso ao portal por este cadastro — o login continua
+                ativo, mas o portal dele ficará sem nada para mostrar.
+              </p>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
