@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-atendimento-envio-whatsapp-real',
+    data: '2026-07-20',
+    titulo: 'Mensagens do Atendimento agora chegam de verdade no WhatsApp',
+    tipo: 'correcao',
+    modulo: 'atendimento',
+    itens: [
+      'Ao iniciar uma conversa manualmente com um cliente, a mensagem agora é enviada de verdade pelo WhatsApp — antes ela só ficava salva no sistema, sem sair de fato',
+      'Se o cliente não falou com você nas últimas 24 horas, o WhatsApp exige um modelo de mensagem aprovado para iniciar o contato — agora isso aparece como um aviso claro, em vez de um erro genérico',
+    ],
+  },
+  {
     id: '2026-07-20-processos-audiencias-passadas-e-movimentacao-em-branco',
     data: '2026-07-20',
     titulo: 'Audiências já realizadas não aparecem mais pedindo para agendar',

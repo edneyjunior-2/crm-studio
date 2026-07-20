@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { getAuthUser, getAuthAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createCliente } from '../clientes/actions'
+import { enviarMensagemWhatsApp } from '@/lib/whatsapp-cloud'
 
 /**
  * Server actions do inbox de Atendimento (conversas do SDR / WhatsApp).
@@ -349,9 +350,13 @@ export async function listarClientesComTelefone(): Promise<
 
 /**
  * Inicia uma conversa manualmente (humano inicia — não o robô). Cria/reusa a
- * conversa pelo número e registra a 1ª mensagem.
- * TODO: o ENVIO real pelo WhatsApp depende do número conectado na Meta; por ora
- * a mensagem fica registrada (delivery_status='pending').
+ * conversa pelo número, envia a 1ª mensagem de verdade pelo WhatsApp Cloud API
+ * (nº2, chat humano — ver src/lib/whatsapp-cloud.ts) e registra o resultado.
+ *
+ * Fora da janela de 24h desde a última mensagem do cliente, a Meta rejeita
+ * envio de texto livre (exige template aprovado) — nesse caso a conversa/
+ * mensagem ainda ficam registradas (delivery_status='failed'), e devolvemos
+ * um erro explicando a janela em vez do erro genérico da Graph API.
  */
 export async function iniciarConversa(
   numero: string,
@@ -407,14 +412,19 @@ export async function iniciarConversa(
   }
 
   if (msg) {
+    const envio = await enviarMensagemWhatsApp(num, msg)
+
     const { error: msgErr } = await admin.from('messages').insert({
       conversation_id: convId,
       direction: 'out',
       author_type: 'humano',
       texto: msg,
-      delivery_status: 'pending',
+      delivery_status: envio.ok ? 'sent' : 'failed',
+      wa_message_id: envio.ok ? envio.messageId : null,
+      payload: envio.ok ? null : { erro: envio.erro },
     })
-    if (msgErr) return { error: `Conversa criada, mas falhou ao registrar a mensagem: ${msgErr.message}` }
+    if (msgErr) return { error: `Conversa criada, mas falhou ao registrar a mensagem: ${msgErr.message}`, id: convId }
+    if (!envio.ok) return { error: envio.erro, id: convId }
   }
 
   revalidatePath('/atendimento')
