@@ -52,6 +52,11 @@
 
     /* ============================ SIDEBAR ============================ */
     .sidebar {
+      /* Sem isso, o popup nativo do <select> (fundo/texto da lista de opções)
+         segue o tema claro/escuro do SO de quem visita, em vez da paleta fixa
+         da Aurum — com SO em modo claro, o texto claro (--aurum-text) do
+         option cai sobre um popup branco e fica ilegível. */
+      color-scheme: dark;
       width: 360px;
       background: var(--aurum-patrimonio);
       color: var(--aurum-text);
