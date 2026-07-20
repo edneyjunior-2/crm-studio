@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-foto-de-perfil',
+    data: '2026-07-20',
+    titulo: 'Agora dá para colocar uma foto de perfil',
+    tipo: 'novidade',
+    itens: [
+      'Em Minha Conta, você já pode escolher uma foto para o seu perfil (JPEG, PNG ou WEBP, até 3 MB)',
+      'A foto aparece no topo do sistema e no menu lateral — sem foto, continua mostrando as iniciais do seu nome',
+    ],
+  },
+  {
     id: '2026-07-20-atendimento-envio-whatsapp-real',
     data: '2026-07-20',
     titulo: 'Mensagens do Atendimento agora chegam de verdade no WhatsApp',

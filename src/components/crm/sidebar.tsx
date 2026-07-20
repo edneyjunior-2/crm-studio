@@ -268,9 +268,11 @@ interface SidebarProps {
   empresaNome?: string | null
   /** Contagem inicial de conversas não lidas (badge do item "WhatsApp"), vinda do server. */
   unreadWhatsappInicial?: number
+  /** Signed URL da foto de perfil do usuário logado. Null/undefined → fallback de iniciais. */
+  avatarUrl?: string | null
 }
 
-export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, empresaId, empresaNome, unreadWhatsappInicial }: SidebarProps) {
+export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, empresaId, empresaNome, unreadWhatsappInicial, avatarUrl }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const prefersReduced = useReducedMotion()
@@ -449,13 +451,23 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
       {/* Footer */}
       <div className="border-t border-border p-2">
         {!collapsed && (
-          <div className="mb-2 rounded-lg bg-sidebar-accent/50 px-3 py-2.5">
-            <p className="truncate text-sm font-medium text-sidebar-foreground">
-              {profile.full_name}
-            </p>
-            <p className="text-xs text-sidebar-foreground/60">
-              {profile.cargo ?? roleLabel[profile.role]}
-            </p>
+          <div className="mb-2 flex items-center gap-2.5 rounded-lg bg-sidebar-accent/50 px-3 py-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-primary/20 text-xs font-semibold text-sidebar-foreground">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- signed URL do Storage, não é um asset estático
+                <img src={avatarUrl} alt={profile.full_name} className="size-full object-cover" />
+              ) : (
+                profile.full_name.trim().split(/\s+/).slice(0, 2).map((n) => n[0]).join('').toUpperCase() || '?'
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-sidebar-foreground">
+                {profile.full_name}
+              </p>
+              <p className="text-xs text-sidebar-foreground/60">
+                {profile.cargo ?? roleLabel[profile.role]}
+              </p>
+            </div>
           </div>
         )}
 

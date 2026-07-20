@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation'
 import { UserCircle, Scale, Briefcase, ArrowUpRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { resolverAvatarUrl } from '@/lib/avatar'
 import { GoogleCalendarConnect } from '@/components/crm/google/google-calendar-connect'
 import { GoogleConnectFeedback } from '@/components/crm/google/google-connect-feedback'
 import { RefazerTourBtn } from '@/components/crm/refazer-tour-btn'
 import { OabForm } from '@/components/crm/minha-conta/oab-form'
+import { AvatarForm } from '@/components/crm/minha-conta/avatar-form'
 
 // Site de marketing onde ficam os demais produtos/verticais do CRM Studio.
 const SITE_PRODUTOS = 'https://www.crmstudio.com.br'
@@ -20,9 +22,11 @@ export default async function MinhaContaPage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, role, google_refresh_token, empresa_id, oab_numero, oab_uf')
+    .select('full_name, role, google_refresh_token, empresa_id, oab_numero, oab_uf, avatar_path')
     .eq('id', user.id)
     .single()
+
+  const avatarUrl = await resolverAvatarUrl(supabase, profile?.avatar_path)
 
   // Versão do produto (padrão p/ todas as contas): deriva dos módulos da empresa.
   // 'processos' ativo → CRM Advocacia; caso contrário → CRM de Vendas.
@@ -63,8 +67,13 @@ export default async function MinhaContaPage({
       <GoogleConnectFeedback status={googleStatus} />
 
       <div className="flex items-center gap-3">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-muted">
-          <UserCircle className="size-5 text-muted-foreground" />
+        <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- signed URL do Storage, não é um asset estático
+            <img src={avatarUrl} alt={profile?.full_name ?? 'Foto de perfil'} className="size-full object-cover" />
+          ) : (
+            <UserCircle className="size-5 text-muted-foreground" />
+          )}
         </div>
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
@@ -83,7 +92,8 @@ export default async function MinhaContaPage({
           <p className="text-sm text-muted-foreground">Suas informações no CRM Studio.</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <AvatarForm avatarUrl={avatarUrl} nome={profile?.full_name ?? user.email ?? ''} />
+          <div className="mt-4 grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-2">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Nome</p>
               <p className="mt-1 text-sm font-medium text-foreground">{profile?.full_name ?? '—'}</p>
