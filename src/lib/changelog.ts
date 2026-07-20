@@ -38,6 +38,16 @@ export const CHANGELOG: Release[] = [
     ],
   },
   {
+    id: '2026-07-20-configuracoes-mais-limpa',
+    data: '2026-07-20',
+    titulo: 'Tela de Configurações mais simples',
+    tipo: 'melhoria',
+    itens: [
+      'Tiramos da tela do Agente SDR um campo técnico de integração que não era pra você mexer — a configuração continua funcionando normalmente por trás',
+      'A seção de Privacidade & Dados (LGPD) agora começa recolhida, deixando a tela mais enxuta — clique para expandir quando precisar',
+    ],
+  },
+  {
     id: '2026-07-20-foto-de-perfil',
     data: '2026-07-20',
     titulo: 'Agora dá para colocar uma foto de perfil',
