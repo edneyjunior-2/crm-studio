@@ -26,6 +26,7 @@ interface ParceirosGridProps {
   parceiros: Parceiro[]
   canEdit: boolean
   profiles?: { id: string; full_name: string }[]
+  usuariosParceiro?: { id: string; full_name: string }[]
   currentUserId?: string
 }
 
@@ -84,7 +85,7 @@ function DeleteButton({ id }: { id: string }) {
   )
 }
 
-export function ParceirosGrid({ parceiros, canEdit, profiles = [], currentUserId = '' }: ParceirosGridProps) {
+export function ParceirosGrid({ parceiros, canEdit, profiles = [], usuariosParceiro = [], currentUserId = '' }: ParceirosGridProps) {
   const router = useRouter()
   const [busca, setBusca] = useState('')
 
@@ -145,6 +146,7 @@ export function ParceirosGrid({ parceiros, canEdit, profiles = [], currentUserId
                     <ParceiroForm
                       parceiro={parceiro}
                       profiles={profiles}
+                      usuariosParceiro={usuariosParceiro}
                       currentUserId={currentUserId}
                       trigger={
                         <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">

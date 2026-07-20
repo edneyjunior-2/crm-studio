@@ -30,10 +30,11 @@ export default async function MinhasComissoesPage() {
     .eq('id', user.id)
     .single()
 
-  // Somente comercial acessa esta página diretamente
-  // admin/socio são redirecionados para a visão completa
+  // Comercial e parceiro acessam esta página diretamente — os dois veem só as
+  // próprias comissões (RLS filtra por comercial_id). admin/socio são
+  // redirecionados para a visão completa em /financeiro.
   if (!profile) redirect('/login')
-  if (profile.role !== 'comercial') redirect('/financeiro')
+  if (profile.role !== 'comercial' && profile.role !== 'parceiro') redirect('/financeiro')
 
   // totalPrevisto/totalPago somam TODAS as linhas do comercial — um cap
   // silencioso do PostgREST (~1000 linhas) subestimaria os KPIs, por isso

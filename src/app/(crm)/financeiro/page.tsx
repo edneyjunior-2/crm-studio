@@ -412,6 +412,11 @@ export default async function FinanceiroPage() {
 
   if (!profile) redirect('/login')
 
+  // Parceiro (externo) nunca vê o financeiro da empresa — esta tela mostra
+  // contas a pagar/receber, fornecedores e comissões de todo mundo. A aba
+  // "Financeiro" dele são as próprias comissões.
+  if (profile.role === 'parceiro') redirect('/financeiro/comissoes')
+
   // Comercial acessa a visão de comissões pessoais — mas só se 'comissoes' estiver
   // efetivo p/ ele; senão bateria no gate de /financeiro/comissoes e ricochetearia
   // (sidebar mostra Financeiro → clica → comissoes → /dashboard). Vai direto.

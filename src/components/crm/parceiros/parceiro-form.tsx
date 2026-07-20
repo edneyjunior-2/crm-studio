@@ -24,14 +24,19 @@ import {
 import { createParceiro, updateParceiro } from '@/app/(crm)/parceiros/actions'
 import type { Parceiro } from '@/types'
 
+/** Sentinela do Select — Base UI não aceita string vazia como value de item. */
+const SEM_ACESSO = '__sem_acesso__'
+
 interface ParceiroFormProps {
   parceiro?: Parceiro
   trigger: React.ReactNode
   profiles?: { id: string; full_name: string }[]
+  /** Usuários com role 'parceiro' — candidatos a login do portal deste cadastro. */
+  usuariosParceiro?: { id: string; full_name: string }[]
   currentUserId?: string
 }
 
-export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }: ParceiroFormProps) {
+export function ParceiroForm({ parceiro, trigger, profiles = [], usuariosParceiro = [], currentUserId }: ParceiroFormProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [nome, setNome] = useState(parceiro?.nome ?? '')
@@ -49,6 +54,7 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
   const [responsavelId, setResponsavelId] = useState(
     parceiro?.responsavel_id ?? currentUserId ?? ''
   )
+  const [profileId, setProfileId] = useState(parceiro?.profile_id ?? '')
 
   // Resincroniza todos os campos quando o parceiro muda entre aberturas do dialog
   useEffect(() => {
@@ -62,6 +68,7 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
     setObservacoes(parceiro?.observacoes ?? '')
     setContratoAssinado(parceiro?.contrato_assinado ?? false)
     setResponsavelId(parceiro?.responsavel_id ?? currentUserId ?? '')
+    setProfileId(parceiro?.profile_id ?? '')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, parceiro?.id])
 
@@ -81,6 +88,7 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
     formData.set('observacoes', observacoes)
     formData.set('contrato_assinado', String(contratoAssinado))
     formData.set('responsavel_id', responsavelId)
+    formData.set('profile_id', profileId)
 
     startTransition(async () => {
       const result = parceiro
@@ -106,6 +114,7 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
         setObservacoes('')
         setContratoAssinado(false)
         setResponsavelId(currentUserId ?? '')
+        setProfileId('')
       }
     })
   }
@@ -152,7 +161,11 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
                   <SelectTrigger id="responsavel_id">
                     <span className="flex flex-1 text-left line-clamp-1 text-sm">
                       {responsavelId
-                        ? (profiles.find(p => p.id === responsavelId)?.full_name ?? responsavelId)
+                        ? (profiles.find(p => p.id === responsavelId)?.full_name
+                            // Responsável que saiu da lista (virou parceiro, foi
+                            // removido): o vínculo é preservado no submit, mas o
+                            // UUID cru no trigger não ajuda ninguém.
+                            ?? <span className="text-muted-foreground">Usuário indisponível</span>)
                         : <span className="text-muted-foreground">Selecione o responsável</span>}
                     </span>
                   </SelectTrigger>
@@ -164,6 +177,41 @@ export function ParceiroForm({ parceiro, trigger, profiles = [], currentUserId }
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {usuariosParceiro.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="profile_id">Acesso ao portal</Label>
+                {/* Base UI + UUID dentro de Dialog: renderiza o label do estado
+                    no trigger, nunca confia no SelectValue (convenção do projeto). */}
+                <Select
+                  value={profileId || SEM_ACESSO}
+                  onValueChange={(v) => setProfileId(v === SEM_ACESSO ? '' : (v ?? ''))}
+                  name="profile_id"
+                >
+                  <SelectTrigger id="profile_id">
+                    <span className="flex flex-1 text-left line-clamp-1 text-sm">
+                      {profileId
+                        ? (usuariosParceiro.find((p) => p.id === profileId)?.full_name
+                            // Vínculo órfão: o usuário deixou de ter role 'parceiro'.
+                            // Mostrar o UUID cru não diz nada a ninguém.
+                            ?? <span className="text-muted-foreground">Usuário sem acesso de parceiro</span>)
+                        : <span className="text-muted-foreground">Sem acesso ao sistema</span>}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SEM_ACESSO}>Sem acesso ao sistema</SelectItem>
+                    {usuariosParceiro.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground">
+                  Vincule o usuário parceiro para ele acompanhar, no portal, os negócios que indicou.
+                </span>
               </div>
             )}
 

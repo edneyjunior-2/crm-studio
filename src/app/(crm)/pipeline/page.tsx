@@ -7,6 +7,7 @@ import { getAuthUser } from '@/lib/auth'
 import { getPipelineConfig } from '@/lib/pipeline-config'
 import { Button } from '@/components/ui/button'
 import { KanbanBoard } from '@/components/crm/pipeline/kanban-board'
+import { PipelineParceiro } from './pipeline-parceiro'
 import { NegocioForm } from '@/components/crm/pipeline/negocio-form'
 import type { NegocioComRelacoes, Cliente, Solucao, Parceiro, Profile, Role } from '@/types'
 
@@ -18,6 +19,11 @@ export default async function PipelinePage() {
   // empresaId EFETIVO (empresa_ativa_id p/ platform admin) — nunca ler
   // profiles.empresa_id direto aqui (ver studio-padroes-multitenant-rls).
   const auth = await getAuthUser()
+
+  // Parceiro externo tem visão própria, só leitura, antes de qualquer carga:
+  // os fetches abaixo (clientes, parceiros, profiles, soluções) batem em
+  // tabelas que a RLS nega pra ele e alimentam formulário/drag que ele não usa.
+  if (auth.role === 'parceiro') return <PipelineParceiro />
 
   // Carrega etapas dinâmicas do tenant junto com o restante em paralelo
   const now = new Date()

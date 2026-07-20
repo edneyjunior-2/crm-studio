@@ -67,7 +67,7 @@ const navItems: NavItem[] = [
     // sem modulo → infra, sempre visível para papéis internos.
     // Parceiro (externo) é a exceção: dashboard mostra pipeline/financeiro do
     // escritório inteiro — fora do escopo dele. A página também redireciona
-    // parceiro pra /processos por segurança; isto só esconde o item do menu.
+    // parceiro pra /pipeline por segurança; isto só esconde o item do menu.
     roles: ['admin', 'socio', 'comercial'],
   },
   {
@@ -320,11 +320,25 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
     }
   }, [modulosAtivos])
 
+  const isParceiro = profile.role === 'parceiro'
+
   const visibleItems = navItems.filter((item) => {
     // Filtro de role (AND com filtro de módulo)
     if (item.roles && !item.roles.includes(profile.role)) return false
+    // Parceiro é portal externo: vê só os itens de topo das abas liberadas.
+    // Nenhum sub-item (histórico de perdidos, responsabilidades) faz sentido
+    // pra ele e vários batem em telas que a RLS dele nega.
+    if (isParceiro && item.isSubItem) return false
     // Sub-itens só aparecem quando o pai está ativo
     if (item.parentHref && !pathname.startsWith(item.parentHref)) return false
+    // Pro parceiro, "Financeiro" leva a /financeiro/comissoes, que é gateada
+    // por requireModulo('comissoes') — e o plano starter não tem 'comissoes'.
+    // Exige os DOIS: 'financeiro' é o módulo do próprio item (e o que o admin
+    // esconde via modulos_ocultos), 'comissoes' é o do destino. Checar só um
+    // deixaria o parceiro com uma aba que todo o resto do time já perdeu.
+    if (isParceiro && item.href === '/financeiro') {
+      return modulosAtivos.includes('financeiro') && modulosAtivos.includes('comissoes')
+    }
     // Filtro de módulo: item sem módulo → infra (sempre aparece)
     if (item.modulo && !modulosAtivos.includes(item.modulo)) return false
     return true
@@ -372,15 +386,21 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
       {/* Nav */}
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {visibleItems.map((item) => {
+          // /financeiro é a visão da empresa inteira — o parceiro nunca entra
+          // lá (a página também o redireciona). A aba dele são as comissões.
+          const href =
+            isParceiro && item.href === '/financeiro'
+              ? '/financeiro/comissoes'
+              : item.href
 
           const isActive = item.exactMatch
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(item.href + '/')
+            ? pathname === href
+            : pathname === href || pathname.startsWith(href + '/')
           const Icon = item.icon
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={href}
               title={collapsed ? item.label : undefined}
               aria-label={collapsed ? item.label : undefined}
               aria-current={isActive ? 'page' : undefined}

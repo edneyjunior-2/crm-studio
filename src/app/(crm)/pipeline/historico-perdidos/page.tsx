@@ -23,6 +23,12 @@ export default async function HistoricoPerdidosPage() {
     listarEstagios(),
   ])
 
+  // Parceiro externo tem 'pipeline' liberado (o portal dele), mas esta tela é
+  // interna: mostra motivo_perda e a triagem de desqualificados — comentário do
+  // escritório sobre o negócio, não coisa que o indicador deva ler. A visão dele
+  // é /pipeline (ver pipeline-parceiro.tsx).
+  if (profile?.role === 'parceiro') redirect('/pipeline')
+
   const slugsPerdidos = estagios.filter((e) => e.tipo === 'perdido').map((e) => e.slug)
   const slugsGanhos = estagios.filter((e) => e.tipo === 'ganho').map((e) => e.slug)
   const slugsFechamento = [...slugsPerdidos, ...slugsGanhos]

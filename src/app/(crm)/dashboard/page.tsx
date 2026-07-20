@@ -71,8 +71,9 @@ export default async function DashboardPage() {
   if (!user) redirect('/login')
 
   // Parceiro (externo) não tem dashboard — mostraria pipeline/financeiro do
-  // escritório inteiro, fora do escopo dele. Home dele é a lista de processos.
-  if (role === 'parceiro') redirect('/processos')
+  // escritório inteiro, fora do escopo dele. Home dele é o pipeline, que existe
+  // em todo tenant (processos só na advocacia).
+  if (role === 'parceiro') redirect('/pipeline')
 
   const today = todayISO()
   const sevenDaysLater = plusDaysISO(7)

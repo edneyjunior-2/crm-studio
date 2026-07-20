@@ -44,6 +44,8 @@ export interface Parceiro {
   tipo_pessoa: 'pf' | 'pj' | null
   responsavel_id: string | null
   responsavel?: { full_name: string } | null
+  /** Login do portal (profiles.role='parceiro') deste cadastro. NULL = parceiro sem acesso ao sistema. */
+  profile_id: string | null
 }
 
 export interface Cliente {

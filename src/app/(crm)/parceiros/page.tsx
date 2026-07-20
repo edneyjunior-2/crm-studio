@@ -27,7 +27,7 @@ export default async function ParceirosPage() {
       .order('nome', { ascending: true }),
     supabase
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, role')
       .order('full_name'),
   ])
 
@@ -40,7 +40,15 @@ export default async function ParceirosPage() {
     )
   }
 
-  const profilesList = (profiles ?? []) as { id: string; full_name: string }[]
+  const profilesTodos = (profiles ?? []) as { id: string; full_name: string; role: string }[]
+  // "Responsável" é o dono interno do relacionamento — parceiro externo não entra.
+  const profilesList = profilesTodos
+    .filter((p) => p.role !== 'parceiro')
+    .map(({ id, full_name }) => ({ id, full_name }))
+  // Candidatos a login do portal: só quem tem role 'parceiro'.
+  const usuariosParceiro = profilesTodos
+    .filter((p) => p.role === 'parceiro')
+    .map(({ id, full_name }) => ({ id, full_name }))
 
   const agora = new Date()
   const parceirosPendentes = (parceiros ?? [])
@@ -71,6 +79,7 @@ export default async function ParceirosPage() {
         {canEdit && (
           <ParceiroForm
             profiles={profilesList}
+            usuariosParceiro={usuariosParceiro}
             currentUserId={user.id}
             trigger={
               <Button>
@@ -86,6 +95,7 @@ export default async function ParceirosPage() {
         parceiros={(parceiros ?? []) as Parceiro[]}
         canEdit={canEdit}
         profiles={profilesList}
+        usuariosParceiro={usuariosParceiro}
         currentUserId={user.id}
       />
     </div>

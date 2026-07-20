@@ -24,6 +24,7 @@ export async function createParceiro(formData: FormData): Promise<{ error?: stri
     comissao_percentual: comissaoPercentual,
     created_by: userId,
     responsavel_id: (formData.get('responsavel_id') as string) || userId,
+    profile_id: (formData.get('profile_id') as string) || null,
   })
 
   if (error) return { error: error.message }
@@ -54,6 +55,7 @@ export async function updateParceiro(
       observacoes: (formData.get('observacoes') as string) || null,
       comissao_percentual: comissaoPercentual,
       responsavel_id: (formData.get('responsavel_id') as string) || null,
+      profile_id: (formData.get('profile_id') as string) || null,
     })
     .eq('id', id)
 
