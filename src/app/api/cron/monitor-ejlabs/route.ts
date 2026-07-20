@@ -38,9 +38,12 @@ async function handler(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Observabilidade (achado de auditoria 2026-07-18) — fire-and-forget, nunca
-  // lança nem atrasa a computação real abaixo.
-  pingHealthcheck('HEALTHCHECKS_URL_MONITOR')
+  // Observabilidade (achado de auditoria 2026-07-18) — AQUI precisa de await
+  // (diferente dos outros crons): computarSensores() abaixo lê de volta o
+  // status desse MESMO check via API do healthchecks.io (é o vigia de si
+  // mesmo). Sem await virava corrida — a leitura às vezes batia antes do
+  // ping ser processado, mostrando "atrasado" com o cron rodando em dia.
+  await pingHealthcheck('HEALTHCHECKS_URL_MONITOR')
 
   const db = createAdminClient()
   const sensores = await computarSensores(db)
