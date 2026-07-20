@@ -27,6 +27,27 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-versao-do-sistema',
+    data: '2026-07-20',
+    titulo: 'Agora você vê a versão do CRM Studio',
+    tipo: 'novidade',
+    itens: [
+      'Em Minha Conta, um selo mostra a versão atual do sistema — sinal de que o CRM Studio está sempre evoluindo',
+    ],
+  },
+  {
+    id: '2026-07-20-portal-parceiro-processos',
+    data: '2026-07-20',
+    titulo: 'Quem indica casos para o escritório agora acompanha pelo portal',
+    tipo: 'novidade',
+    modulo: 'advocacia',
+    itens: [
+      'O parceiro que indicou um processo passa a ver esse processo no portal dele, sem precisar ligar para o escritório perguntar como está',
+      'Ele vê só a capa do processo — nada de andamentos, prazos, documentos ou anotações internas',
+      'O portal mostra apenas as abas que fazem sentido para cada parceiro: quem indica processos vê Processos, quem indica negócios vê o funil, e ninguém fica com uma aba vazia na tela',
+    ],
+  },
+  {
     id: '2026-07-20-atendimento-envio-midia',
     data: '2026-07-20',
     titulo: 'Envie foto, áudio ou PDF direto no Atendimento',

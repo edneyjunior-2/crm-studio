@@ -7,9 +7,14 @@ import { GoogleConnectFeedback } from '@/components/crm/google/google-connect-fe
 import { RefazerTourBtn } from '@/components/crm/refazer-tour-btn'
 import { OabForm } from '@/components/crm/minha-conta/oab-form'
 import { AvatarForm } from '@/components/crm/minha-conta/avatar-form'
+import packageJson from '../../../../package.json'
 
 // Site de marketing onde ficam os demais produtos/verticais do CRM Studio.
 const SITE_PRODUTOS = 'https://www.crmstudio.com.br'
+
+// Número de versão exibido pro usuário — sobe manualmente, só em marcos
+// conscientes (não a cada deploy). Fonte única: package.json.
+const VERSAO_SISTEMA = packageJson.version.split('.').slice(0, 2).join('.')
 
 export default async function MinhaContaPage({
   searchParams,
@@ -76,9 +81,17 @@ export default async function MinhaContaPage({
           )}
         </div>
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
-            Minha Conta
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground font-[family-name:var(--font-heading)]">
+              Minha Conta
+            </h2>
+            <span
+              title="Versão do CRM Studio"
+              className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+            >
+              v{VERSAO_SISTEMA}
+            </span>
+          </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Gerencie suas preferências e integrações.
           </p>
