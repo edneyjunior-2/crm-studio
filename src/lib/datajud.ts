@@ -425,6 +425,7 @@ const ROTULOS_COMPLEMENTO: Record<string, string> = {
   tipo_de_conclusao:                   'Tipo de conclusão',
   tipo_de_distribuicao_redistribuicao: 'Tipo de distribuição',
   tipo_de_audiencia:                   'Tipo de audiência',
+  situacao_da_audiencia:               'Situação da audiência',
   motivo_da_remessa:                   'Motivo da remessa',
   motivo_do_cancelamento:              'Motivo do cancelamento',
   tipo_de_decisao:                     'Tipo de decisão',

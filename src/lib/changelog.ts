@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-processos-audiencias-passadas-e-movimentacao-em-branco',
+    data: '2026-07-20',
+    titulo: 'Audiências já realizadas não aparecem mais pedindo para agendar',
+    tipo: 'correcao',
+    modulo: 'advocacia',
+    itens: [
+      'No card de audiências da tela do processo, só aparecem agora as que ainda vão acontecer — audiências antigas não mostram mais o botão "Agendar no calendário" (elas continuam no histórico de movimentações, só saíram desse card de ação)',
+      'Corrigimos movimentações que chegavam do tribunal sem descrição (apareciam em branco na linha do tempo) — agora mostram uma indicação de qual movimentação é',
+    ],
+  },
+  {
     id: '2026-07-18-atendimento-leila-topicos-horario-handoff',
     data: '2026-07-18',
     titulo: 'Mais controle sobre como a Leila atende: assuntos proibidos, horário e transferência automática',

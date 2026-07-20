@@ -207,10 +207,20 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     parceiroVinculado = pcRaw ?? null
   }
 
-  // Audiências (futuras e passadas)
+  const hojeStr = (() => {
+    const h = new Date()
+    return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`
+  })()
+
+  // Próximas audiências: card de ação (agendar no calendário) só faz sentido
+  // pra audiência que ainda vai acontecer. As já realizadas continuam visíveis
+  // na aba Movimentações (com o badge "Audiência"), só saem deste card de topo.
+  // Mesmo critério de `listarAudienciasEmpresa` em processos-prazos-calendario.ts.
   type MovRow = { id: string; descricao: string; complemento: string | null; data_movimentacao: string; codigo_movimento: number | null }
   const movimentacoesTyped = (movimentacoes ?? []) as MovRow[]
-  const audiencias = movimentacoesTyped.filter((m) => isAudiencia(m.descricao))
+  const audiencias = movimentacoesTyped.filter(
+    (m) => isAudiencia(m.descricao) && m.data_movimentacao.slice(0, 10) >= hojeStr,
+  )
 
   // Valores do resumo (KPIs)
   const movCount = movimentacoes?.length ?? 0
@@ -281,11 +291,6 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
   // parsing nosso. Sem um sinal visual, isso parece um erro no sistema (o mês
   // aparece no topo do histórico, acima de "hoje"). Marca como `futura` pra a
   // timeline explicar em vez de esconder ou reordenar o dado.
-  const hojeStr = (() => {
-    const h = new Date()
-    return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`
-  })()
-
   const recenteId = gruposMov[0]?.itens[0]?.id ?? null
   const gruposTimeline = gruposMov.map((g) => ({
     mes: g.mes,
@@ -509,7 +514,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           fechada pra parceiro (RLS); a lista já chega vazia pra ele. */}
       {!isParceiro && audiencias.length > 0 && (
         <div className="flex flex-col gap-3">
-          <h3 className="text-base font-semibold text-foreground">Audiências</h3>
+          <h3 className="text-base font-semibold text-foreground">Próximas Audiências</h3>
           <div className="flex flex-col gap-2">
             {audiencias.map((a) => (
               <div

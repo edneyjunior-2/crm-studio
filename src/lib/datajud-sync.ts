@@ -240,7 +240,9 @@ async function processarResultado(
       processo_id:       processo.id,
       empresa_id:        processo.empresa_id,
       codigo_movimento:  m.codigo,
-      descricao:         m.nome,
+      // Alguns tribunais devolvem `nome` vazio pra certos códigos (ex.: 15246) —
+      // sem fallback, vira uma linha em branco na timeline (parece corrompida).
+      descricao:         m.nome?.trim() || `Movimentação (código ${m.codigo ?? '?'})`,
       complemento:       m.complemento || null,
       data_movimentacao: dataMovimentacao,
       lido:              primeiraSincronizacao,
