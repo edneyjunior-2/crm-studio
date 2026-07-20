@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-20-atendimento-remove-numero-tecnico',
+    data: '2026-07-20',
+    titulo: 'Tela de Atendimento mais limpa',
+    tipo: 'melhoria',
+    modulo: 'atendimento',
+    itens: [
+      'Removemos o código técnico do WhatsApp que aparecia no topo da tela de Atendimento — ele não servia pra nada no seu dia a dia',
+    ],
+  },
+  {
     id: '2026-07-20-atendimento-arquivar-conversas',
     data: '2026-07-20',
     titulo: 'Organize seu Atendimento: agora dá para arquivar conversas',

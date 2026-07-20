@@ -23,14 +23,6 @@ export default async function AtendimentoPage({
 
   const admin = createAdminClient()
 
-  // Número do WhatsApp configurado p/ esta empresa (atendimento/robô)
-  const { data: cfgSdr } = await admin
-    .from('clientes_sdr')
-    .select('wa_phone_number_id')
-    .eq('empresa_id', empresaId)
-    .maybeSingle()
-  const numeroAtendimento = cfgSdr?.wa_phone_number_id ?? null
-
   // Conversas DESTA empresa, mais recentes primeiro (last_inbound_at, fallback updated_at).
   const { data: conversas, error: convErr } = await admin
     .from('conversations')
@@ -100,7 +92,6 @@ export default async function AtendimentoPage({
       conversas={listaConversas}
       selecionada={selecionada}
       mensagens={mensagens}
-      numeroAtendimento={numeroAtendimento}
       clientesComTelefone={clientesComTelefone}
     />
   )

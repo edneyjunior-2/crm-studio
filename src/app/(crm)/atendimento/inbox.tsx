@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   MessagesSquare, Bot, User, CheckCheck, CornerUpLeft,
-  Search, Plus, Smartphone, Pencil, Check, X, Loader2, ArrowLeft, Send, UserPlus,
+  Search, Plus, Check, X, Loader2, ArrowLeft, Send, UserPlus,
   Archive, ArchiveRestore,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -15,7 +15,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem } from '@/components/u
 import {
   assumirConversa, devolverAoBot, resolverConversa, marcarLida,
   arquivarConversa, desarquivarConversa,
-  salvarNumeroAtendimento, iniciarConversa, reabrirConversaComTemplate, responderConversa,
+  iniciarConversa, reabrirConversaComTemplate, responderConversa,
   salvarContatoConversa, buscarClientesPorNome, vincularClienteExistente,
 } from './atendimento-actions'
 
@@ -104,11 +104,10 @@ interface InboxProps {
   conversas: Conversa[]
   selecionada: Conversa | null
   mensagens: Mensagem[]
-  numeroAtendimento: string | null
   clientesComTelefone: ClienteComTelefone[]
 }
 
-export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento, clientesComTelefone }: InboxProps) {
+export function Inbox({ conversas, selecionada, mensagens, clientesComTelefone }: InboxProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [busca, setBusca] = useState('')
@@ -153,9 +152,6 @@ export function Inbox({ conversas, selecionada, mensagens, numeroAtendimento, cl
           <Plus /> Nova conversa
         </Button>
       </div>
-
-      {/* Configuração do número do atendimento */}
-      <NumeroAtendimento numero={numeroAtendimento} />
 
       <div className="flex h-[calc(100vh-16rem)] overflow-hidden rounded-xl border border-border bg-card">
         {/* Lista (esquerda) */}
@@ -279,71 +275,6 @@ function FiltroPill({ ativo, onClick, children }: { ativo: boolean; onClick: () 
     >
       {children}
     </button>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Configuração do número do atendimento (cliente define; é o número da Meta)
-// ---------------------------------------------------------------------------
-function NumeroAtendimento({ numero }: { numero: string | null }) {
-  const router = useRouter()
-  const [editando, setEditando] = useState(!numero)
-  const [valor, setValor] = useState(numero ?? '')
-  const [salvando, startSalvar] = useTransition()
-
-  function salvar() {
-    if (!valor.trim()) { toast.error('Informe o número do WhatsApp.'); return }
-    startSalvar(async () => {
-      const res = await salvarNumeroAtendimento(valor.trim())
-      if (res.error) { toast.error(res.error); return }
-      toast.success('Número salvo.')
-      setEditando(false)
-      router.refresh()
-    })
-  }
-
-  if (!editando && numero) {
-    return (
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2.5">
-        <div className="flex items-center gap-2 text-sm">
-          <Smartphone className="size-4 text-muted-foreground" />
-          <span className="text-muted-foreground">Número do atendimento:</span>
-          <span className="font-medium text-foreground">{numero}</span>
-        </div>
-        <button onClick={() => setEditando(true)} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <Pencil className="size-3.5" /> Editar
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-      <div className="flex items-center gap-2">
-        <Smartphone className="size-4 text-amber-700 dark:text-amber-400" />
-        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Número do WhatsApp do atendimento</p>
-      </div>
-      <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-400/90">
-        Informe o número que o robô (Leila) vai usar para atender. Ele precisa ser o <strong>mesmo número
-        liberado na sua conta WhatsApp Business API (Meta)</strong> — é por ele que as conversas chegam aqui.
-      </p>
-      <div className="mt-1 flex items-center gap-2">
-        <input
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          placeholder="Ex.: 5571999998888 (ou o phone_number_id da Meta)"
-          className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40"
-        />
-        <Button onClick={salvar} disabled={salvando}>
-          {salvando ? <Loader2 className="animate-spin" /> : <Check />} Salvar
-        </Button>
-        {numero && (
-          <Button variant="outline" onClick={() => { setEditando(false); setValor(numero) }} disabled={salvando}>
-            <X /> Cancelar
-          </Button>
-        )}
-      </div>
-    </div>
   )
 }
 

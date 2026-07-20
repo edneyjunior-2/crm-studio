@@ -135,42 +135,6 @@ export async function contarConversasNaoLidas(): Promise<number> {
 }
 
 /**
- * Salva o número do WhatsApp do atendimento (vira o número do robô para esta
- * empresa). Deve ser o MESMO número liberado na WhatsApp Cloud API da Meta.
- */
-export async function salvarNumeroAtendimento(numero: string): Promise<{ error?: string }> {
-  // Apenas admins podem alterar o número do WhatsApp da empresa.
-  let empresaId: string
-  try {
-    const auth = await getAuthAdmin()
-    if (!auth.empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
-    empresaId = auth.empresaId
-  } catch {
-    return { error: 'Apenas administradores podem alterar o número do WhatsApp.' }
-  }
-  const num = numero?.trim()
-  if (!num) return { error: 'Informe o número do WhatsApp.' }
-
-  const admin = createAdminClient()
-  const { data: existente } = await admin
-    .from('clientes_sdr')
-    .select('id')
-    .eq('empresa_id', empresaId)
-    .maybeSingle()
-
-  const { error } = existente?.id
-    ? await admin.from('clientes_sdr').update({ wa_phone_number_id: num, updated_at: new Date().toISOString() }).eq('id', existente.id)
-    : await admin.from('clientes_sdr').insert({ empresa_id: empresaId, wa_phone_number_id: num, nome_assistente: 'Leila' })
-
-  if (error) {
-    if (error.code === '23505') return { error: 'Esse número já está vinculado a outra conta.' }
-    return { error: error.message }
-  }
-  revalidatePath('/atendimento')
-  return {}
-}
-
-/**
  * Envia uma resposta pelo WhatsApp numa conversa existente.
  *
  * O envio de verdade acontece no app-sdr (dono das credenciais da Cloud API) via
