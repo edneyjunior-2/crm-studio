@@ -572,7 +572,13 @@ async function sensorDatajudFilaTribunal(db: AdminClient): Promise<SensorComputa
     }
   }
 
-  const TRES_HORAS_MS = 3 * 60 * 60 * 1000
+  // Limite fixo de "3h sem avançar" ignorava que o cron só roda 3h-11h UTC —
+  // depois que a janela fecha (ex.: 14h, 20h UTC), TODO tribunal fica parado
+  // por design até a janela reabrir, e o sensor gritava alarme falso o dia
+  // inteiro. Corrigido: mesmo corte que "Cron — atualizar-processos" usa
+  // (inicioDaJanelaEsperada) — só é travado de verdade quem não avançou nem
+  // uma vez desde que a janela ativa mais recente abriu.
+  const cutoff = inicioDaJanelaEsperada(new Date())
   const travados: string[] = []
   for (const slug of todosOsTribunais) {
     const ts = minPorTribunal.get(slug) ?? null
@@ -580,9 +586,9 @@ async function sensorDatajudFilaTribunal(db: AdminClient): Promise<SensorComputa
       travados.push(`${slug}: nunca sincronizado`)
       continue
     }
-    const idade = Date.now() - new Date(ts).getTime()
-    if (idade > TRES_HORAS_MS) {
-      travados.push(`${slug}: sem avançar há ${Math.floor(idade / (60 * 60 * 1000))}h`)
+    if (new Date(ts) < cutoff) {
+      const idadeHoras = Math.floor((Date.now() - new Date(ts).getTime()) / (60 * 60 * 1000))
+      travados.push(`${slug}: sem avançar há ${idadeHoras}h (antes da janela iniciada em ${cutoff.toISOString()})`)
     }
   }
 
