@@ -40,7 +40,11 @@ const AREA_FINANCEIRO = 'Financeiro'
 const AREA_INFRA = 'Infraestrutura'
 
 function msg(e: unknown): string {
-  return e instanceof Error ? e.message : String(e)
+  if (e instanceof Error) return e.message
+  // Erros do PostgREST/Supabase (ex.: coluna inexistente) não são instances de
+  // Error — são objetos com .message — sem isso vira "[object Object]" no alerta.
+  if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') return e.message
+  return String(e)
 }
 
 function isoHorasAtras(horas: number): string {
@@ -222,12 +226,30 @@ async function sensorAtendimentoEntregaFalha(db: AdminClient): Promise<SensorCom
   const nome = 'Atendimento — falhas de entrega de mensagem'
   const cutoff = isoHorasAtras(6)
 
-  const { data: falhas, error } = await db
-    .from('messages')
-    .select('id, delivery_erro')
-    .eq('delivery_status', 'failed')
-    .gt('created_at', cutoff)
-  if (error) throw error
+  // 42703 = coluna inexistente — cobre a janela entre o deploy deste sensor e a
+  // migration que cria messages.delivery_erro sendo rodada (não são atômicos:
+  // código auto-deploya, migration é manual). Sem esse fallback, o sensor
+  // quebra inteiro e dispara alerta por um problema que não existe de verdade.
+  let falhas: Array<{ id: string; delivery_erro?: string | null }> | null
+  {
+    const { data, error } = await db
+      .from('messages')
+      .select('id, delivery_erro')
+      .eq('delivery_status', 'failed')
+      .gt('created_at', cutoff)
+    if (error?.code === '42703') {
+      const semColuna = await db
+        .from('messages')
+        .select('id')
+        .eq('delivery_status', 'failed')
+        .gt('created_at', cutoff)
+      if (semColuna.error) throw semColuna.error
+      falhas = semColuna.data
+    } else {
+      if (error) throw error
+      falhas = data
+    }
+  }
 
   const n = falhas?.length ?? 0
   const status = n === 0 ? 'ok' : n <= 4 ? 'alerta' : 'critico'
