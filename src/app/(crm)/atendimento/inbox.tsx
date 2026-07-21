@@ -17,6 +17,7 @@ import {
   arquivarConversa, desarquivarConversa, enviarMidiaConversa,
   iniciarConversa, reabrirConversaComTemplate, responderConversa,
   salvarContatoConversa, buscarClientesPorNome, vincularClienteExistente,
+  verificarJanela24hWhatsApp,
 } from './atendimento-actions'
 
 export interface Conversa {
@@ -289,9 +290,27 @@ function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; client
   const [mensagem, setMensagem] = useState('')
   const [enviando, startEnviar] = useTransition()
   const [reabrindo, startReabrir] = useTransition()
-  // true quando iniciarConversa devolveu foraDaJanela24h — troca os botões pela
-  // opção de reabrir com o template aprovado em vez do texto livre digitado acima.
+  // true quando iniciarConversa devolveu foraDaJanela24h (reativo) OU quando a
+  // checagem prévia abaixo já detectou que o contato esfriou (proativo) —
+  // troca os botões pela opção de reabrir com o template em vez do texto livre.
   const [foraDaJanela, setForaDaJanela] = useState(false)
+  const checagemIdRef = useRef(0)
+
+  // Checagem proativa: ao digitar um número válido, verifica (com debounce) se
+  // o contato já conversou nas últimas 24h — evita a tentativa de texto livre
+  // fadada a falhar quando é um contato que nunca falou com a empresa.
+  const numeroValido = numero.replace(/\D/g, '').length >= 10
+  useEffect(() => {
+    if (!numeroValido) return
+    const meuId = ++checagemIdRef.current
+    const timer = setTimeout(() => {
+      verificarJanela24hWhatsApp(numero).then((res) => {
+        if (checagemIdRef.current !== meuId) return // número já mudou, resposta desatualizada
+        setForaDaJanela(!res.dentroDaJanela)
+      })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [numero, numeroValido])
 
   function escolherCliente(id: string | undefined) {
     setClienteId(id)
@@ -367,7 +386,7 @@ function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; client
             <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} rows={3} placeholder="Escreva a mensagem inicial..."
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40" />
           </div>
-          {foraDaJanela ? (
+          {foraDaJanela && numeroValido ? (
             <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
               <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
                 Esse contato não fala com você há mais de 24h — o WhatsApp exige uma mensagem-modelo

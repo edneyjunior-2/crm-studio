@@ -48,6 +48,16 @@ export const CHANGELOG: Release[] = [
     ],
   },
   {
+    id: '2026-07-21-nova-conversa-avisa-antes-de-tentar',
+    data: '2026-07-21',
+    titulo: '"Nova conversa" já avisa quando o contato exige mensagem-modelo',
+    tipo: 'melhoria',
+    modulo: 'atendimento',
+    itens: [
+      'Ao digitar o número de um contato que nunca falou com você (ou que esfriou há mais de 24h), a tela já avisa antes de você tentar mandar a mensagem — e o botão já manda direto a mensagem-modelo aprovada, sem a tentativa que ia falhar de qualquer jeito',
+    ],
+  },
+  {
     id: '2026-07-21-atendimento-reabrir-com-template-na-resposta',
     data: '2026-07-21',
     titulo: 'Cliente esfriou? Agora dá para reabrir a conversa sem sair da tela',

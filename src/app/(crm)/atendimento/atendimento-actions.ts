@@ -437,6 +437,35 @@ export async function listarClientesComTelefone(): Promise<
   return (data ?? []) as { id: string; razao_social: string; contato_telefone: string }[]
 }
 
+const JANELA_ATENDIMENTO_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Verifica, só de leitura, se o número já tem conversa com mensagem recebida
+ * há menos de 24h — usado por "Nova conversa" pra já avisar antes de tentar
+ * texto livre (que a Meta vai rejeitar) quando o contato nunca falou ou
+ * esfriou. Sem conversa/sem `last_inbound_at`/erro de query = `false`
+ * (conservador: melhor oferecer o template à toa do que tentar texto livre
+ * fadado a falhar). O envio real continua sendo a fonte da verdade — isso é
+ * só uma dica de UX, não substitui o retorno `foraDaJanela24h` da Meta.
+ */
+export async function verificarJanela24hWhatsApp(numero: string): Promise<{ dentroDaJanela: boolean }> {
+  const { empresaId } = await authEmpresa()
+  const num = numero?.replace(/\D/g, '')
+  if (!num || num.length < 10) return { dentroDaJanela: false }
+
+  const admin = createAdminClient()
+  const { data: conv, error } = await admin
+    .from('conversations')
+    .select('last_inbound_at')
+    .eq('empresa_id', empresaId)
+    .eq('wa_number', num)
+    .maybeSingle()
+  if (error || !conv?.last_inbound_at) return { dentroDaJanela: false }
+
+  const decorrido = Date.now() - new Date(conv.last_inbound_at).getTime()
+  return { dentroDaJanela: decorrido < JANELA_ATENDIMENTO_MS }
+}
+
 /**
  * Cria (ou reusa, casando por `wa_number`) a conversa desta empresa para
  * `num`, vinculando a `clienteId` quando informado (confirmando antes que é
