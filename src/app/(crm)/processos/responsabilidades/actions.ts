@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendReatribuicaoEmail } from '@/lib/email'
 
+// Suspensão pedida por Edney em 2026-07-21 (1 semana) — reavaliar/remover após essa data.
+const EMAIL_REATRIBUICAO_SUSPENSO_ATE = new Date(2026, 6, 28)
+
 export async function reatribuirResponsavel(
   processoId: string,
   novoAdvogadoId: string | null,
@@ -36,7 +39,7 @@ export async function reatribuirResponsavel(
   revalidatePath(`/processos/${processoId}`)
 
   // Notificar o novo responsável por e-mail (não bloqueia a resposta se falhar)
-  if (novoAdvogadoId) {
+  if (novoAdvogadoId && new Date() >= EMAIL_REATRIBUICAO_SUSPENSO_ATE) {
     const processo = data[0] as { id: string; numero_processo: string; assunto: string | null }
     try {
       const admin = createAdminClient()
