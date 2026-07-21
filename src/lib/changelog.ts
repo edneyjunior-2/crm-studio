@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-21-responder-whatsapp-conversa-aberta',
+    data: '2026-07-21',
+    titulo: 'Responder mensagens de WhatsApp direto pelo CRM voltou a funcionar',
+    tipo: 'correcao',
+    modulo: 'atendimento',
+    itens: [
+      'Ao responder uma conversa já aberta no Atendimento, a mensagem agora é enviada de verdade pelo WhatsApp do cliente — antes ficava travada com um aviso de "integração não configurada"',
+    ],
+  },
+  {
     id: '2026-07-20-contratos-signatario-vira-cliente',
     data: '2026-07-20',
     titulo: 'Corrigido: quem assina o contrato virava parceiro, não cliente',

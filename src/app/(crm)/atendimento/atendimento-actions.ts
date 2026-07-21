@@ -234,12 +234,8 @@ export async function contarConversasNaoLidas(): Promise<number> {
 }
 
 /**
- * Envia uma resposta pelo WhatsApp numa conversa existente.
- *
- * O envio de verdade acontece no app-sdr (dono das credenciais da Cloud API) via
- * `POST /api/chat/conversas/[id]/enviar` — esta action só valida que a conversa é
- * desta empresa e repassa a chamada, autenticada por SDR_CHAT_API_KEY (nunca exposta
- * ao client). O app-sdr já cuida de gravar a mensagem e mudar o status para 'humano'.
+ * Envia uma resposta pelo WhatsApp numa conversa existente — direto pela Cloud
+ * API da Meta (mesmo padrão de `iniciarConversa`), sem depender do app-sdr.
  */
 export async function responderConversa(id: string, texto: string): Promise<{ error?: string }> {
   const { empresaId } = await authEmpresa()
@@ -249,29 +245,27 @@ export async function responderConversa(id: string, texto: string): Promise<{ er
   const admin = createAdminClient()
   const { data: conv } = await admin
     .from('conversations')
-    .select('id')
+    .select('id, wa_number')
     .eq('id', id)
     .eq('empresa_id', empresaId)
     .maybeSingle()
-  if (!conv) return { error: 'Acesso negado.' }
+  if (!conv?.wa_number) return { error: 'Acesso negado.' }
 
-  const url = process.env.SDR_CHAT_API_URL
-  const key = process.env.SDR_CHAT_API_KEY
-  if (!url || !key) return { error: 'Integração de envio não configurada.' }
+  const envio = await enviarMensagemWhatsApp(conv.wa_number, msg)
 
-  try {
-    const res = await fetch(`${url}/api/chat/conversas/${id}/enviar`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texto: msg }),
-    })
-    if (!res.ok) {
-      const corpo = await res.text().catch(() => '')
-      return { error: `Falha ao enviar a mensagem (${res.status}). ${corpo}`.trim() }
-    }
-  } catch {
-    return { error: 'Não foi possível enviar a mensagem agora. Tente de novo.' }
-  }
+  const { error: msgErr } = await admin.from('messages').insert({
+    conversation_id: id,
+    direction: 'out',
+    author_type: 'humano',
+    texto: msg,
+    delivery_status: envio.ok ? 'sent' : 'failed',
+    wa_message_id: envio.ok ? envio.messageId : null,
+    payload: envio.ok ? null : { erro: envio.erro },
+  })
+  if (msgErr) return { error: `Mensagem enviada, mas falhou ao registrar no histórico: ${msgErr.message}` }
+  if (!envio.ok) return { error: envio.erro }
+
+  await admin.from('conversations').update({ status: 'humano', ia_ativa: false }).eq('id', id)
 
   revalidatePath('/atendimento')
   return {}
