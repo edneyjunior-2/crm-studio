@@ -48,6 +48,16 @@ export const CHANGELOG: Release[] = [
     ],
   },
   {
+    id: '2026-07-21-atendimento-reabrir-com-template-na-resposta',
+    data: '2026-07-21',
+    titulo: 'Cliente esfriou? Agora dá para reabrir a conversa sem sair da tela',
+    tipo: 'melhoria',
+    modulo: 'atendimento',
+    itens: [
+      'Se o cliente não fala com você há mais de 24h e o WhatsApp bloqueia o envio de texto livre, a tela agora oferece o botão "Reabrir conversa" — que manda a mensagem-modelo aprovada na hora, sem precisar abrir "Nova conversa" de novo',
+    ],
+  },
+  {
     id: '2026-07-20-contratos-signatario-vira-cliente',
     data: '2026-07-20',
     titulo: 'Corrigido: quem assina o contrato virava parceiro, não cliente',

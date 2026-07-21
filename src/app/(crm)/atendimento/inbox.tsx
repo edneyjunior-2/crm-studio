@@ -486,14 +486,41 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
   const [enviandoAnexo, setEnviandoAnexo] = useState(false)
   const [salvandoContato, setSalvandoContato] = useState(false)
   const anexoRef = useRef<HTMLInputElement>(null)
+  // true quando responderConversa devolveu foraDaJanela24h — troca o formulário
+  // pela opção de reabrir com o template aprovado (mesmo padrão do NovaConversaDialog).
+  const [foraDaJanela, setForaDaJanela] = useState(false)
+  const [reabrindo, startReabrir] = useTransition()
+
+  // Trocar de conversa reseta o fallback de janela — ajuste durante o render
+  // (sem useEffect) para não disparar um re-render extra.
+  const [conversaIdAnterior, setConversaIdAnterior] = useState(conversa.id)
+  if (conversa.id !== conversaIdAnterior) {
+    setConversaIdAnterior(conversa.id)
+    setForaDaJanela(false)
+  }
 
   function enviar() {
     const texto = resposta.trim()
     if (!texto || enviando) return
     startEnviar(async () => {
       const res = await responderConversa(conversa.id, texto)
-      if (res.error) { toast.error(res.error); return }
+      if (res.error) {
+        if (res.foraDaJanela24h) { setForaDaJanela(true); return }
+        toast.error(res.error)
+        return
+      }
       setResposta('')
+      router.refresh()
+    })
+  }
+
+  function reabrirComTemplate() {
+    if (!conversa.wa_number) return
+    startReabrir(async () => {
+      const res = await reabrirConversaComTemplate(conversa.wa_number!, conversa.cliente_id ?? undefined)
+      if (res.error) { toast.error(res.error); return }
+      toast.success('Mensagem-modelo enviada. Assim que o cliente responder, dá pra conversar livremente.')
+      setForaDaJanela(false)
       router.refresh()
     })
   }
@@ -598,41 +625,60 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
         )}
       </div>
 
-      <form
-        onSubmit={(e) => { e.preventDefault(); enviar() }}
-        className="flex items-end gap-2 border-t border-border px-4 py-3"
-      >
-        <input
-          ref={anexoRef}
-          type="file"
-          accept={MIME_MIDIA_ENVIO.join(',')}
-          onChange={enviarAnexo}
-          className="hidden"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          disabled={enviando || enviandoAnexo}
-          onClick={() => anexoRef.current?.click()}
-          title="Anexar imagem, áudio ou PDF"
+      {foraDaJanela ? (
+        <div className="flex flex-col gap-2 border-t border-border bg-amber-50 px-4 py-3 dark:bg-amber-950/30">
+          <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+            Esse contato não fala com você há mais de 24h — o WhatsApp exige uma mensagem-modelo
+            para reabrir contato. Ao confirmar, será enviada a <strong>mensagem padrão aprovada</strong>,
+            não o texto digitado acima. Assim que ele responder, a conversa reabre e você volta a
+            conversar livremente.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => setForaDaJanela(false)} disabled={reabrindo}>
+              <X /> Voltar
+            </Button>
+            <Button size="sm" onClick={reabrirComTemplate} disabled={reabrindo}>
+              {reabrindo ? <Loader2 className="animate-spin" /> : <Send />} Reabrir conversa
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form
+          onSubmit={(e) => { e.preventDefault(); enviar() }}
+          className="flex items-end gap-2 border-t border-border px-4 py-3"
         >
-          {enviandoAnexo ? <Loader2 className="animate-spin" /> : <Paperclip />}
-        </Button>
-        <textarea
-          value={resposta}
-          onChange={(e) => setResposta(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() }
-          }}
-          placeholder="Escreva uma mensagem..."
-          rows={1}
-          disabled={enviando}
-          className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 disabled:opacity-60"
-        />
-        <Button type="submit" disabled={enviando || !resposta.trim()}>
-          {enviando ? <Loader2 className="animate-spin" /> : <Send />} Enviar
-        </Button>
-      </form>
+          <input
+            ref={anexoRef}
+            type="file"
+            accept={MIME_MIDIA_ENVIO.join(',')}
+            onChange={enviarAnexo}
+            className="hidden"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={enviando || enviandoAnexo}
+            onClick={() => anexoRef.current?.click()}
+            title="Anexar imagem, áudio ou PDF"
+          >
+            {enviandoAnexo ? <Loader2 className="animate-spin" /> : <Paperclip />}
+          </Button>
+          <textarea
+            value={resposta}
+            onChange={(e) => setResposta(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() }
+            }}
+            placeholder="Escreva uma mensagem..."
+            rows={1}
+            disabled={enviando}
+            className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40 disabled:opacity-60"
+          />
+          <Button type="submit" disabled={enviando || !resposta.trim()}>
+            {enviando ? <Loader2 className="animate-spin" /> : <Send />} Enviar
+          </Button>
+        </form>
+      )}
     </>
   )
 }

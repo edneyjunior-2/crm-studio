@@ -237,7 +237,10 @@ export async function contarConversasNaoLidas(): Promise<number> {
  * Envia uma resposta pelo WhatsApp numa conversa existente — direto pela Cloud
  * API da Meta (mesmo padrão de `iniciarConversa`), sem depender do app-sdr.
  */
-export async function responderConversa(id: string, texto: string): Promise<{ error?: string }> {
+export async function responderConversa(
+  id: string,
+  texto: string,
+): Promise<{ error?: string; foraDaJanela24h?: boolean }> {
   const { empresaId } = await authEmpresa()
   const msg = texto?.trim()
   if (!msg) return { error: 'Digite uma mensagem.' }
@@ -263,7 +266,7 @@ export async function responderConversa(id: string, texto: string): Promise<{ er
     payload: envio.ok ? null : { erro: envio.erro },
   })
   if (msgErr) return { error: `Mensagem enviada, mas falhou ao registrar no histórico: ${msgErr.message}` }
-  if (!envio.ok) return { error: envio.erro }
+  if (!envio.ok) return { error: envio.erro, foraDaJanela24h: envio.foraDaJanela24h }
 
   await admin.from('conversations').update({ status: 'humano', ia_ativa: false }).eq('id', id)
 
