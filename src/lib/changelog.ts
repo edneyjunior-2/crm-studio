@@ -27,6 +27,28 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-21-financeiro-aba-honorarios',
+    data: '2026-07-21',
+    titulo: 'Nova aba Honorários no Financeiro',
+    tipo: 'novidade',
+    modulo: 'advocacia',
+    itens: [
+      'Na tela do processo, um botão "Lançar honorário" manda o valor direto para uma conta a receber, sem precisar digitar tudo de novo em Financeiro',
+      'A nova aba Honorários mostra o que já foi recebido (mês a mês), o que ainda está esperando pagamento, e uma projeção do que os processos em aberto ainda podem render',
+    ],
+  },
+  {
+    id: '2026-07-21-calendario-prazos-editavel',
+    data: '2026-07-21',
+    titulo: 'Prazos do Calendário agora são editáveis, com calendário de mês',
+    tipo: 'melhoria',
+    modulo: 'advocacia',
+    itens: [
+      'Na aba Prazos do Calendário, agora dá para mudar a data, marcar como cumprido ou excluir um prazo direto ali, sem precisar abrir o processo',
+      'Um calendário mensal novo, só com os prazos, aparece logo abaixo da lista — navegue entre os meses e clique num prazo para editar',
+    ],
+  },
+  {
     id: '2026-07-21-processos-segundo-advogado-responsavel',
     data: '2026-07-21',
     titulo: 'Processos agora podem ter 2 advogados responsáveis',

@@ -14,6 +14,7 @@ import { MovimentacoesTimeline } from './movimentacoes-timeline'
 import { IndicacaoParceiroPrompt } from './indicacao-parceiro-prompt'
 import { ProcessoDetalheTabs } from './processo-detalhe-tabs'
 import { SolicitarGuiaDialog } from './solicitar-guia-dialog'
+import { LancarHonorarioDialog } from './lancar-honorario-dialog'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { labelStatusProcesso } from '@/lib/processos-status'
 import type { DocItem } from './doc-actions'
@@ -110,6 +111,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     { data: empresaProfiles },
     { data: clientesAdicionaisRaw },
     { data: advogadosAdicionaisRaw },
+    { data: honorarioContaReceber },
   ] = await Promise.all([
     supabase.from('movimentacoes_internas_processo').select('id, assunto, descricao, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
     supabase.from('processos_prazos').select('id, descricao, data_prazo, cumprido, responsavel_id, profiles!responsavel_id(full_name)').eq('processo_id', id).order('data_prazo', { ascending: true }),
@@ -118,7 +120,12 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     supabase.from('profiles').select('id, full_name'),
     supabase.from('processos_clientes').select('clientes(id, razao_social)').eq('processo_id', id),
     supabase.from('processos_advogados').select('profiles!advogado_id(id, full_name)').eq('processo_id', id),
+    supabase.from('contas_receber').select('id').eq('processo_id', id).maybeSingle(),
   ])
+
+  // Honorário já lançado no Financeiro? (contas_receber.processo_id) — controla
+  // se a tela mostra o botão "Lançar honorário" ou o link "Ver no Financeiro".
+  const jaLancadoHonorario = !!honorarioContaReceber
 
   if (errMov) {
     console.error('[processos] erro ao carregar movimentações:', errMov.message)
@@ -330,6 +337,12 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
         {!isParceiro && (
           <div className="flex items-center gap-2">
             <SolicitarGuiaDialog processoId={id} numeroProcesso={processo.numero_processo} />
+            <LancarHonorarioDialog
+              processoId={id}
+              numeroProcesso={processo.numero_processo}
+              honorarioCalculado={honorario}
+              jaLancado={jaLancadoHonorario}
+            />
             <Link
               href={`/processos/${id}/editar`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"

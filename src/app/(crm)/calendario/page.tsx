@@ -72,7 +72,7 @@ export default async function CalendarioPage({
     params.visao === 'mes' ? 'mes' : params.visao === 'prazos' ? 'prazos' : 'semana'
 
   // empresaId EFETIVO (empresa_ativa_id p/ platform admin; empresa_id p/ usuário comum)
-  const { empresaId } = await getAuthUser()
+  const { empresaId, role } = await getAuthUser()
   if (!empresaId) redirect('/login')
 
   // Visão "Prazos": ramo isolado e mais barato — pula toda a busca do Google
@@ -137,6 +137,7 @@ export default async function CalendarioPage({
           audiencias={audiencias}
           membrosInternos={membrosInternos}
           currentUserEmail={user.email ?? ''}
+          isAdmin={role === 'admin'}
         />
       </div>
     )

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import Link from 'next/link'
-import { Plus, TrendingUp, TrendingDown, Wallet, LayoutDashboard, FileText } from 'lucide-react'
+import { Plus, TrendingUp, TrendingDown, Wallet, LayoutDashboard, FileText, HandCoins } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth'
 import { temModulo } from '@/lib/modulos'
@@ -464,6 +464,15 @@ export default async function FinanceiroPage() {
           >
             <FileText className="size-3.5" />
             Relatório
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/financeiro/honorarios" />}
+          >
+            <HandCoins className="size-3.5" />
+            Honorários
           </Button>
         </div>
       </div>
