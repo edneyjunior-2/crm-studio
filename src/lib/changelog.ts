@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-21-whatsapp-numero-sem-duplicar-conversa',
+    data: '2026-07-21',
+    titulo: 'Corrigido: podia abrir uma conversa duplicada pro mesmo contato',
+    tipo: 'correcao',
+    modulo: 'atendimento',
+    itens: [
+      'Digitar o número de um contato que já tinha conversa (mesmo em formato ligeiramente diferente) não abre mais um chat novo e separado — o sistema reconhece que já existe conversa com aquele número e reusa a mesma',
+    ],
+  },
+  {
     id: '2026-07-21-financeiro-aba-honorarios',
     data: '2026-07-21',
     titulo: 'Nova aba Honorários no Financeiro',

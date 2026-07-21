@@ -440,6 +440,22 @@ export async function listarClientesComTelefone(): Promise<
 const JANELA_ATENDIMENTO_MS = 24 * 60 * 60 * 1000
 
 /**
+ * Normaliza um número de WhatsApp BR pro formato canônico usado em
+ * `conversations.wa_number`: DDD + 9º dígito + 8 dígitos (11 dígitos), sem
+ * DDI 55. Aceita entrada com ou sem DDI, com ou sem o 9º dígito — sem isso,
+ * o mesmo contato digitado em formatos diferentes (ex.: com/sem DDI, número
+ * antigo sem o 9) gerava/achava conversas DIFERENTES pro mesmo número real
+ * (bug real: 6 conversas presas sem o 9, 1 duplicata de conversa em prod,
+ * 2026-07-21). Nunca REMOVE um 9 real do usuário — só insere quando falta.
+ */
+function normalizarNumeroWhatsApp(numeroDigitado: string): string {
+  let d = numeroDigitado?.replace(/\D/g, '') ?? ''
+  if (d.startsWith('55') && d.length >= 12) d = d.slice(2)
+  if (d.length === 10) d = `${d.slice(0, 2)}9${d.slice(2)}`
+  return d
+}
+
+/**
  * Verifica, só de leitura, se o número já tem conversa com mensagem recebida
  * há menos de 24h — usado por "Nova conversa" pra já avisar antes de tentar
  * texto livre (que a Meta vai rejeitar) quando o contato nunca falou ou
@@ -450,7 +466,7 @@ const JANELA_ATENDIMENTO_MS = 24 * 60 * 60 * 1000
  */
 export async function verificarJanela24hWhatsApp(numero: string): Promise<{ dentroDaJanela: boolean }> {
   const { empresaId } = await authEmpresa()
-  const num = numero?.replace(/\D/g, '')
+  const num = normalizarNumeroWhatsApp(numero)
   if (!num || num.length < 10) return { dentroDaJanela: false }
 
   const admin = createAdminClient()
@@ -490,14 +506,19 @@ async function criarOuReusarConversa(
     clienteIdValido = cliente?.id ?? null
   }
 
-  const { data: existe } = await admin
+  // order + limit(1) em vez de .maybeSingle() puro: se por algum motivo
+  // excepcional existir mais de uma conversa pro mesmo número (resíduo de bug
+  // antigo de normalização), reusa sempre a MAIS ANTIGA em vez de lançar erro
+  // de "mais de uma linha" ou criar mais uma duplicata.
+  const { data: existentes } = await admin
     .from('conversations')
     .select('id')
     .eq('empresa_id', empresaId)
     .eq('wa_number', num)
-    .maybeSingle()
+    .order('created_at', { ascending: true })
+    .limit(1)
 
-  let convId = existe?.id
+  let convId = existentes?.[0]?.id
   if (!convId) {
     const { data: nova, error } = await admin
       .from('conversations')
@@ -539,8 +560,8 @@ export async function iniciarConversa(
   clienteId?: string,
 ): Promise<{ error?: string; id?: string; foraDaJanela24h?: boolean }> {
   const { empresaId } = await authEmpresa()
-  const num = numero?.replace(/\D/g, '')
-  if (!num || num.length < 10) return { error: 'Número inválido (use DDD + número).' }
+  const num = normalizarNumeroWhatsApp(numero)
+  if (num.length !== 11) return { error: 'Número inválido (use DDD + número).' }
   const msg = mensagem?.trim()
 
   const admin = createAdminClient()
@@ -586,8 +607,8 @@ export async function reabrirConversaComTemplate(
   clienteId?: string,
 ): Promise<{ error?: string; id?: string }> {
   const { empresaId, userId } = await authEmpresa()
-  const num = numero?.replace(/\D/g, '')
-  if (!num || num.length < 10) return { error: 'Número inválido (use DDD + número).' }
+  const num = normalizarNumeroWhatsApp(numero)
+  if (num.length !== 11) return { error: 'Número inválido (use DDD + número).' }
 
   const admin = createAdminClient()
   const conv = await criarOuReusarConversa(empresaId, admin, num, clienteId)
