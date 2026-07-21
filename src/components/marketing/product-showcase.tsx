@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import {
   Landmark, TrendingUp, TrendingDown, Wallet, AlertCircle,
   RefreshCw, Clock, DollarSign, AlertTriangle, Package,
   Users, CalendarMinus, CheckCircle2, XCircle,
+  Scale, Bell, CalendarClock, FolderOpen,
 } from 'lucide-react'
 import { EASE_OUT } from './motion'
 
@@ -429,19 +429,140 @@ function RhScreen({ stagger }: { stagger: (i: number) => object }) {
 
 /* --------------------------------------------------------------- advocacia -- */
 
-// Screenshot real do produto (não um mockup codado como as outras abas) — tela
-// de Processos Jurídicos, empresa de demonstração com dados 100% fictícios
-// (nenhum cliente real). Sidebar recortada para caber no chrome do showcase.
-function AdvocaciaScreen() {
+const KPIS_ADV = [
+  { label: 'Total de processos',     value: '113', Icon: Scale,      tone: 'text-foreground bg-muted' },
+  { label: 'Movimentações novas',    value: '6',   Icon: Bell,       tone: 'text-amber-600 bg-amber-50' },
+  { label: 'Em trânsito no DataJud', value: '108', Icon: RefreshCw,  tone: 'text-blue-600 bg-blue-50' },
+  { label: 'Sem dados DataJud',      value: '5',   Icon: FolderOpen, tone: 'text-muted-foreground bg-muted' },
+]
+
+const PRAZOS_ADV = [
+  { data: '19/07', badge: 'Vencido há 2 dias', urgente: true,  desc: 'Audiência de instrução e julgamento', num: '0131333-52.2026.8.05.0001' },
+  { data: '20/07', badge: 'Vencido há 1 dia',  urgente: true,  desc: 'Prazo para contestação',               num: '0121239-45.2026.8.05.0001' },
+  { data: '27/07', badge: '6 dias',            urgente: false, desc: 'Audiência de conciliação',              num: '0145219-21.2026.8.05.0001' },
+]
+
+const AREA_ADV = [
+  { label: 'Cível',          valor: 68, cor: 'bg-blue-500' },
+  { label: 'Tributário',     valor: 33, cor: 'bg-amber-500' },
+  { label: 'Precatório',     valor: 5,  cor: 'bg-violet-500' },
+  { label: 'Previdenciário', valor: 2,  cor: 'bg-chart-5' },
+]
+const AREA_MAX = Math.max(...AREA_ADV.map((a) => a.valor))
+
+const PROCESSOS_ADV = [
+  { tribunal: 'TJBA', cliente: 'Maria Aparecida Souza',        num: '1000001-00.2026.8.05.0001', assunto: 'ITBI — Imposto de Transmissão' },
+  { tribunal: 'TJBA', cliente: 'Construtora Horizonte Ltda',   num: '1000002-00.2026.8.05.0001', assunto: 'Indenização por danos materiais em obra' },
+  { tribunal: 'TRT5', cliente: 'João Batista Ferreira',        num: '1000003-00.2026.8.05.0001', assunto: 'Reclamação trabalhista — verbas rescisórias' },
+]
+
+function AdvocaciaScreen({ stagger, reduce }: { stagger: (i: number) => object; reduce: boolean }) {
   return (
-    <Image
-      src="/marketing/advocacia-processos.png"
-      alt="Tela de Processos Jurídicos do CRM Studio, com prazos, indicadores e andamento processual via DataJud"
-      width={1361}
-      height={1000}
-      className="w-full h-auto rounded-lg border border-border"
-      priority
-    />
+    <div className="flex flex-col gap-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {KPIS_ADV.map((k, i) => (
+          <motion.div key={k.label} {...stagger(i)}
+            className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5">
+            <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${k.tone}`}>
+              <k.Icon className="size-4.5" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] text-muted-foreground">{k.label}</p>
+              <p className="text-[15px] font-semibold tabular-nums">{k.value}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Prazos a vencer */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+        <div className="mb-3 flex items-center gap-2">
+          <CalendarClock className="size-4 text-amber-600" />
+          <h4 className="text-[13px] font-semibold">Prazos a vencer</h4>
+          <span className="ml-auto text-[11px] text-muted-foreground">próximos 30 dias</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          {PRAZOS_ADV.map((p, i) => (
+            <motion.div key={p.desc} {...stagger(i)} className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-[11px] text-muted-foreground">{p.data}</span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  p.urgente ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {p.badge}
+                </span>
+                <span className={`truncate text-[12px] font-medium ${p.urgente ? 'text-destructive' : 'text-foreground'}`}>
+                  {p.desc}
+                </span>
+              </div>
+              <span className="hidden shrink-0 font-mono text-[10px] text-muted-foreground sm:block">{p.num}</span>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        {/* Processos por área */}
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h4 className="mb-3 text-[13px] font-semibold">Processos por área</h4>
+          <div className="flex flex-col gap-2.5">
+            {AREA_ADV.map((a, i) => (
+              <div key={a.label} className="flex items-center gap-2 text-[11px]">
+                <span className="w-20 shrink-0 truncate text-muted-foreground">{a.label}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                  <motion.div
+                    className={`h-full rounded-full ${a.cor}`}
+                    style={{ width: `${(a.valor / AREA_MAX) * 100}%`, transformOrigin: 'left' }}
+                    initial={reduce ? false : { scaleX: 0 }} animate={{ scaleX: 1 }}
+                    transition={{ delay: reduce ? 0 : 0.1 + i * 0.06, duration: 0.5, ease: EASE_OUT }}
+                  />
+                </div>
+                <span className="w-5 shrink-0 text-right font-semibold tabular-nums">{a.valor}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Processos por status */}
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h4 className="mb-3 text-[13px] font-semibold">Processos por status</h4>
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="w-20 shrink-0 text-chart-5">Em trânsito</span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+              <motion.div
+                className="h-full rounded-full bg-chart-5"
+                style={{ transformOrigin: 'left' }}
+                initial={reduce ? false : { scaleX: 0 }} animate={{ scaleX: 1 }}
+                transition={{ delay: reduce ? 0 : 0.1, duration: 0.5, ease: EASE_OUT }}
+              />
+            </div>
+            <span className="w-5 shrink-0 text-right font-semibold tabular-nums">113</span>
+          </div>
+          <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-chart-5/10 px-2.5 py-1 text-[10px] font-medium text-chart-5">
+            <span className="size-1.5 rounded-full bg-chart-5" /> Em trânsito: 113
+          </span>
+        </div>
+      </div>
+
+      {/* Cards de processo */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {PROCESSOS_ADV.map((p, i) => (
+          <motion.div key={p.num} {...stagger(i)}
+            className="rounded-xl border border-border bg-card p-3.5">
+            <div className="mb-2 flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-semibold">
+                <Scale className="size-2.5" />{p.tribunal}
+              </span>
+              <span className="rounded-full bg-chart-5/10 px-2 py-0.5 text-[10px] font-medium text-chart-5">Em trânsito</span>
+            </div>
+            <p className="truncate text-[12px] font-semibold">{p.cliente}</p>
+            <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{p.num}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{p.assunto}</p>
+          </motion.div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -506,7 +627,7 @@ export function ProductShowcase({ defaultTab = 'pipeline' }: { defaultTab?: TabK
           >
             {tab === 'pipeline'   && <PipelineScreen stagger={stagger} />}
             {tab === 'financeiro' && <FinanceiroScreen stagger={stagger} reduce={!!reduce} />}
-            {tab === 'advocacia'  && <AdvocaciaScreen />}
+            {tab === 'advocacia'  && <AdvocaciaScreen stagger={stagger} reduce={!!reduce} />}
             {tab === 'estoque'    && <EstoqueScreen stagger={stagger} />}
             {tab === 'rh'         && <RhScreen stagger={stagger} />}
           </motion.div>
