@@ -50,6 +50,7 @@ export async function atualizarProcesso(
   const clienteIds = [...new Set(formData.getAll('cliente_ids').map((v) => v.toString().trim()).filter(Boolean))]
   const clienteId  = clienteIds[0] ?? null
   const advogadoId = (formData.get('advogado_id') as string)?.trim() || null
+  const advogadoIdAdicional = (formData.get('advogado_id_adicional') as string)?.trim() || null
   const parceiroId = (formData.get('parceiro_id') as string)?.trim() || null
   // Parceiro indicador (public.parceiros) — distinto de parceiroId acima (profiles/portal).
   const indicadorParceiroId = (formData.get('indicador_parceiro_id') as string)?.trim() || null
@@ -126,6 +127,35 @@ export async function atualizarProcesso(
       .from('processos_clientes')
       .insert(paraAdicionar.map((cliente_id) => ({ processo_id: processoId, cliente_id })))
     if (errAdicionar) return { error: errAdicionar.message }
+  }
+
+  // Sincroniza o 2º advogado responsável (opcional) com o mesmo padrão de diff
+  // acima — hoje é no máximo 1 advogado adicional, não uma lista.
+  const { data: advAtuais, error: errAdvAtuais } = await supabase
+    .from('processos_advogados')
+    .select('advogado_id')
+    .eq('processo_id', processoId)
+  if (errAdvAtuais) return { error: errAdvAtuais.message }
+
+  const advAtuaisIds = new Set((advAtuais ?? []).map((r) => r.advogado_id as string))
+  const advNovosIds  = new Set(advogadoIdAdicional ? [advogadoIdAdicional] : [])
+  const advParaRemover = [...advAtuaisIds].filter((aid) => !advNovosIds.has(aid))
+  const advParaAdicionar = [...advNovosIds].filter((aid) => !advAtuaisIds.has(aid))
+
+  if (advParaRemover.length > 0) {
+    const { error: errAdvRemover } = await supabase
+      .from('processos_advogados')
+      .delete()
+      .eq('processo_id', processoId)
+      .in('advogado_id', advParaRemover)
+    if (errAdvRemover) return { error: errAdvRemover.message }
+  }
+
+  if (advParaAdicionar.length > 0) {
+    const { error: errAdvAdicionar } = await supabase
+      .from('processos_advogados')
+      .insert(advParaAdicionar.map((advogado_id) => ({ processo_id: processoId, advogado_id })))
+    if (errAdvAdicionar) return { error: errAdvAdicionar.message }
   }
 
   revalidatePath(`/processos/${processoId}`)

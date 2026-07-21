@@ -18,6 +18,7 @@ interface ProcessoEdit {
   cliente_id: string | null
   clientes_adicionais_ids: string[]
   advogado_id: string | null
+  advogadoAdicionalId: string | null
   parceiro_id: string | null
   indicador_parceiro_id: string | null
   polo_passivo_nome:        string | null
@@ -198,6 +199,21 @@ export function EditarProcessoForm({ processo, clientes, advogados, parceiros, p
             <option value="">Nenhum</option>
             {advogados.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
           </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className={labelClass} htmlFor="advogado_id_adicional">2º advogado responsável (opcional)</label>
+          <select
+            id="advogado_id_adicional" name="advogado_id_adicional"
+            defaultValue={processo.advogadoAdicionalId ?? ''}
+            className={inputClass}
+          >
+            <option value="">Nenhum</option>
+            {advogados.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            O sync do DJEN passa a considerar a OAB dos dois responsáveis (sem duplicar publicações).
+          </p>
         </div>
 
         {/* Parceiro indicador — quem trouxe o processo (indicador comercial, public.parceiros) */}

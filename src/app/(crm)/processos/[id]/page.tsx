@@ -109,6 +109,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     { data: perfil },
     { data: empresaProfiles },
     { data: clientesAdicionaisRaw },
+    { data: advogadosAdicionaisRaw },
   ] = await Promise.all([
     supabase.from('movimentacoes_internas_processo').select('id, assunto, descricao, created_at, profiles!autor_id(full_name)').eq('processo_id', id).order('created_at', { ascending: false }),
     supabase.from('processos_prazos').select('id, descricao, data_prazo, cumprido, responsavel_id, profiles!responsavel_id(full_name)').eq('processo_id', id).order('data_prazo', { ascending: true }),
@@ -116,6 +117,7 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     supabase.from('profiles').select('role').eq('id', user.id).single(),
     supabase.from('profiles').select('id, full_name'),
     supabase.from('processos_clientes').select('clientes(id, razao_social)').eq('processo_id', id),
+    supabase.from('processos_advogados').select('profiles!advogado_id(id, full_name)').eq('processo_id', id),
   ])
 
   if (errMov) {
@@ -183,6 +185,12 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
     ...clientesAdicionais,
   ].filter((c, idx, arr) => arr.findIndex((o) => o.id === c.id) === idx)
   const parceiroPortalNome = (parceiroPortalRaw as { full_name?: string } | null)?.full_name ?? null
+
+  // 2º advogado responsável (adicional) — mesmo padrão de embed com hint dos
+  // demais campos (profiles!<coluna>), extraído para nome(s) já formatados.
+  const advogadosAdicionaisNomes = (advogadosAdicionaisRaw ?? [])
+    .map((r) => ((r as Record<string, unknown>)['profiles!advogado_id'] as { full_name?: string } | null)?.full_name)
+    .filter((n): n is string => !!n)
 
   const partes = (processo.partes_raw as { polo: string; nome: string }[] | null) ?? []
 
@@ -414,6 +422,9 @@ export default async function ProcessoDetailPage({ params }: PageProps) {
           ) : null}
           {advNome && (
             <InfoItem icon={User} label="Advogado responsável" value={advNome} />
+          )}
+          {advogadosAdicionaisNomes.length > 0 && (
+            <InfoItem icon={User} label="2º advogado responsável" value={advogadosAdicionaisNomes.join(', ')} />
           )}
           {!isParceiro && !!(processo as Record<string, unknown>).indicacao && (
             <InfoItem icon={Users} label="Indicação" value={String((processo as Record<string, unknown>).indicacao)} />

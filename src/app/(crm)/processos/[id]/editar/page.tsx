@@ -22,7 +22,7 @@ export default async function EditarProcessoPage({ params }: PageProps) {
 
   const AREAS_FIXAS = ['civel', 'trabalhista', 'criminal', 'previdenciario', 'tributario', 'administrativo', 'familia', 'outro']
 
-  const [{ data: processo, error }, { data: clientes }, { data: advogados }, { data: parceiros }, { data: clientesAdicionais }, { data: parceirosIndicadores }, { data: areasRows }] = await Promise.all([
+  const [{ data: processo, error }, { data: clientes }, { data: advogados }, { data: parceiros }, { data: clientesAdicionais }, { data: parceirosIndicadores }, { data: areasRows }, { data: advogadosAdicionais }] = await Promise.all([
     supabase
       .from('processos_juridicos')
       .select('id, numero_processo, assunto, area, vara, comarca, valor_causa, honorarios_tipo, honorarios_valor, cliente_id, advogado_id, parceiro_id, indicador_parceiro_id, polo_passivo_nome, polo_passivo_cpf_cnpj, advogado_adversario_nome, advogado_adversario_oab')
@@ -36,6 +36,8 @@ export default async function EditarProcessoPage({ params }: PageProps) {
     supabase.from('parceiros').select('id, nome').order('nome'),
     // Áreas customizadas (fora das 8 fixas) já usadas por processos da empresa — RLS isola por tenant.
     supabase.from('processos_juridicos').select('area').not('area', 'is', null),
+    // 2º advogado responsável (opcional) — hoje só 1 é esperado, pega o 1º/único.
+    supabase.from('processos_advogados').select('advogado_id').eq('processo_id', id),
   ])
 
   if (error || !processo) notFound()
@@ -78,6 +80,7 @@ export default async function EditarProcessoPage({ params }: PageProps) {
           cliente_id:                processo.cliente_id,
           clientes_adicionais_ids:   (clientesAdicionais ?? []).map((c) => c.cliente_id),
           advogado_id:               processo.advogado_id,
+          advogadoAdicionalId:       (advogadosAdicionais ?? [])[0]?.advogado_id ?? null,
           parceiro_id:               (processo as Record<string, unknown>).parceiro_id as string | null ?? null,
           indicador_parceiro_id:     (processo as Record<string, unknown>).indicador_parceiro_id as string | null ?? null,
           polo_passivo_nome:         (processo as Record<string, unknown>).polo_passivo_nome as string | null ?? null,

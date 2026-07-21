@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-21-processos-segundo-advogado-responsavel',
+    data: '2026-07-21',
+    titulo: 'Processos agora podem ter 2 advogados responsáveis',
+    tipo: 'novidade',
+    modulo: 'advocacia',
+    itens: [
+      'Em "Editar processo", agora dá para definir um 2º advogado responsável, além do principal',
+      'A busca automática de publicações no Diário de Justiça (DJEN) passa a considerar a OAB dos dois responsáveis do processo, sem gerar publicação duplicada',
+    ],
+  },
+  {
     id: '2026-07-21-responder-whatsapp-conversa-aberta',
     data: '2026-07-21',
     titulo: 'Responder mensagens de WhatsApp direto pelo CRM voltou a funcionar',

@@ -59,6 +59,8 @@ export async function sincronizarPublicacoesDJEN(
 
   // 3. Só processa advogados vinculados a pelo menos 1 processo ativo (mesmo
   //    filtro de status usado no cron atualizar-processos: 'em_transito').
+  //    Inclui tanto o responsável PRINCIPAL (`advogado_id`) quanto os
+  //    responsáveis ADICIONAIS (`processos_advogados`) do processo.
   const { data: processosAtivos, error: errProcAtivos } = await db
     .from('processos_juridicos')
     .select('advogado_id')
@@ -68,7 +70,20 @@ export async function sincronizarPublicacoesDJEN(
   if (errProcAtivos) {
     throw new Error(errProcAtivos.message)
   }
-  const advogadosComProcessoAtivo = new Set((processosAtivos ?? []).map((p) => p.advogado_id as string))
+
+  const { data: responsaveisAdicionais, error: errRespAdicionais } = await db
+    .from('processos_advogados')
+    .select('advogado_id, processos_juridicos!inner(status, empresa_id)')
+    .eq('processos_juridicos.status', 'em_transito')
+    .in('processos_juridicos.empresa_id', empresaIds)
+  if (errRespAdicionais) {
+    throw new Error(errRespAdicionais.message)
+  }
+
+  const advogadosComProcessoAtivo = new Set([
+    ...(processosAtivos ?? []).map((p) => p.advogado_id as string),
+    ...(responsaveisAdicionais ?? []).map((r) => r.advogado_id as string),
+  ])
 
   const alvos = (advogados ?? []).filter(
     (a) =>
