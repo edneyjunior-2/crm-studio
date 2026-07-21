@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-21-som-notificacao-whatsapp',
+    data: '2026-07-21',
+    titulo: 'Um bipe avisa quando chega mensagem nova de WhatsApp',
+    tipo: 'melhoria',
+    modulo: 'atendimento',
+    itens: [
+      'Agora, ao chegar uma mensagem nova de WhatsApp, um som curto toca — dá pra perceber sem precisar ficar de olho na tela o tempo todo',
+    ],
+  },
+  {
     id: '2026-07-21-whatsapp-numero-sem-duplicar-conversa',
     data: '2026-07-21',
     titulo: 'Corrigido: podia abrir uma conversa duplicada pro mesmo contato',

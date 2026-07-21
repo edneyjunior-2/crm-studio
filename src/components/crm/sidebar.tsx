@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import {
   LayoutDashboard,
@@ -41,6 +41,7 @@ import { logout } from '@/app/(auth)/login/actions'
 import { contarConversasNaoLidas } from '@/app/(crm)/atendimento/atendimento-actions'
 import { BugReportButton } from './bug-report-button'
 import { ultimaAtualizacaoVisivel } from '@/lib/changelog'
+import { armarNotificacaoSonora, tocarSomNotificacao } from '@/lib/notificacao-sonora'
 
 /** Intervalo do polling do badge de não lidas (WhatsApp) — entre 15s e 30s. */
 const POLL_NAO_LIDAS_MS = 20_000
@@ -278,18 +279,40 @@ export function Sidebar({ profile, modulosAtivos, mobileOpen, onMobileClose, emp
   const prefersReduced = useReducedMotion()
   const [temNovidade, setTemNovidade] = useState(false)
   const [unreadWhatsapp, setUnreadWhatsapp] = useState(unreadWhatsappInicial ?? 0)
+  // Fora do setState de propósito: o updater de setState deve ser puro (o
+  // React pode invocá-lo mais de uma vez em StrictMode/dev), e tocar som é
+  // um efeito colateral — comparar contra esta ref evita bipe duplicado.
+  const unreadWhatsappRef = useRef(unreadWhatsappInicial ?? 0)
+
+  // Navegador bloqueia áudio antes de qualquer interação do usuário na
+  // página — destrava o som de notificação na 1ª vez que ele clicar/apertar
+  // uma tecla em qualquer lugar do CRM (Sidebar é global).
+  useEffect(() => {
+    const armar = () => armarNotificacaoSonora()
+    document.addEventListener('pointerdown', armar, { once: true })
+    document.addEventListener('keydown', armar, { once: true })
+    return () => {
+      document.removeEventListener('pointerdown', armar)
+      document.removeEventListener('keydown', armar)
+    }
+  }, [])
 
   // Polling leve do badge de não lidas — só enquanto o módulo 'atendimentos'
   // estiver ativo pra este usuário (mesmo gating que decide se o item aparece).
   // Falha num poll individual mantém o último valor conhecido (AC9): sem
   // toast/erro, é um indicador passivo, tenta de novo no próximo intervalo.
+  // Toca um bipe quando a contagem AUMENTA (mensagem nova) — nunca na carga
+  // inicial nem quando a contagem cai/empata.
   useEffect(() => {
     if (!modulosAtivos.includes('atendimentos')) return
     let cancelado = false
     const id = setInterval(() => {
       contarConversasNaoLidas()
         .then((n) => {
-          if (!cancelado) setUnreadWhatsapp(n)
+          if (cancelado) return
+          if (n > unreadWhatsappRef.current) tocarSomNotificacao()
+          unreadWhatsappRef.current = n
+          setUnreadWhatsapp(n)
         })
         .catch(() => {
           // silencioso de propósito: mantém o valor anterior
