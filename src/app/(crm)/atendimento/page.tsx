@@ -1,7 +1,7 @@
 import { getAuthUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Inbox, type Conversa, type Mensagem } from './inbox'
-import { listarClientesComTelefone } from './atendimento-actions'
+import { listarClientesComTelefone, listarTemplatesWhatsAppAtivos } from './atendimento-actions'
 
 /**
  * Aba Atendimento — inbox de conversas do WhatsApp do SDR (robô Leila).
@@ -85,7 +85,10 @@ export default async function AtendimentoPage({
     )
   }
 
-  const clientesComTelefone = await listarClientesComTelefone()
+  const [clientesComTelefone, templatesWhatsApp] = await Promise.all([
+    listarClientesComTelefone(),
+    listarTemplatesWhatsAppAtivos(),
+  ])
 
   return (
     <Inbox
@@ -93,6 +96,7 @@ export default async function AtendimentoPage({
       selecionada={selecionada}
       mensagens={mensagens}
       clientesComTelefone={clientesComTelefone}
+      templatesWhatsApp={templatesWhatsApp}
     />
   )
 }

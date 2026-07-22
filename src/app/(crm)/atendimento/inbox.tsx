@@ -19,6 +19,8 @@ import {
   salvarContatoConversa, buscarClientesPorNome, vincularClienteExistente,
   verificarJanela24hWhatsApp,
 } from './atendimento-actions'
+import { TemplateWhatsAppPainel, type TemplateEscolhido } from './template-whatsapp-painel'
+import type { WhatsAppTemplateInfo } from '@/lib/whatsapp-cloud'
 
 export interface Conversa {
   id: string
@@ -107,9 +109,10 @@ interface InboxProps {
   selecionada: Conversa | null
   mensagens: Mensagem[]
   clientesComTelefone: ClienteComTelefone[]
+  templatesWhatsApp: WhatsAppTemplateInfo[]
 }
 
-export function Inbox({ conversas, selecionada, mensagens, clientesComTelefone }: InboxProps) {
+export function Inbox({ conversas, selecionada, mensagens, clientesComTelefone, templatesWhatsApp }: InboxProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [busca, setBusca] = useState('')
@@ -238,6 +241,7 @@ export function Inbox({ conversas, selecionada, mensagens, clientesComTelefone }
               mensagens={mensagens}
               isPending={isPending}
               clientesComTelefone={clientesComTelefone}
+              templatesWhatsApp={templatesWhatsApp}
               onVoltar={() => setMobileView('lista')}
               onAssumir={() => executar(assumirConversa, selecionada.id, 'Conversa assumida.')}
               onDevolver={() => executar(devolverAoBot, selecionada.id, 'Conversa devolvida ao bot.')}
@@ -259,7 +263,11 @@ export function Inbox({ conversas, selecionada, mensagens, clientesComTelefone }
       </div>
 
       {novaAberta && (
-        <NovaConversaDialog onClose={() => setNovaAberta(false)} clientes={clientesComTelefone} />
+        <NovaConversaDialog
+          onClose={() => setNovaAberta(false)}
+          clientes={clientesComTelefone}
+          templatesWhatsApp={templatesWhatsApp}
+        />
       )}
     </div>
   )
@@ -283,7 +291,15 @@ function FiltroPill({ ativo, onClick, children }: { ativo: boolean; onClick: () 
 // ---------------------------------------------------------------------------
 // Nova conversa (humano inicia)
 // ---------------------------------------------------------------------------
-function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; clientes: ClienteComTelefone[] }) {
+function NovaConversaDialog({
+  onClose,
+  clientes,
+  templatesWhatsApp,
+}: {
+  onClose: () => void
+  clientes: ClienteComTelefone[]
+  templatesWhatsApp: WhatsAppTemplateInfo[]
+}) {
   const router = useRouter()
   const [clienteId, setClienteId] = useState<string | undefined>(undefined)
   const [numero, setNumero] = useState('')
@@ -334,9 +350,9 @@ function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; client
     })
   }
 
-  function reabrirComTemplate() {
+  function reabrirComTemplate(escolha: TemplateEscolhido) {
     startReabrir(async () => {
-      const res = await reabrirConversaComTemplate(numero, clienteId)
+      const res = await reabrirConversaComTemplate(numero, clienteId, escolha.templateName, escolha.variaveis)
       if (res.error) { toast.error(res.error); return }
       toast.success('Mensagem-modelo enviada. Assim que o cliente responder, dá pra conversar livremente.')
       onClose()
@@ -387,22 +403,13 @@ function NovaConversaDialog({ onClose, clientes }: { onClose: () => void; client
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/40" />
           </div>
           {foraDaJanela && numeroValido ? (
-            <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
-              <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
-                Esse contato não fala com você há mais de 24h — o WhatsApp exige uma mensagem-modelo
-                para reabrir contato. Ao confirmar, será enviada a <strong>mensagem padrão aprovada</strong>,
-                não o texto digitado acima. Assim que ele responder, a conversa reabre e você volta a
-                conversar livremente.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button size="sm" variant="outline" onClick={() => setForaDaJanela(false)} disabled={reabrindo}>
-                  <X /> Voltar
-                </Button>
-                <Button size="sm" onClick={reabrirComTemplate} disabled={reabrindo}>
-                  {reabrindo ? <Loader2 className="animate-spin" /> : <Send />} Reabrir conversa
-                </Button>
-              </div>
-            </div>
+            <TemplateWhatsAppPainel
+              templates={templatesWhatsApp}
+              clienteId={clienteId}
+              enviando={reabrindo}
+              onCancelar={() => setForaDaJanela(false)}
+              onEnviar={reabrirComTemplate}
+            />
           ) : (
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={onClose} disabled={enviando}>Cancelar</Button>
@@ -422,6 +429,7 @@ interface ThreadProps {
   mensagens: Mensagem[]
   isPending: boolean
   clientesComTelefone: ClienteComTelefone[]
+  templatesWhatsApp: WhatsAppTemplateInfo[]
   onVoltar: () => void
   onAssumir: () => void
   onDevolver: () => void
@@ -497,7 +505,7 @@ function StatusEntrega({ status, erro }: { status: string | null; erro: string |
 const MIME_MIDIA_ENVIO = ['image/jpeg', 'image/png', 'image/webp', 'audio/mpeg', 'audio/ogg', 'audio/mp4', 'application/pdf']
 const TAMANHO_MAXIMO_MIDIA_BYTES = 4 * 1024 * 1024
 
-function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida, onArquivar }: ThreadProps) {
+function Thread({ conversa, mensagens, isPending, clientesComTelefone, templatesWhatsApp, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida, onArquivar }: ThreadProps) {
   const router = useRouter()
   const status = conversa.status ?? 'bot'
   const [resposta, setResposta] = useState('')
@@ -533,10 +541,12 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
     })
   }
 
-  function reabrirComTemplate() {
+  function reabrirComTemplate(escolha: TemplateEscolhido) {
     if (!conversa.wa_number) return
     startReabrir(async () => {
-      const res = await reabrirConversaComTemplate(conversa.wa_number!, conversa.cliente_id ?? undefined)
+      const res = await reabrirConversaComTemplate(
+        conversa.wa_number!, conversa.cliente_id ?? undefined, escolha.templateName, escolha.variaveis,
+      )
       if (res.error) { toast.error(res.error); return }
       toast.success('Mensagem-modelo enviada. Assim que o cliente responder, dá pra conversar livremente.')
       setForaDaJanela(false)
@@ -645,21 +655,14 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, onVoltar,
       </div>
 
       {foraDaJanela ? (
-        <div className="flex flex-col gap-2 border-t border-border bg-amber-50 px-4 py-3 dark:bg-amber-950/30">
-          <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
-            Esse contato não fala com você há mais de 24h — o WhatsApp exige uma mensagem-modelo
-            para reabrir contato. Ao confirmar, será enviada a <strong>mensagem padrão aprovada</strong>,
-            não o texto digitado acima. Assim que ele responder, a conversa reabre e você volta a
-            conversar livremente.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => setForaDaJanela(false)} disabled={reabrindo}>
-              <X /> Voltar
-            </Button>
-            <Button size="sm" onClick={reabrirComTemplate} disabled={reabrindo}>
-              {reabrindo ? <Loader2 className="animate-spin" /> : <Send />} Reabrir conversa
-            </Button>
-          </div>
+        <div className="border-t border-border px-4 py-3">
+          <TemplateWhatsAppPainel
+            templates={templatesWhatsApp}
+            clienteId={conversa.cliente_id ?? undefined}
+            enviando={reabrindo}
+            onCancelar={() => setForaDaJanela(false)}
+            onEnviar={reabrirComTemplate}
+          />
         </div>
       ) : (
         <form

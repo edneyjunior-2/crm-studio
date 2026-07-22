@@ -114,40 +114,111 @@ export async function enviarMensagemWhatsApp(
 }
 
 /**
- * Envia o template `retomar_atendimento` (pt_BR; consta como MARKETING na
- * Meta, em análise em 2026-07-20) —
+ * Envia um template aprovado (nome/idioma vêm de `listarTemplatesWhatsApp`) —
  * único jeito de reabrir contato fora da janela de 24h (a Meta rejeita texto
- * livre nesse caso, ver `CODIGO_FORA_DA_JANELA_24H`). Corpo do template: "Olá
- * {{1}}, aqui é {{2}}. Estamos entrando em contato para dar continuidade ao
- * seu atendimento. Pode responder esta mensagem quando for possível."
- *
- * `nomeCliente` vai em {{1}} (nome do cliente, ou um fallback genérico tipo
- * "Cliente" quando não há cadastro vinculado) e `nomeAtendente` vai em {{2}}
- * (nome de quem está atendendo + empresa, ex.: "Fulano, da Empresa X").
+ * livre nesse caso, ver `CODIGO_FORA_DA_JANELA_24H`). `parametros[i]` vai na
+ * posição `{{i+1}}` do corpo do template — só suporta o componente `body`
+ * (sem header de mídia nem botões; se o template escolhido precisar disso, a
+ * Meta rejeita e o erro sobe normalmente pra quem chamou).
  */
 export async function enviarTemplateWhatsApp(
   numeroDigitos: string,
-  nomeCliente: string,
-  nomeAtendente: string,
+  templateName: string,
+  language: string,
+  parametros: string[],
 ): Promise<EnvioWhatsAppResultado> {
   return enviarParaGraphApi({
     messaging_product: 'whatsapp',
     to: paraE164BR(numeroDigitos),
     type: 'template',
     template: {
-      name: 'retomar_atendimento',
-      language: { code: 'pt_BR' },
-      components: [
-        {
-          type: 'body',
-          parameters: [
-            { type: 'text', text: nomeCliente },
-            { type: 'text', text: nomeAtendente },
-          ],
-        },
-      ],
+      name: templateName,
+      language: { code: language },
+      // Omite a chave inteira (em vez de components: []) quando o template não
+      // tem variável — alguns templates sem placeholder não aceitam a chave
+      // presente com array vazio.
+      ...(parametros.length > 0
+        ? { components: [{ type: 'body', parameters: parametros.map((texto) => ({ type: 'text', text: texto })) }] }
+        : {}),
     },
   })
+}
+
+// ---------------------------------------------------------------------------
+// Lista de templates aprovados (pra deixar quem atende escolher qual mandar)
+// ---------------------------------------------------------------------------
+
+export interface WhatsAppTemplateInfo {
+  name: string
+  language: string
+  category: string
+  /** Texto do corpo com os placeholders {{1}}, {{2}}... crus (sem substituir). */
+  bodyText: string
+  numVariaveis: number
+  /** Valores de exemplo cadastrados na Meta pra cada {{n}}, quando existem. */
+  exemplos: string[]
+}
+
+export type ListarTemplatesResultado =
+  | { ok: true; templates: WhatsAppTemplateInfo[] }
+  | { ok: false; erro: string }
+
+interface GraphApiTemplateComponente {
+  type: string
+  text?: string
+  example?: { body_text?: string[][] }
+}
+interface GraphApiTemplate {
+  name: string
+  language: string
+  category: string
+  status: string
+  components: GraphApiTemplateComponente[]
+}
+
+/**
+ * Lista os templates de mensagem APROVADOS pela Meta pra este WhatsApp
+ * Business Account. Só `status === 'APPROVED'` — a Graph API rejeita o envio
+ * de qualquer outro status, então não faz sentido oferecer como opção.
+ *
+ * Precisa de `WHATSAPP_WABA_ID` (ID da WhatsApp Business Account) além das
+ * credenciais já usadas no resto do arquivo — não dá pra derivar isso do
+ * `WHATSAPP_PHONE_NUMBER_ID` via Graph API (testado: `?fields=
+ * whatsapp_business_account_id` não é um campo válido nesse nó), então
+ * precisa ser configurado manualmente (Gerenciador de Negócios da Meta).
+ */
+export async function listarTemplatesWhatsApp(): Promise<ListarTemplatesResultado> {
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  const wabaId = process.env.WHATSAPP_WABA_ID
+  if (!accessToken || !wabaId) {
+    return { ok: false, erro: 'Integração com o WhatsApp não está configurada (WHATSAPP_WABA_ID ausente).' }
+  }
+
+  const res = await fetchGraphApi(
+    `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?limit=100`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  if (!res || !res.ok) return { ok: false, erro: 'Não foi possível consultar os templates agora.' }
+
+  const corpo = (await res.json().catch(() => null)) as { data?: GraphApiTemplate[] } | null
+  const templates = (corpo?.data ?? [])
+    .filter((t) => t.status === 'APPROVED')
+    .map((t): WhatsAppTemplateInfo | null => {
+      const body = t.components.find((c) => c.type === 'BODY')
+      if (!body?.text) return null
+      const numeros = new Set(Array.from(body.text.matchAll(/\{\{(\d+)\}\}/g)).map((m) => m[1]))
+      return {
+        name: t.name,
+        language: t.language,
+        category: t.category,
+        bodyText: body.text,
+        numVariaveis: numeros.size,
+        exemplos: body.example?.body_text?.[0] ?? [],
+      }
+    })
+    .filter((t): t is WhatsAppTemplateInfo => t !== null)
+
+  return { ok: true, templates }
 }
 
 // ---------------------------------------------------------------------------

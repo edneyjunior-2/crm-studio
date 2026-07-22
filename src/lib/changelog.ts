@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-22-escolher-template-whatsapp',
+    data: '2026-07-22',
+    titulo: 'Escolha qual mensagem-modelo usar para reabrir uma conversa no WhatsApp',
+    tipo: 'melhoria',
+    modulo: 'atendimento',
+    itens: [
+      'Ao reabrir contato com alguém que não fala com você há mais de 24h, o sistema agora mostra todas as mensagens-modelo aprovadas para escolher (quando houver mais de uma), com prévia do texto final antes de enviar.',
+    ],
+  },
+  {
     id: '2026-07-22-importar-folha-de-ponto',
     data: '2026-07-22',
     titulo: 'Importe a folha de ponto direto do PDF da Secullum',

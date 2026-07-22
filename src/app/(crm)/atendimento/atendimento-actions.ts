@@ -1,13 +1,14 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, unstable_cache } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getAuthUser, getAuthAdmin } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createCliente } from '../clientes/actions'
 import {
   enviarMensagemWhatsApp, enviarTemplateWhatsApp, marcarMensagemComoLidaWhatsApp,
-  uploadMidiaWhatsApp, enviarMidiaWhatsApp, type TipoMidiaWhatsApp,
+  uploadMidiaWhatsApp, enviarMidiaWhatsApp, listarTemplatesWhatsApp,
+  type TipoMidiaWhatsApp, type WhatsAppTemplateInfo,
 } from '@/lib/whatsapp-cloud'
 
 /**
@@ -24,6 +25,28 @@ async function authEmpresa(): Promise<{ empresaId: string; userId: string }> {
   if (role === 'parceiro') throw new Error('Acesso negado.')
   if (!empresaId) redirect('/login')
   return { empresaId, userId: user.id }
+}
+
+/**
+ * Marca como respondidas as mensagens do lead ainda pendentes nesta conversa —
+ * chamar sempre que um HUMANO manda algo com sucesso pra ela. Sem isso, o
+ * sensor `leila-buraco-negro` (src/lib/monitoramento.ts) ficava crítico pra
+ * sempre numa conversa já resolvida manualmente: só o bot marcava
+ * `respondida=true`, nunca o humano (achado da auditoria de monitoramento de
+ * 2026-07-22). Best-effort: erro aqui não pode derrubar o envio da mensagem.
+ */
+async function marcarMensagensRespondidas(
+  admin: ReturnType<typeof createAdminClient>,
+  conversationId: string,
+): Promise<void> {
+  const { error } = await admin
+    .from('messages')
+    .update({ respondida: true })
+    .eq('conversation_id', conversationId)
+    .eq('direction', 'in')
+    .eq('author_type', 'lead')
+    .eq('respondida', false)
+  if (error) console.error('[atendimento] erro ao marcar mensagens como respondidas:', error.message)
 }
 
 /** Humano assume a conversa: status=humano e o bot cala (ia_ativa=false). */
@@ -202,6 +225,7 @@ export async function enviarMidiaConversa(
   // Paridade com o texto normal (proxy pro app-sdr): assumir a conversa manualmente
   // também muda o status pra 'humano' e cala o bot.
   await admin.from('conversations').update({ status: 'humano', ia_ativa: false }).eq('id', conversationId)
+  await marcarMensagensRespondidas(admin, conversationId)
 
   revalidatePath('/atendimento')
   return {}
@@ -269,6 +293,7 @@ export async function responderConversa(
   if (!envio.ok) return { error: envio.erro, foraDaJanela24h: envio.foraDaJanela24h }
 
   await admin.from('conversations').update({ status: 'humano', ia_ativa: false }).eq('id', id)
+  await marcarMensagensRespondidas(admin, id)
 
   revalidatePath('/atendimento')
   return {}
@@ -583,6 +608,7 @@ export async function iniciarConversa(
     })
     if (msgErr) return { error: `Conversa criada, mas falhou ao registrar a mensagem: ${msgErr.message}`, id: convId }
     if (!envio.ok) return { error: envio.erro, id: convId, foraDaJanela24h: envio.foraDaJanela24h }
+    await marcarMensagensRespondidas(admin, convId)
   }
 
   revalidatePath('/atendimento')
@@ -590,30 +616,35 @@ export async function iniciarConversa(
 }
 
 /**
- * Reabre contato fora da janela de 24h enviando o template aprovado pela Meta
- * (`retomar_atendimento`) em vez de texto livre — a Graph API rejeita texto
- * livre nesse caso (ver iniciarConversa/foraDaJanela24h). Cria/reusa a
- * conversa igual iniciarConversa (criarOuReusarConversa) e grava a mensagem
- * enviada (texto renderizado do template, não o que o usuário digitaria numa
- * mensagem livre — aqui não há campo de mensagem livre, é sempre o template).
- *
- * Nome do cliente ({{1}} do template): `clientes.razao_social` quando
- * `clienteId` foi passado e pertence a esta empresa; senão "Cliente" (sem
- * cadastro vinculado ainda, ex.: número novo). Nome do atendente ({{2}}):
- * nome do usuário logado + ", da " + nome da empresa/tenant.
+ * Templates aprovados na Meta pra este WhatsApp Business Account — cacheado
+ * por 5min (mesmo padrão do Google Calendar em dashboard/page.tsx) pra não
+ * bater na Graph API toda vez que alguém abrir o diálogo de reabrir conversa.
+ * Nunca lança: se a consulta falhar, devolve lista vazia (a UI mostra que
+ * nenhum template foi encontrado em vez de quebrar a tela).
  */
-export async function reabrirConversaComTemplate(
-  numero: string,
-  clienteId?: string,
-): Promise<{ error?: string; id?: string }> {
-  const { empresaId, userId } = await authEmpresa()
-  const num = normalizarNumeroWhatsApp(numero)
-  if (num.length !== 11) return { error: 'Número inválido (use DDD + número).' }
+const listarTemplatesCache = unstable_cache(
+  () => listarTemplatesWhatsApp(),
+  ['whatsapp-templates'],
+  { revalidate: 300 },
+)
 
+export async function listarTemplatesWhatsAppAtivos(): Promise<WhatsAppTemplateInfo[]> {
+  await authEmpresa()
+  const res = await listarTemplatesCache().catch(() => null)
+  return res?.ok ? res.templates : []
+}
+
+/**
+ * Valores sugeridos pra prefill das duas primeiras variáveis de um template
+ * (convenção observada nos templates atuais: {{1}}=nome do cliente,
+ * {{2}}=quem está atendendo) — a tela de conferência sempre deixa a pessoa
+ * editar antes de enviar, isso é só ponto de partida.
+ */
+export async function sugerirValoresTemplate(
+  clienteId?: string,
+): Promise<{ nomeCliente: string; nomeAtendente: string }> {
+  const { empresaId, userId } = await authEmpresa()
   const admin = createAdminClient()
-  const conv = await criarOuReusarConversa(empresaId, admin, num, clienteId)
-  if (conv.error || !conv.id) return { error: conv.error ?? 'Falha ao iniciar a conversa.' }
-  const convId = conv.id
 
   let nomeCliente = 'Cliente'
   if (clienteId) {
@@ -632,19 +663,63 @@ export async function reabrirConversaComTemplate(
   ])
   const nomeAtendente = `${profile?.full_name ?? 'Atendente'}, da ${empresa?.nome ?? 'nossa empresa'}`
 
-  const envio = await enviarTemplateWhatsApp(num, nomeCliente, nomeAtendente)
+  return { nomeCliente, nomeAtendente }
+}
+
+/**
+ * Reabre contato fora da janela de 24h enviando um template aprovado pela
+ * Meta em vez de texto livre — a Graph API rejeita texto livre nesse caso
+ * (ver iniciarConversa/foraDaJanela24h). Cria/reusa a conversa igual
+ * iniciarConversa (criarOuReusarConversa) e grava a mensagem enviada — o
+ * texto do corpo do template com `variaveis` já substituídas em {{1}}, {{2}}
+ * etc. (não o que o usuário digitaria numa mensagem livre — aqui não há
+ * campo de mensagem livre, é sempre o template escolhido).
+ *
+ * `templateName` vem do client (o que a pessoa escolheu no painel), mas
+ * `language`/`bodyText` NUNCA vêm do client — são resolvidos aqui contra a
+ * lista de templates aprovados cacheada (`listarTemplatesWhatsAppAtivos`).
+ * Sem isso, um payload forjado poderia gravar em `messages.texto` um corpo
+ * que não corresponde ao que a Meta realmente processa no envio, mentindo
+ * no histórico da conversa.
+ */
+export async function reabrirConversaComTemplate(
+  numero: string,
+  clienteId: string | undefined,
+  templateName: string,
+  variaveis: string[],
+): Promise<{ error?: string; id?: string }> {
+  const { empresaId } = await authEmpresa()
+  const num = normalizarNumeroWhatsApp(numero)
+  if (num.length !== 11) return { error: 'Número inválido (use DDD + número).' }
+
+  const templatesAprovados = await listarTemplatesWhatsAppAtivos()
+  const template = templatesAprovados.find((t) => t.name === templateName)
+  if (!template) return { error: 'Esse modelo de mensagem não está mais disponível. Escolha outro.' }
+
+  const admin = createAdminClient()
+  const conv = await criarOuReusarConversa(empresaId, admin, num, clienteId)
+  if (conv.error || !conv.id) return { error: conv.error ?? 'Falha ao iniciar a conversa.' }
+  const convId = conv.id
+
+  const envio = await enviarTemplateWhatsApp(num, template.name, template.language, variaveis)
+
+  const textoRenderizado = variaveis.reduce(
+    (texto, valor, i) => texto.replaceAll(`{{${i + 1}}}`, valor.trim() || `{{${i + 1}}}`),
+    template.bodyText,
+  )
 
   const { error: msgErr } = await admin.from('messages').insert({
     conversation_id: convId,
     direction: 'out',
     author_type: 'humano',
-    texto: `Olá ${nomeCliente}, aqui é ${nomeAtendente}. Estamos entrando em contato para dar continuidade ao seu atendimento. Pode responder esta mensagem quando for possível.`,
+    texto: textoRenderizado,
     delivery_status: envio.ok ? 'sent' : 'failed',
     wa_message_id: envio.ok ? envio.messageId : null,
     payload: envio.ok ? null : { erro: envio.erro },
   })
   if (msgErr) return { error: `Conversa criada, mas falhou ao registrar a mensagem: ${msgErr.message}`, id: convId }
   if (!envio.ok) return { error: envio.erro, id: convId }
+  await marcarMensagensRespondidas(admin, convId)
 
   revalidatePath('/atendimento')
   return { id: convId }
