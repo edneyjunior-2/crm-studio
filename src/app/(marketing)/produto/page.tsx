@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Check } from 'lucide-react'
+import { ArrowRight, Check, HardHat, Scale, Truck } from 'lucide-react'
 import { Reveal } from '@/components/marketing/motion'
 import { ProductShowcase } from '@/components/marketing/product-showcase'
 
@@ -29,16 +29,37 @@ const FEATURES = [
     points: ['Busca de CNPJ automática', 'Carteira protegida por território', 'Calendário integrado ao Google'],
   },
   {
-    eyebrow: 'Advocacia',
-    title: 'O processo se atualiza sozinho.',
-    body: 'O DataJud avisa quando um processo tem movimentação nova, e o DJEN avisa quando sai uma publicação — cruzando pela OAB de cada advogado e pelo número CNJ do processo, sem precisar caçar nada manualmente em diário nenhum. Os prazos avisam antes de vencer, as audiências viram evento no Google Calendar e os documentos ficam anexados ao processo. Honorários e custas viram lançamento no financeiro, sem digitar duas vezes.',
-    points: ['Movimentações (DataJud) e publicações (DJEN) automáticas', 'Prazos e audiências com alerta', 'Honorários e guias no financeiro'],
+    eyebrow: 'Estoque',
+    title: 'Saldo que se atualiza sozinho a cada movimentação.',
+    body: 'Cadastre produtos com estoque mínimo e custo médio, registre entradas e saídas, e deixe o sistema recalcular saldo e custo médio automaticamente. Um alerta visual avisa quando o produto está abaixo do mínimo, antes de faltar.',
+    points: ['Saldo e custo médio recalculados a cada movimentação', 'Alerta de estoque abaixo do mínimo', 'Histórico completo de entradas e saídas'],
   },
   {
-    eyebrow: 'Engenharia',
-    title: 'Do orçamento à medição, sem planilha solta.',
-    body: 'Monte o orçamento buscando composições e insumos direto no catálogo SINAPI, com BDI e desoneração, e gere o PDF para o cliente. Cada obra acompanha etapas, medições e a equipe alocada no mesmo lugar.',
-    points: ['Orçamento com catálogo SINAPI, BDI e desoneração', 'Etapas e medições com avanço de status', 'Equipe por obra e ponto integrado'],
+    eyebrow: 'Recursos Humanos',
+    title: 'Ponto, ausências e documentos, sem planilha de RH.',
+    body: 'Cadastre colaboradores, registre férias, atestados e faltas, e feche o ponto do mês com dedução automática por falta não justificada. Documentos como ASO e contrato ficam guardados com acesso controlado e log de quem abriu cada um.',
+    points: ['Ponto eletrônico com fechamento mensal automático', 'Controle de férias, atestados e faltas', 'Documentos do colaborador com acesso auditado'],
+  },
+]
+
+const VERTICAIS_TEASER = [
+  {
+    slug: 'advocacia',
+    icon: Scale,
+    title: 'Advocacia',
+    desc: 'DataJud e DJEN sincronizam movimentações e publicações automaticamente, sem caçar nada em diário.',
+  },
+  {
+    slug: 'engenharia',
+    icon: HardHat,
+    title: 'Engenharia e Obras',
+    desc: 'Orçamento com catálogo SINAPI, medição por etapa e equipe alocada por obra.',
+  },
+  {
+    slug: 'frete',
+    icon: Truck,
+    title: 'Frete e Logística',
+    desc: 'Calculadora de piso mínimo ANTT, cadastro de motoristas e cotação que vira negócio no pipeline.',
   },
 ]
 
@@ -90,11 +111,51 @@ export default function ProdutoPage() {
       ))}
 
       <section className="border-t border-border">
+        <div className="mx-auto max-w-[1180px] px-6 py-16 sm:px-8 lg:py-24">
+          <Reveal>
+            <p className="text-sm font-medium text-muted-foreground">Feito pra cada setor</p>
+            <h2 className="mt-3 max-w-2xl text-[clamp(1.75rem,3.5vw,2.75rem)] font-bold leading-[1.05] tracking-[-0.03em]">
+              Sua área provavelmente já tem um módulo pronto.
+            </h2>
+          </Reveal>
+          <div className="mt-10 grid gap-5 sm:grid-cols-3">
+            {VERTICAIS_TEASER.map((v, i) => {
+              const Icon = v.icon
+              return (
+                <Reveal key={v.slug} delay={i * 0.06}>
+                  <Link
+                    href={`/produto/${v.slug}`}
+                    className="group flex h-full flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-foreground/20"
+                  >
+                    <div className="inline-flex size-10 items-center justify-center rounded-xl bg-secondary text-foreground">
+                      <Icon className="size-5" strokeWidth={1.7} />
+                    </div>
+                    <h3 className="mt-4 font-heading text-lg font-semibold">{v.title}</h3>
+                    <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{v.desc}</p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-accent">
+                      Ver página completa
+                      <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </Link>
+                </Reveal>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-border">
         <div className="mx-auto max-w-[1180px] px-6 py-14 sm:px-8">
           <Reveal>
             <p className="text-[15px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Em breve:</span> módulos de Estoque e
-              Recursos Humanos, ligados às mesmas vendas e ao mesmo financeiro.
+              <span className="font-semibold text-foreground">Não viu a sua área aqui?</span>{' '}
+              <Link
+                href="/contato"
+                className="text-accent underline underline-offset-2 hover:no-underline"
+              >
+                Fala com a gente
+              </Link>{' '}
+              — criamos um módulo sob medida pro seu tipo de negócio, dentro do mesmo sistema.
             </p>
           </Reveal>
         </div>

@@ -90,7 +90,7 @@ export function Hero() {
           {/* Stat strip */}
           <Enter delay={0.64}>
             <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2">
-              {['14 dias grátis', 'Setup em 30 minutos', 'Preço fixo por empresa'].map(
+              {['14 dias grátis', 'Setup em 30 minutos', 'Importamos sua planilha', 'Preço fixo por empresa'].map(
                 (item, i) => (
                   <span
                     key={item}
