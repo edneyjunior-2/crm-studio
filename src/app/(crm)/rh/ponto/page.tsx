@@ -2,7 +2,7 @@ import { getAuthUser } from '@/lib/auth'
 import { PontoGrid } from './ponto-grid'
 import { ObraFilter } from './obra-filter'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, BarChart3, ArrowLeft, CalendarDays } from 'lucide-react'
+import { ChevronLeft, ChevronRight, BarChart3, ArrowLeft, CalendarDays, Upload } from 'lucide-react'
 import type { Colaborador, Ponto } from '@/types/rh'
 
 function dataISO(d: Date): string {
@@ -123,6 +123,13 @@ export default async function PontoPage({ searchParams }: PageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href={`/rh/ponto/importar`}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <Upload className="size-4" />
+            Importar folha de ponto
+          </Link>
           <Link
             href={`/rh/ponto/cartao`}
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"

@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-22-importar-folha-de-ponto',
+    data: '2026-07-22',
+    titulo: 'Importe a folha de ponto direto do PDF da Secullum',
+    tipo: 'novidade',
+    modulo: 'engenharia',
+    itens: [
+      'Em RH › Ponto Diário › Importar folha de ponto, suba o PDF do Cartão Ponto exportado do Secullum e o sistema identifica cada colaborador, os dias trabalhados, faltas e atestados sozinho — mostrando tudo numa tela de conferência antes de gravar qualquer coisa.',
+      'Colaborador que aparece na folha mas ainda não está cadastrado no CRM pode ser cadastrado na hora (como ativo ou desligado), direto pela tela de conferência.',
+    ],
+  },
+  {
     id: '2026-07-22-banco-de-horas-justificativa',
     data: '2026-07-22',
     titulo: 'Cartão de Ponto agora mostra quem deve horas a quem',
