@@ -163,8 +163,9 @@ export async function notificarReporteResolvido(params: {
   descricao: string
   userId: string
   userName: string | null
+  notasResolucao?: string | null
 }) {
-  const { reportId, descricao, userId, userName } = params
+  const { reportId, descricao, userId, userName, notasResolucao } = params
   const admin = createAdminClient()
 
   // E-mail vem da view profiles_auth (service-role) — NÃO admin.auth.admin.listUsers(),
@@ -200,6 +201,10 @@ export async function notificarReporteResolvido(params: {
     <p style="background:#f5f5f5;padding:12px 16px;border-radius:8px;margin:0 0 16px;font-style:italic">
       "${descricao}"
     </p>
+    ${notasResolucao?.trim() ? `
+    <h3 style="margin:0 0 8px;font-size:14px;text-transform:uppercase;color:#999;letter-spacing:.05em">O que foi feito</h3>
+    <p style="margin:0 0 16px;line-height:1.5">${notasResolucao.trim()}</p>
+    ` : ''}
     <p style="margin:0 0 16px;line-height:1.5">
       Se ainda notar algo estranho ou encontrar outro problema, é só reportar de novo pelo botão
       <strong>"Teve um problema?"</strong> no menu lateral do sistema — a gente recebe direto.

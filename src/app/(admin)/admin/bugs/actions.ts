@@ -11,7 +11,11 @@ import { notificarReporteResolvido } from '@/lib/bug-analysis'
 const STATUS_PERMITIDOS = ['aberto', 'em_analise', 'resolvido', 'ignorado'] as const
 type BugStatus = typeof STATUS_PERMITIDOS[number]
 
-export async function atualizarStatusBug(bugId: string, status: string): Promise<{ error?: string }> {
+export async function atualizarStatusBug(
+  bugId: string,
+  status: string,
+  notasResolucao?: string
+): Promise<{ error?: string }> {
   await getAuthPlatformAdmin()
 
   if (!STATUS_PERMITIDOS.includes(status as BugStatus)) {
@@ -42,6 +46,7 @@ export async function atualizarStatusBug(bugId: string, status: string): Promise
       descricao: atual.descricao,
       userId:    atual.user_id,
       userName:  atual.user_name,
+      notasResolucao: notasResolucao ?? null,
     }).catch(() => {})
   }
 
