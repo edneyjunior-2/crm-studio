@@ -7,6 +7,8 @@ export type TipoContrato = 'clt' | 'pj' | 'estagio' | 'outro'
 export type TipoAusencia = 'ferias' | 'atestado' | 'falta' | 'licenca'
 export type FolhaStatus = 'aberto' | 'pago'
 export type TipoRemuneracao = 'diaria' | 'mensal'
+export type TipoDiaPonto = 'normal' | 'falta' | 'atestado' | 'folga_banco_horas'
+export type OrigemPonto = 'manual' | 'importado_secullum'
 
 export interface Colaborador {
   id: string
@@ -35,8 +37,22 @@ export interface Ponto {
   presente: boolean
   justificativa: string | null
   documento_path: string | null
+  entrada_1: string | null  // 'HH:MM'
+  saida_1: string | null
+  entrada_2: string | null
+  saida_2: string | null
+  tipo_dia: TipoDiaPonto
+  batida_manual: boolean
+  origem: OrigemPonto
   created_by: string | null
   created_at: string
+}
+
+export const TIPO_DIA_PONTO_LABEL: Record<TipoDiaPonto, string> = {
+  normal: 'Trabalhou',
+  falta: 'Faltou',
+  atestado: 'Atestado médico',
+  folga_banco_horas: 'Folga (banco de horas)',
 }
 
 export interface Ausencia {

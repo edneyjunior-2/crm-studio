@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-22-cartao-de-ponto',
+    data: '2026-07-22',
+    titulo: 'Cartão de Ponto: entenda o ponto da sua equipe sem precisar decifrar planilha',
+    tipo: 'novidade',
+    modulo: 'engenharia',
+    itens: [
+      'Em RH › Ponto Diário › Cartão de Ponto, escolha um colaborador e um mês pra ver, dia a dia, se ele trabalhou, faltou, apresentou atestado ou tirou folga — com o horário batido e o total de horas, em uma lista simples e colorida, sem sigla nem termo técnico.',
+    ],
+  },
+  {
     id: '2026-07-22-nomes-perfis-personalizaveis',
     data: '2026-07-22',
     titulo: 'Dá pra renomear os perfis de acesso da equipe',

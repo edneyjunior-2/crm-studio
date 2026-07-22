@@ -25,6 +25,8 @@ export async function upsertPonto(
         data,
         presente,
         justificativa: justificativa?.trim() || null,
+        tipo_dia: presente ? 'normal' : 'falta',
+        origem: 'manual',
         created_by: user.id,
       },
       { onConflict: 'colaborador_id,data' },

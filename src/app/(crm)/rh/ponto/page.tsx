@@ -2,7 +2,7 @@ import { getAuthUser } from '@/lib/auth'
 import { PontoGrid } from './ponto-grid'
 import { ObraFilter } from './obra-filter'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, BarChart3, ArrowLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight, BarChart3, ArrowLeft, CalendarDays } from 'lucide-react'
 import type { Colaborador, Ponto } from '@/types/rh'
 
 function dataISO(d: Date): string {
@@ -122,13 +122,22 @@ export default async function PontoPage({ searchParams }: PageProps) {
             </p>
           </div>
         </div>
-        <Link
-          href={`/rh/ponto/relatorio`}
-          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          <BarChart3 className="size-4" />
-          Relatório mensal
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/rh/ponto/cartao`}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <CalendarDays className="size-4" />
+            Cartão de Ponto
+          </Link>
+          <Link
+            href={`/rh/ponto/relatorio`}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <BarChart3 className="size-4" />
+            Relatório mensal
+          </Link>
+        </div>
       </div>
 
       {/* Filtro de obra */}
