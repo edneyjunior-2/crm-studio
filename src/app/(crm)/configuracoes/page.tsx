@@ -19,7 +19,7 @@ import { modulosEfetivos, MODULO_LABEL, LIMITES_POR_PLANO } from '@/lib/modulos'
 import type { Modulo } from '@/lib/modulos'
 import { getAuthUser } from '@/lib/auth'
 import type { PlanoEmpresa } from '@/lib/auth'
-import type { Profile, Role } from '@/types'
+import type { Profile, Role, Papel } from '@/types'
 import { listarEstagios } from '@/lib/pipeline-estagios'
 import { EtapasConfig } from '@/components/crm/configuracoes/etapas-config'
 import { getPipelineConfig } from '@/lib/pipeline-config'
@@ -49,7 +49,7 @@ export default async function ConfiguracoesPage() {
   // daria vazio/órfão p/ platform admin. (ver atendimento/page.tsx)
   const { empresaId, plano } = await getAuthUser()
 
-  const [profilesResult, authUsersResult, empresaResult, sdrResult, temAssinaturaEletronica, limiteUsuarios] = await Promise.all([
+  const [profilesResult, authUsersResult, empresaResult, sdrResult, temAssinaturaEletronica, limiteUsuarios, papeisResult] = await Promise.all([
     supabase.from('profiles').select('*').order('created_at', { ascending: true }),
     // E-mail + último acesso vêm da view profiles_auth (banco, via service_role),
     // NÃO de auth.admin.listUsers() (GoTrue) — que falhava em prod e zerava todos
@@ -74,6 +74,10 @@ export default async function ConfiguracoesPage() {
     empresaId ? temAddon(admin, empresaId, ADDON_ASSINATURA) : Promise.resolve(false),
     // Limite efetivo de usuários (plano base + blocos comprados — spec addon-bloco-10-usuarios.md)
     empresaId ? limiteUsuariosEfetivo(admin, empresaId, plano) : Promise.resolve(LIMITES_POR_PLANO[plano].usuarios),
+    // Papéis customizáveis da empresa (Fase 1 — spec papeis-customizaveis-01-fundacao.md)
+    empresaId
+      ? supabase.from('papeis').select('id, empresa_id, nome, role_sistema, sistema').eq('empresa_id', empresaId)
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   // blocosComprados só é significativo quando limiteUsuarios !== -1 (plano
@@ -110,6 +114,7 @@ export default async function ConfiguracoesPage() {
   const processosConfig = await getProcessosConfig(supabase, empresaId)
 
   const profiles: Profile[] = (profilesResult.data ?? []) as Profile[]
+  const papeis: Papel[] = (papeisResult.data ?? []) as Papel[]
   const authInfo = (authUsersResult.data ?? []) as { id: string; email: string | null; last_sign_in_at: string | null }[]
 
   const emailByUserId = new Map(authInfo.map((u) => [u.id, u.email ?? '']))
@@ -193,7 +198,7 @@ export default async function ConfiguracoesPage() {
             </p>
           </div>
         </div>
-        <InviteUserForm />
+        <InviteUserForm papeis={papeis} />
       </div>
 
       <section className="flex flex-col gap-4">
@@ -215,7 +220,7 @@ export default async function ConfiguracoesPage() {
             </p>
           </div>
         ) : (
-          <UsuariosTable usuarios={usuarios} currentUserId={user.id} modulosEmpresa={modulosEmpresa} />
+          <UsuariosTable usuarios={usuarios} currentUserId={user.id} modulosEmpresa={modulosEmpresa} papeis={papeis} />
         )}
       </section>
 

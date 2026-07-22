@@ -22,8 +22,20 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createUser } from '@/app/(crm)/configuracoes/actions'
+import type { Papel, Role } from '@/types'
 
-export function InviteUserForm() {
+const ROLE_ORDER: Role[] = ['admin', 'socio', 'comercial', 'parceiro']
+const ROLE_LABEL_FALLBACK: Record<Role, string> = {
+  admin: 'Administrador',
+  socio: 'Sócio',
+  comercial: 'Comercial',
+  parceiro: 'Parceiro',
+}
+
+export function InviteUserForm({ papeis }: { papeis: Papel[] }) {
+  const nomePorRole: Partial<Record<Role, string>> = Object.fromEntries(
+    papeis.map((p) => [p.role_sistema, p.nome]),
+  )
   const [open, setOpen] = useState(false)
   const [role, setRole] = useState('comercial')
   const [isPending, startTransition] = useTransition()
@@ -113,10 +125,9 @@ export function InviteUserForm() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Administrador</SelectItem>
-                  <SelectItem value="socio">Sócio</SelectItem>
-                  <SelectItem value="comercial">Comercial</SelectItem>
-                  <SelectItem value="parceiro">Parceiro</SelectItem>
+                  {ROLE_ORDER.map((r) => (
+                    <SelectItem key={r} value={r}>{nomePorRole[r] ?? ROLE_LABEL_FALLBACK[r]}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {role === 'parceiro' && (

@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-22-nomes-perfis-personalizaveis',
+    data: '2026-07-22',
+    titulo: 'Dá pra renomear os perfis de acesso da equipe',
+    tipo: 'novidade',
+    modulo: 'geral',
+    itens: [
+      'Em Configurações › Usuários, clique no nome de um perfil (Administrador, Sócio, Comercial ou Parceiro) pra chamar ele do jeito que faz mais sentido pro seu negócio — por exemplo, "Técnico de Campo" numa empresa de engenharia, ou "Advogado" num escritório. As permissões de cada um continuam as mesmas, só o nome muda.',
+    ],
+  },
+  {
     id: '2026-07-21-som-notificacao-whatsapp',
     data: '2026-07-21',
     titulo: 'Um bipe avisa quando chega mensagem nova de WhatsApp',

@@ -1,5 +1,15 @@
 export type Role = 'admin' | 'socio' | 'comercial' | 'parceiro'
 
+/** Papel customizável por empresa (Fase 1 — fundação). `role_sistema` é a
+ *  âncora funcional (imutável); `nome` é o rótulo que o admin pode renomear. */
+export interface Papel {
+  id: string
+  empresa_id: string
+  nome: string
+  role_sistema: Role
+  sistema: boolean
+}
+
 export interface Profile {
   id: string
   full_name: string
@@ -12,6 +22,8 @@ export interface Profile {
   /** Path interno no Storage (bucket 'avatars'), não uma URL pública — resolver
    *  sempre via src/lib/avatar.ts (createSignedUrl). */
   avatar_path?: string | null
+  /** FK do papel customizável (Fase 1). Null em conta órfã ou papel ainda não resolvido. */
+  papel_id?: string | null
 }
 
 export interface Solucao {

@@ -22,6 +22,10 @@ export interface AuthResult {
   isPlatformAdmin: boolean
   /** Módulos que o usuário pode acessar. NULL = sem restrição (vê tudo). admin ignora. */
   modulosPermitidos: string[] | null
+  /** FK do papel customizável (Fase 1 — fundação). Null em conta órfã ou papel ainda não resolvido. */
+  papelId: string | null
+  /** Nome exibível do papel (customizável por empresa). Null quando papelId é null — cair no rótulo fixo de `role` nesse caso. */
+  papelNome: string | null
 }
 
 /** Memoizado por request (React cache) — layout + página compartilham o mesmo resultado sem novo round-trip. */
@@ -34,7 +38,7 @@ export const getAuthUser = cache(async (): Promise<AuthResult> => {
   const [{ data: profile }, { data: isPlatformAdminRaw }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('role, empresa_id, empresa_ativa_id, modulos_permitidos')
+      .select('role, empresa_id, empresa_ativa_id, modulos_permitidos, papel_id, papeis(nome)')
       .eq('id', user.id)
       .single(),
     supabase.rpc('is_platform_admin'),
@@ -78,6 +82,12 @@ export const getAuthUser = cache(async (): Promise<AuthResult> => {
     trialEndsAt: empresa?.trial_ends_at ?? null,
     isPlatformAdmin,
     modulosPermitidos: (profile?.modulos_permitidos ?? null) as string[] | null,
+    papelId: (profile?.papel_id ?? null) as string | null,
+    // supabase-js sem Database gerado tipa embed to-one como array — normaliza os dois formatos.
+    papelNome: (() => {
+      const embed = profile?.papeis as { nome: string }[] | { nome: string } | null | undefined
+      return (Array.isArray(embed) ? embed[0]?.nome : embed?.nome) ?? null
+    })(),
   }
 })
 

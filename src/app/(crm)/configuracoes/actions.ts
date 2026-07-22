@@ -508,6 +508,49 @@ export async function updateUserRole(
   return {}
 }
 
+const renomearPapelSchema = z.string().trim()
+  .min(1, 'O nome não pode ficar em branco.')
+  .max(60, 'Nome muito longo (máximo 60 caracteres).')
+
+/**
+ * Renomeia o rótulo exibido de um papel (Fase 1 — fundação de papéis
+ * customizáveis, spec papeis-customizaveis-01-fundacao.md). Só troca o NOME —
+ * a permissão por trás continua vindo de `profiles.role` (papel.role_sistema é
+ * a âncora, não editável aqui).
+ */
+export async function renomearPapel(
+  papelId: string,
+  novoNome: string,
+): Promise<{ error?: string }> {
+  const { supabase, empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const parsed = renomearPapelSchema.safeParse(novoNome)
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+  const nome = parsed.data
+
+  // Garante que o papel alvo pertence à mesma empresa do admin.
+  const { data: papel } = await supabase
+    .from('papeis')
+    .select('empresa_id')
+    .eq('id', papelId)
+    .maybeSingle()
+  if (!papel || papel.empresa_id !== empresaId) return { error: 'Papel não encontrado.' }
+
+  const { error } = await supabase
+    .from('papeis')
+    .update({ nome })
+    .eq('id', papelId)
+
+  if (error) {
+    if (error.code === '23505') return { error: 'Já existe um papel com esse nome nesta empresa.' }
+    return { error: error.message }
+  }
+
+  revalidatePath('/configuracoes')
+  return {}
+}
+
 export async function updateUserNome(
   userId: string,
   nome: string,

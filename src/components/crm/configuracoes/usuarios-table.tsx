@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Trash2, Users, Send } from 'lucide-react'
+import { Trash2, Users, Send, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -38,8 +38,9 @@ import {
   salvarModulosUsuario,
   reenviarConvite,
   updateUserNome,
+  renomearPapel,
 } from '@/app/(crm)/configuracoes/actions'
-import type { Role } from '@/types'
+import type { Role, Papel } from '@/types'
 
 interface UsuarioRow {
   id: string
@@ -72,7 +73,12 @@ interface UsuariosTableProps {
   currentUserId: string
   /** Módulos que a empresa tem (slug + label) — opções de acesso por usuário. */
   modulosEmpresa: { slug: string; label: string }[]
+  /** Papéis customizáveis da empresa (Fase 1 — spec papeis-customizaveis-01-fundacao.md). */
+  papeis: Papel[]
 }
+
+/** Ordem fixa de exibição — âncora é role_sistema, nunca o nome (editável). */
+const ROLE_ORDER: Record<Role, number> = { admin: 0, socio: 1, comercial: 2, parceiro: 3 }
 
 const roleBadge: Record<Role, { label: string; className: string }> = {
   admin: {
@@ -160,10 +166,12 @@ function RoleSelect({
   userId,
   currentRole,
   disabled,
+  nomePorRole,
 }: {
   userId: string
   currentRole: Role
   disabled: boolean
+  nomePorRole: Partial<Record<Role, string>>
 }) {
   const [isPending, startTransition] = useTransition()
 
@@ -189,10 +197,9 @@ function RoleSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="admin">Administrador</SelectItem>
-        <SelectItem value="socio">Sócio</SelectItem>
-        <SelectItem value="comercial">Comercial</SelectItem>
-        <SelectItem value="parceiro">Parceiro</SelectItem>
+        {(Object.keys(ROLE_ORDER) as Role[]).map((r) => (
+          <SelectItem key={r} value={r}>{nomePorRole[r] ?? roleBadge[r].label}</SelectItem>
+        ))}
       </SelectContent>
     </Select>
   )
@@ -395,23 +402,97 @@ function AcessoModulos({
   )
 }
 
-export function UsuariosTable({ usuarios, currentUserId, modulosEmpresa }: UsuariosTableProps) {
+function PapelNomeInput({ papel }: { papel: Papel }) {
+  const [valor, setValor] = useState(papel.nome)
+  const [editando, setEditando] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+
+  async function handleBlur() {
+    setEditando(false)
+    const trimmed = valor.trim()
+    if (!trimmed || trimmed === papel.nome) {
+      setValor(papel.nome)
+      return
+    }
+    setSalvando(true)
+    const result = await renomearPapel(papel.id, trimmed)
+    setSalvando(false)
+    if (result.error) {
+      toast.error(result.error)
+      setValor(papel.nome)
+    } else {
+      toast.success('Nome do perfil atualizado.')
+    }
+  }
+
+  if (!editando) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditando(true)}
+        disabled={salvando}
+        className="group flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:border-foreground/40"
+      >
+        {valor}
+        <Pencil className="size-3 text-muted-foreground group-hover:text-foreground" />
+      </button>
+    )
+  }
+
+  return (
+    <input
+      autoFocus
+      value={valor}
+      disabled={salvando}
+      maxLength={60}
+      onChange={(e) => setValor(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+      className="h-7 w-32 rounded-full border border-border bg-background px-2.5 text-xs font-medium text-foreground outline-none focus:border-foreground/40"
+    />
+  )
+}
+
+/** Nomes dos 4 papéis de sistema, editáveis inline — renomeia só o rótulo
+ *  exibido; a permissão continua vindo de profiles.role (ver renomearPapel). */
+function PapeisNomes({ papeis }: { papeis: Papel[] }) {
+  if (papeis.length === 0) return null
+  const ordenados = [...papeis].sort((a, b) => ROLE_ORDER[a.role_sistema] - ROLE_ORDER[b.role_sistema])
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3">
+      <span className="text-xs font-medium text-muted-foreground">Nomes dos perfis:</span>
+      {ordenados.map((p) => <PapelNomeInput key={p.id} papel={p} />)}
+    </div>
+  )
+}
+
+export function UsuariosTable({ usuarios, currentUserId, modulosEmpresa, papeis }: UsuariosTableProps) {
+  const nomePorRole: Partial<Record<Role, string>> = Object.fromEntries(
+    papeis.map((p) => [p.role_sistema, p.nome]),
+  )
+
   if (usuarios.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16 text-center">
-        <Users className="mb-3 size-10 text-muted-foreground/40" />
-        <p className="text-sm font-medium text-muted-foreground">
-          Nenhum usuário cadastrado.
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground/70">
-          Clique em "Convidar Usuário" para adicionar alguém.
-        </p>
+      <div className="flex flex-col gap-4">
+        <PapeisNomes papeis={papeis} />
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16 text-center">
+          <Users className="mb-3 size-10 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Nenhum usuário cadastrado.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            Clique em "Convidar Usuário" para adicionar alguém.
+          </p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <div className="flex flex-col gap-4">
+      <PapeisNomes papeis={papeis} />
+      <div className="rounded-xl border border-border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
@@ -455,7 +536,7 @@ export function UsuariosTable({ usuarios, currentUserId, modulosEmpresa }: Usuar
                     variant="outline"
                     className={badge.className}
                   >
-                    {badge.label}
+                    {nomePorRole[u.role] ?? badge.label}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -463,6 +544,7 @@ export function UsuariosTable({ usuarios, currentUserId, modulosEmpresa }: Usuar
                     userId={u.id}
                     currentRole={u.role}
                     disabled={isSelf}
+                    nomePorRole={nomePorRole}
                   />
                 </TableCell>
                 <TableCell>
@@ -491,6 +573,7 @@ export function UsuariosTable({ usuarios, currentUserId, modulosEmpresa }: Usuar
           })}
         </TableBody>
       </Table>
+      </div>
     </div>
   )
 }
