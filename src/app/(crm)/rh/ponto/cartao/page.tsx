@@ -3,7 +3,17 @@ import { getFeriados, getFeriadoNoDia } from '@/lib/feriados'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { FiltrosCartao } from './filtros-cartao'
-import type { Colaborador, Ponto } from '@/types/rh'
+import { DiasPonto, type DiaPontoView, type SituacaoDia } from './dias-ponto'
+import { formatarMinutos } from './ponto-utils'
+import type { Colaborador, JornadaSemanal, Ponto } from '@/types/rh'
+
+const CHAVES_JORNADA: readonly (keyof JornadaSemanal)[] = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+
+/** Minutos esperados de trabalho no dia da semana informado (0=domingo..6=sábado). Null = jornada não cadastrada. */
+function minutosEsperados(jornada: JornadaSemanal | null, diaSemana: number): number | null {
+  if (!jornada) return null
+  return jornada[CHAVES_JORNADA[diaSemana]] ?? 0
+}
 
 function mesAtual(): string {
   const d = new Date()
@@ -33,37 +43,6 @@ function minutosEntre(entrada: string | null, saida: string | null): number {
   return minutos > 0 ? minutos : 0
 }
 
-function formatarMinutos(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${h}h${m > 0 ? String(m).padStart(2, '0') : ''}`
-}
-
-type SituacaoDia = 'normal' | 'falta' | 'atestado' | 'folga_banco_horas' | 'folga' | 'feriado' | 'sem_registro'
-
-const SITUACAO_CONFIG: Record<SituacaoDia, { label: string; badge: string }> = {
-  normal:             { label: 'Trabalhou',              badge: 'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-400' },
-  falta:              { label: 'Faltou',                 badge: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400' },
-  atestado:           { label: 'Atestado médico',        badge: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-400' },
-  folga_banco_horas:  { label: 'Folga (banco de horas)', badge: 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950/30 dark:text-purple-400' },
-  folga:              { label: 'Folga',                  badge: 'border-border bg-muted/40 text-muted-foreground' },
-  feriado:            { label: 'Feriado',                badge: 'border-border bg-muted/40 text-muted-foreground' },
-  sem_registro:       { label: 'Sem registro',            badge: 'border-dashed border-border text-muted-foreground/70' },
-}
-
-interface DiaCartao {
-  data: string
-  dataObj: Date
-  situacao: SituacaoDia
-  feriadoNome?: string
-  entrada_1: string | null
-  saida_1: string | null
-  entrada_2: string | null
-  saida_2: string | null
-  minutosTrabalhados: number
-  batidaManual: boolean
-}
-
 interface PageProps {
   searchParams: Promise<{ colaborador?: string; mes?: string }>
 }
@@ -91,20 +70,29 @@ export default async function CartaoPontoPage({ searchParams }: PageProps) {
   const fimMes = `${mesSelecionado}-${String(ultimoDia).padStart(2, '0')}`
 
   let pontos: Ponto[] = []
+  let jornadaSemanal: JornadaSemanal | null = null
   if (colaboradorId) {
-    const { data: pontosRaw } = await supabase
-      .from('pontos')
-      .select('*')
-      .eq('colaborador_id', colaboradorId)
-      .gte('data', inicioMes)
-      .lte('data', fimMes)
+    const [{ data: pontosRaw }, { data: colaboradorCompleto }] = await Promise.all([
+      supabase
+        .from('pontos')
+        .select('*')
+        .eq('colaborador_id', colaboradorId)
+        .gte('data', inicioMes)
+        .lte('data', fimMes),
+      supabase
+        .from('colaboradores')
+        .select('jornada_semanal')
+        .eq('id', colaboradorId)
+        .maybeSingle(),
+    ])
     pontos = (pontosRaw ?? []) as Ponto[]
+    jornadaSemanal = (colaboradorCompleto?.jornada_semanal as JornadaSemanal | null) ?? null
   }
 
   const pontoMap = new Map(pontos.map((p) => [p.data, p]))
   const feriados = getFeriados(ano)
 
-  const dias: DiaCartao[] = []
+  const dias: DiaPontoView[] = []
   for (let dia = 1; dia <= ultimoDia; dia++) {
     const dataISO = `${mesSelecionado}-${String(dia).padStart(2, '0')}`
     const dataObj = new Date(ano, mesNum - 1, dia)
@@ -114,9 +102,7 @@ export default async function CartaoPontoPage({ searchParams }: PageProps) {
 
     let situacao: SituacaoDia
     if (ponto) {
-      situacao = ponto.tipo_dia === 'normal'
-        ? 'normal'
-        : (ponto.tipo_dia as SituacaoDia)
+      situacao = ponto.tipo_dia === 'normal' ? 'normal' : (ponto.tipo_dia as SituacaoDia)
     } else if (feriado) {
       situacao = 'feriado'
     } else if (diaSemana === 0 || diaSemana === 6) {
@@ -129,17 +115,39 @@ export default async function CartaoPontoPage({ searchParams }: PageProps) {
       minutosEntre(ponto?.entrada_1 ?? null, ponto?.saida_1 ?? null) +
       minutosEntre(ponto?.entrada_2 ?? null, ponto?.saida_2 ?? null)
 
+    const justificado = !!ponto?.tipo_justificativa
+    const esperado = minutosEsperados(jornadaSemanal, diaSemana)
+
+    // Delta de banco de horas: só faz sentido em dias que deveriam gerar
+    // comparação (normal/falta/folga_banco_horas); feriado/folga são sempre 0;
+    // atestado e dias justificados pelo RH também não geram débito;
+    // sem_registro fica sem informação suficiente (null, não entra na soma).
+    let delta: number | null = null
+    if (situacao === 'feriado' || situacao === 'folga' || situacao === 'atestado' || justificado) {
+      delta = 0
+    } else if (situacao === 'sem_registro') {
+      delta = null
+    } else if (esperado !== null) {
+      delta = minutosTrabalhados - esperado
+    }
+
     dias.push({
       data: dataISO,
-      dataObj,
+      dataExibicao: `${String(dataObj.getDate()).padStart(2, '0')}/${String(mesNum).padStart(2, '0')}`,
+      diaSemanaLabel: feriado?.nome ?? nomeDiaSemana(dataObj),
       situacao,
-      feriadoNome: feriado?.nome,
       entrada_1: ponto?.entrada_1 ?? null,
       saida_1: ponto?.saida_1 ?? null,
       entrada_2: ponto?.entrada_2 ?? null,
       saida_2: ponto?.saida_2 ?? null,
       minutosTrabalhados,
+      minutosEsperados: esperado,
+      delta,
       batidaManual: ponto?.batida_manual ?? false,
+      justificativa: ponto?.justificativa ?? null,
+      tipoJustificativa: ponto?.tipo_justificativa ?? null,
+      temDocumento: !!ponto?.documento_path,
+      temPonto: !!ponto,
     })
   }
 
@@ -148,7 +156,11 @@ export default async function CartaoPontoPage({ searchParams }: PageProps) {
   const atestados = dias.filter((d) => d.situacao === 'atestado').length
   const totalMinutos = dias.reduce((acc, d) => acc + d.minutosTrabalhados, 0)
 
+  const jornadaConfigurada = jornadaSemanal !== null
+  const saldoBancoHoras = dias.reduce((acc, d) => acc + (d.delta ?? 0), 0)
+
   const colaboradorSelecionado = colaboradores.find((c) => c.id === colaboradorId)
+  const primeiroNome = colaboradorSelecionado?.nome.split(' ')[0] ?? 'O colaborador'
 
   return (
     <div className="flex flex-col gap-6">
@@ -211,45 +223,35 @@ export default async function CartaoPontoPage({ searchParams }: PageProps) {
             </div>
           </div>
 
-          {/* Lista dia a dia */}
-          <div className="flex flex-col divide-y divide-border rounded-xl border border-border overflow-hidden">
-            {dias.map((d) => {
-              const config = SITUACAO_CONFIG[d.situacao]
-              const temHorario = d.entrada_1 || d.saida_1 || d.entrada_2 || d.saida_2
-              return (
-                <div key={d.data} className="flex flex-wrap items-center justify-between gap-2 bg-card px-4 py-2.5">
-                  <div className="flex min-w-[9rem] flex-col">
-                    <span className="text-sm font-medium text-foreground">
-                      {String(d.dataObj.getDate()).padStart(2, '0')}/{String(mesNum).padStart(2, '0')}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {d.feriadoNome ?? nomeDiaSemana(d.dataObj)}
-                    </span>
-                  </div>
+          {/* Banco de horas do mês */}
+          {jornadaConfigurada ? (
+            <div
+              className={`flex flex-col gap-1 rounded-xl border px-4 py-3 ${
+                saldoBancoHoras === 0
+                  ? 'border-border bg-card'
+                  : saldoBancoHoras > 0
+                    ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20'
+                    : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20'
+              }`}
+            >
+              <span className="text-xs text-muted-foreground">Banco de horas do mês</span>
+              <span className="text-base font-bold text-foreground">
+                {saldoBancoHoras === 0
+                  ? 'Sem pendência — bateu certinho'
+                  : saldoBancoHoras > 0
+                    ? `A empresa deve ${formatarMinutos(saldoBancoHoras)} a ${primeiroNome}`
+                    : `${primeiroNome} deve ${formatarMinutos(Math.abs(saldoBancoHoras))} à empresa`}
+              </span>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-border px-4 py-3">
+              <span className="text-xs text-muted-foreground">
+                Jornada não cadastrada para {primeiroNome} — banco de horas não é calculado.
+              </span>
+            </div>
+          )}
 
-                  <div className="flex flex-1 items-center justify-end gap-3">
-                    {temHorario && (
-                      <span className="text-xs text-muted-foreground">
-                        {d.entrada_1 ?? '—'}–{d.saida_1 ?? '—'}
-                        {(d.entrada_2 || d.saida_2) && ` / ${d.entrada_2 ?? '—'}–${d.saida_2 ?? '—'}`}
-                        {d.batidaManual && ' (lançado manualmente)'}
-                      </span>
-                    )}
-                    {d.minutosTrabalhados > 0 && (
-                      <span className="text-xs font-medium text-foreground">
-                        {formatarMinutos(d.minutosTrabalhados)}
-                      </span>
-                    )}
-                    <span
-                      className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${config.badge}`}
-                    >
-                      {config.label}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <DiasPonto key={colaboradorId} colaboradorId={colaboradorId} dias={dias} />
 
           {/* Legenda */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -258,6 +260,7 @@ export default async function CartaoPontoPage({ searchParams }: PageProps) {
             <span><strong className="text-blue-700 dark:text-blue-400">Atestado médico</strong> — falta justificada por atestado</span>
             <span><strong className="text-purple-700 dark:text-purple-400">Folga (banco de horas)</strong> — folga combinada, compensando horas trabalhadas antes</span>
             <span><strong>Folga/Feriado</strong> — fim de semana ou feriado, não é falta</span>
+            <span><strong>Justificado</strong> — dia com pendência, mas o RH explicou o motivo; não entra no banco de horas</span>
           </div>
         </>
       )}

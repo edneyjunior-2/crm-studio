@@ -9,6 +9,18 @@ export type FolhaStatus = 'aberto' | 'pago'
 export type TipoRemuneracao = 'diaria' | 'mensal'
 export type TipoDiaPonto = 'normal' | 'falta' | 'atestado' | 'folga_banco_horas'
 export type OrigemPonto = 'manual' | 'importado_secullum'
+export type TipoJustificativaPonto = 'atestado_medico' | 'atestado_comparecimento' | 'liberacao_empresa' | 'outro'
+
+/** Minutos esperados de trabalho por dia da semana. Chave ausente ou 0 = não trabalha nesse dia. */
+export interface JornadaSemanal {
+  seg?: number
+  ter?: number
+  qua?: number
+  qui?: number
+  sex?: number
+  sab?: number
+  dom?: number
+}
 
 export interface Colaborador {
   id: string
@@ -25,6 +37,7 @@ export interface Colaborador {
   tipo_contrato: TipoContrato | null
   tipo_remuneracao: TipoRemuneracao
   salario: number | null
+  jornada_semanal: JornadaSemanal | null
   created_by: string | null
   created_at: string
 }
@@ -36,6 +49,7 @@ export interface Ponto {
   data: string  // 'YYYY-MM-DD'
   presente: boolean
   justificativa: string | null
+  tipo_justificativa: TipoJustificativaPonto | null
   documento_path: string | null
   entrada_1: string | null  // 'HH:MM'
   saida_1: string | null
@@ -53,6 +67,13 @@ export const TIPO_DIA_PONTO_LABEL: Record<TipoDiaPonto, string> = {
   falta: 'Faltou',
   atestado: 'Atestado médico',
   folga_banco_horas: 'Folga (banco de horas)',
+}
+
+export const TIPO_JUSTIFICATIVA_PONTO_LABEL: Record<TipoJustificativaPonto, string> = {
+  atestado_medico: 'Atestado médico',
+  atestado_comparecimento: 'Atestado de comparecimento',
+  liberacao_empresa: 'Liberação da empresa',
+  outro: 'Outro (manual)',
 }
 
 export interface Ausencia {

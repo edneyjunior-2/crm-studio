@@ -2,6 +2,14 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/auth'
+import type { TipoJustificativaPonto } from '@/types/rh'
+
+const TIPOS_JUSTIFICATIVA: TipoJustificativaPonto[] = [
+  'atestado_medico',
+  'atestado_comparecimento',
+  'liberacao_empresa',
+  'outro',
+]
 
 export async function upsertPonto(
   colaboradorId: string,
@@ -35,6 +43,84 @@ export async function upsertPonto(
   if (error) return { error: error.message }
 
   revalidatePath('/rh/ponto')
+  revalidatePath('/rh/ponto/cartao')
+  return {}
+}
+
+/**
+ * Justifica um dia específico do ponto (qualquer situação — falta, saída
+ * antecipada, atraso etc.), sem alterar presente/tipo_dia. Um dia com
+ * justificativa preenchida deixa de gerar débito de banco de horas
+ * (ver cálculo em rh/ponto/cartao/page.tsx).
+ */
+export async function salvarJustificativaPonto(
+  colaboradorId: string,
+  data: string,
+  tipoJustificativa: string,
+  texto: string,
+): Promise<{ error?: string }> {
+  const { supabase } = await getAuthUser()
+
+  if (!colaboradorId || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    return { error: 'Dados inválidos.' }
+  }
+  if (!TIPOS_JUSTIFICATIVA.includes(tipoJustificativa as TipoJustificativaPonto)) {
+    return { error: 'Tipo de justificativa inválido.' }
+  }
+
+  const { data: ponto } = await supabase
+    .from('pontos')
+    .select('id')
+    .eq('colaborador_id', colaboradorId)
+    .eq('data', data)
+    .maybeSingle()
+
+  if (!ponto) return { error: 'Não há registro de ponto nesse dia para justificar.' }
+
+  const { error } = await supabase
+    .from('pontos')
+    .update({
+      tipo_justificativa: tipoJustificativa,
+      justificativa: texto.trim() || null,
+    })
+    .eq('id', ponto.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/rh/ponto')
+  revalidatePath('/rh/ponto/cartao')
+  return {}
+}
+
+/** Remove a justificativa (e o anexo, se houver) de um dia. */
+export async function removerJustificativaPonto(
+  colaboradorId: string,
+  data: string,
+): Promise<{ error?: string }> {
+  const { supabase } = await getAuthUser()
+
+  const { data: ponto } = await supabase
+    .from('pontos')
+    .select('id, documento_path')
+    .eq('colaborador_id', colaboradorId)
+    .eq('data', data)
+    .maybeSingle()
+
+  if (!ponto) return {}
+
+  if (ponto.documento_path) {
+    await supabase.storage.from('rh-documentos').remove([ponto.documento_path])
+  }
+
+  const { error } = await supabase
+    .from('pontos')
+    .update({ tipo_justificativa: null, justificativa: null, documento_path: null })
+    .eq('id', ponto.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/rh/ponto')
+  revalidatePath('/rh/ponto/cartao')
   return {}
 }
 
@@ -60,13 +146,12 @@ export async function uploadDocumentoPonto(
 
   const { data: ponto } = await supabase
     .from('pontos')
-    .select('id, presente')
+    .select('id')
     .eq('colaborador_id', colaboradorId)
     .eq('data', data)
     .maybeSingle()
 
-  if (!ponto) return { error: 'Registre a falta antes de anexar o documento.' }
-  if (ponto.presente) return { error: 'Documento é permitido apenas para faltas.' }
+  if (!ponto) return { error: 'Registre o ponto do dia antes de anexar o documento.' }
 
   const ext       = file.name.split('.').pop()?.toLowerCase() ?? 'bin'
   const safeName  = `atestado.${ext}`
@@ -89,6 +174,7 @@ export async function uploadDocumentoPonto(
   }
 
   revalidatePath('/rh/ponto')
+  revalidatePath('/rh/ponto/cartao')
   return { path }
 }
 
@@ -117,6 +203,7 @@ export async function removerDocumentoPonto(
   if (error) return { error: error.message }
 
   revalidatePath('/rh/ponto')
+  revalidatePath('/rh/ponto/cartao')
   return {}
 }
 

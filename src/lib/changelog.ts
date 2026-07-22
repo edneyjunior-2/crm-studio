@@ -27,6 +27,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-22-banco-de-horas-justificativa',
+    data: '2026-07-22',
+    titulo: 'Cartão de Ponto agora mostra quem deve horas a quem',
+    tipo: 'novidade',
+    modulo: 'engenharia',
+    itens: [
+      'O Cartão de Ponto compara o horário batido de cada dia com a jornada esperada e mostra o saldo do mês em uma frase simples — "a empresa deve X horas" ou "fulano deve X horas à empresa" — sem precisar fazer conta.',
+      'Qualquer dia (não só falta) agora pode ser justificado pelo RH — atestado médico, atestado de comparecimento, liberação da empresa ou uma observação livre, com anexo opcional — e um dia justificado deixa de contar como pendência.',
+    ],
+  },
+  {
     id: '2026-07-22-cartao-de-ponto',
     data: '2026-07-22',
     titulo: 'Cartão de Ponto: entenda o ponto da sua equipe sem precisar decifrar planilha',
