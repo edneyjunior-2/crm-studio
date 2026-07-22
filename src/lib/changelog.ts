@@ -27,6 +27,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-22-permissao-ver-pipeline-completo',
+    data: '2026-07-22',
+    titulo: 'Dê a um perfil a visão completa do Pipeline, sem precisar torná-lo sócio',
+    tipo: 'melhoria',
+    itens: [
+      'Em Configurações › Usuários, o administrador agora pode ligar "Ver pipeline completo" no perfil Comercial: todo mundo com esse perfil passa a ver os negócios de toda a equipe (Kanban e Histórico), sem precisar virar sócio nem ganhar acesso ao Financeiro.',
+    ],
+  },
+  {
     id: '2026-07-22-escolher-template-whatsapp',
     data: '2026-07-22',
     titulo: 'Escolha qual mensagem-modelo usar para reabrir uma conversa no WhatsApp',

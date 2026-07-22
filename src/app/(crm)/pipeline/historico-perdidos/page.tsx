@@ -19,7 +19,9 @@ export default async function HistoricoPerdidosPage() {
   if (!user) redirect('/login')
 
   const [profile, estagios] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user.id).single().then((r) => r.data),
+    // papeis(permissoes): mesma permissão fina do /pipeline (Fase 2 — spec
+    // papeis-customizaveis-02-permissao-pipeline.md).
+    supabase.from('profiles').select('role, papeis(permissoes)').eq('id', user.id).single().then((r) => r.data),
     listarEstagios(),
   ])
 
@@ -33,7 +35,10 @@ export default async function HistoricoPerdidosPage() {
   const slugsGanhos = estagios.filter((e) => e.tipo === 'ganho').map((e) => e.slug)
   const slugsFechamento = [...slugsPerdidos, ...slugsGanhos]
 
-  const isComercial = profile?.role === 'comercial'
+  const podeVerPipelineCompleto = !!(
+    profile as { papeis?: { permissoes?: { pipeline_visao_completa?: boolean } } | null } | null
+  )?.papeis?.permissoes?.pipeline_visao_completa
+  const isComercial = profile?.role === 'comercial' && !podeVerPipelineCompleto
 
   // Histórico = TODOS os fechados + desqualificados (o arquivo completo,
   // pesquisável). O kanban é quem arquiva por mês; aqui o usuário busca

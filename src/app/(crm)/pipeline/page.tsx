@@ -33,7 +33,10 @@ export default async function PipelinePage() {
   const [estagios, solucoesResult, profileResult, profileGoogleResult, parceirosResult, profilesResult, pipelineConfig] = await Promise.all([
     listarEstagios(),
     supabase.from('solucoes').select('id, nome').eq('ativo', true).order('nome'),
-    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    // papeis(permissoes): permissão fina do papel do usuário (Fase 2 — spec
+    // papeis-customizaveis-02-permissao-pipeline.md). Sem hint: única FK
+    // profiles.papel_id -> papeis.id, sem ambiguidade.
+    supabase.from('profiles').select('role, papeis(permissoes)').eq('id', user.id).single(),
     supabase.from('profiles').select('google_refresh_token').eq('id', user.id).single(),
     supabase.from('parceiros').select('id, nome').order('nome'),
     supabase.from('profiles').select('id, full_name').order('full_name'),
@@ -98,11 +101,16 @@ export default async function PipelinePage() {
   }
 
   const role = (profileResult.data?.role ?? 'comercial') as Role
+  const podeVerPipelineCompleto = !!(
+    profileResult.data as { papeis?: { permissoes?: { pipeline_visao_completa?: boolean } } | null } | null
+  )?.papeis?.permissoes?.pipeline_visao_completa
 
-  // comercial vê apenas os próprios negócios — RLS garante no banco,
-  // mas filtramos em JS também para caso RLS não esteja habilitada
+  // comercial vê apenas os próprios negócios — RLS garante no banco, mas
+  // filtramos em JS também para caso RLS não esteja habilitada. Exceção: papel
+  // com a permissão pipeline_visao_completa ligada (Fase 2 — spec
+  // papeis-customizaveis-02-permissao-pipeline.md) vê tudo, sem virar sócio.
   const negocios =
-    role === 'comercial'
+    role === 'comercial' && !podeVerPipelineCompleto
       ? allNegocios.filter((n) => n.responsavel_id === user.id)
       : allNegocios
 

@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import {
   updateUserRole,
   deleteUser,
@@ -39,6 +40,7 @@ import {
   reenviarConvite,
   updateUserNome,
   renomearPapel,
+  atualizarPermissaoPapel,
 } from '@/app/(crm)/configuracoes/actions'
 import type { Role, Papel } from '@/types'
 
@@ -453,6 +455,35 @@ function PapelNomeInput({ papel }: { papel: Papel }) {
   )
 }
 
+/** Permissão fina por papel (Fase 2 — spec papeis-customizaveis-02-permissao-
+ *  pipeline.md). Só aparece pro papel Comercial: admin/sócio já veem tudo,
+ *  parceiro tem portal/RLS própria (fora de escopo desta permissão). */
+function PapelPermissaoPipeline({ papel }: { papel: Papel }) {
+  const [ativo, setAtivo] = useState(!!papel.permissoes?.pipeline_visao_completa)
+  const [salvando, setSalvando] = useState(false)
+
+  async function handleChange(valor: boolean) {
+    const anterior = ativo
+    setAtivo(valor)
+    setSalvando(true)
+    const result = await atualizarPermissaoPapel(papel.id, 'pipeline_visao_completa', valor)
+    setSalvando(false)
+    if (result.error) {
+      toast.error(result.error)
+      setAtivo(anterior)
+    } else {
+      toast.success(valor ? 'Agora este perfil vê o pipeline completo.' : 'Este perfil voltou a ver só os próprios negócios.')
+    }
+  }
+
+  return (
+    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <Switch size="sm" checked={ativo} disabled={salvando} onCheckedChange={handleChange} />
+      Ver pipeline completo
+    </label>
+  )
+}
+
 /** Nomes dos 4 papéis de sistema, editáveis inline — renomeia só o rótulo
  *  exibido; a permissão continua vindo de profiles.role (ver renomearPapel). */
 function PapeisNomes({ papeis }: { papeis: Papel[] }) {
@@ -462,7 +493,12 @@ function PapeisNomes({ papeis }: { papeis: Papel[] }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3">
       <span className="text-xs font-medium text-muted-foreground">Nomes dos perfis:</span>
-      {ordenados.map((p) => <PapelNomeInput key={p.id} papel={p} />)}
+      {ordenados.map((p) => (
+        <div key={p.id} className="flex items-center gap-2">
+          <PapelNomeInput papel={p} />
+          {p.role_sistema === 'comercial' && <PapelPermissaoPipeline papel={p} />}
+        </div>
+      ))}
     </div>
   )
 }

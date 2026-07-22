@@ -74,9 +74,10 @@ export default async function ConfiguracoesPage() {
     empresaId ? temAddon(admin, empresaId, ADDON_ASSINATURA) : Promise.resolve(false),
     // Limite efetivo de usuários (plano base + blocos comprados — spec addon-bloco-10-usuarios.md)
     empresaId ? limiteUsuariosEfetivo(admin, empresaId, plano) : Promise.resolve(LIMITES_POR_PLANO[plano].usuarios),
-    // Papéis customizáveis da empresa (Fase 1 — spec papeis-customizaveis-01-fundacao.md)
+    // Papéis customizáveis da empresa (Fase 1 — spec papeis-customizaveis-01-fundacao.md;
+    // permissoes lido pela Fase 2 — spec papeis-customizaveis-02-permissao-pipeline.md)
     empresaId
-      ? supabase.from('papeis').select('id, empresa_id, nome, role_sistema, sistema').eq('empresa_id', empresaId)
+      ? supabase.from('papeis').select('id, empresa_id, nome, role_sistema, sistema, permissoes').eq('empresa_id', empresaId)
       : Promise.resolve({ data: [], error: null }),
   ])
 

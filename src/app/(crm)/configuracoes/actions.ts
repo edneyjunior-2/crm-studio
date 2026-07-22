@@ -551,6 +551,41 @@ export async function renomearPapel(
   return {}
 }
 
+/**
+ * Liga/desliga uma permissão fina de um papel (Fase 2 — permissão de verdade,
+ * spec papeis-customizaveis-02-permissao-pipeline.md). Faz merge na coluna
+ * `papeis.permissoes` (jsonb) — nunca sobrescreve outras chaves já gravadas.
+ * A leitura em runtime é feita pela função SQL `tem_permissao()` via RLS;
+ * esta action só cuida da escrita, gated por admin.
+ */
+export async function atualizarPermissaoPapel(
+  papelId: string,
+  chave: string,
+  ativo: boolean,
+): Promise<{ error?: string }> {
+  const { supabase, empresaId } = await getAuthAdmin()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  const { data: papel } = await supabase
+    .from('papeis')
+    .select('empresa_id, permissoes')
+    .eq('id', papelId)
+    .maybeSingle()
+  if (!papel || papel.empresa_id !== empresaId) return { error: 'Papel não encontrado.' }
+
+  const permissoes = { ...(papel.permissoes as Record<string, boolean>), [chave]: ativo }
+
+  const { error } = await supabase
+    .from('papeis')
+    .update({ permissoes })
+    .eq('id', papelId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/configuracoes')
+  return {}
+}
+
 export async function updateUserNome(
   userId: string,
   nome: string,

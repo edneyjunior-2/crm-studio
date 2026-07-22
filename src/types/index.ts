@@ -8,6 +8,10 @@ export interface Papel {
   nome: string
   role_sistema: Role
   sistema: boolean
+  /** Permissões finas por papel (Fase 2 — spec papeis-customizaveis-02).
+   *  `pipeline_visao_completa`: vê todos os negócios do pipeline, não só os
+   *  próprios, sem precisar virar sócio (que também abre o Financeiro). */
+  permissoes: { pipeline_visao_completa?: boolean; [chave: string]: boolean | undefined }
 }
 
 export interface Profile {

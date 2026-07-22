@@ -420,6 +420,17 @@ export async function updateEstagioComData(
   // casa 0 → transicionou=false → o cliente não re-dispara gerarFinanceiro
   // (evita conta/comissão duplicadas sem depender de UNIQUE, que quebraria a
   // conta manual vinculada ao negócio).
+  //
+  // 0 linhas aqui tem DOIS motivos possíveis, e só um deles é silencioso por
+  // design: (a) corrida legítima — outro request já fechou o MESMO negócio
+  // entre o read e o write; (b) falta de permissão de edição — desde a
+  // permissão pipeline_visao_completa (spec papeis-customizaveis-02), um
+  // comercial pode VER (SELECT) o card de um colega sem poder editá-lo (UPDATE
+  // continua restrito a responsavel_id). Sem distinguir os dois casos, (b)
+  // vira sucesso falso (kanban-board.tsx mostra "Negócio fechado com
+  // sucesso!" com zero linhas alteradas no banco). Rechecagem: se o estágio
+  // atual do negócio NÃO virou "ganho" nesse intervalo, não foi corrida — foi
+  // permissão negada.
   let transicionou = true
   if (tipoEstagio === 'ganho' && tipoOrigem !== 'ganho') {
     const { data: flip, error } = await supabase
@@ -430,9 +441,30 @@ export async function updateEstagioComData(
       .select('id')
     if (error) return { error: error.message }
     transicionou = (flip?.length ?? 0) > 0
+
+    if (!transicionou) {
+      const { data: negocioPosUpdate } = await supabase
+        .from('negocios')
+        .select('estagio')
+        .eq('id', id)
+        .maybeSingle()
+      const tipoPosUpdate = negocioPosUpdate
+        ? await resolverTipoEstagio(supabase, auth.empresaId, negocioPosUpdate.estagio)
+        : null
+      if (tipoPosUpdate !== 'ganho') {
+        return { error: 'Você não tem permissão para mover este negócio.' }
+      }
+    }
   } else {
-    const { error } = await supabase.from('negocios').update(update).eq('id', id)
+    const { data: movido, error } = await supabase
+      .from('negocios')
+      .update(update)
+      .eq('id', id)
+      .select('id')
     if (error) return { error: error.message }
+    if ((movido?.length ?? 0) === 0) {
+      return { error: 'Você não tem permissão para mover este negócio.' }
+    }
   }
 
   // Etapa saiu de "ganho" (drag no kanban p/ aberto OU perdido): estorna o
