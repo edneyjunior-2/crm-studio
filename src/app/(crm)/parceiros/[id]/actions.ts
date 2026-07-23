@@ -42,7 +42,8 @@ export async function uploadContrato(
 
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
-  const path = `contratos/${parceiroId}/${Date.now()}_${file.name}`
+  const ext = file.name.split('.').pop() ?? 'pdf'
+  const path = `${parceiroId}/${crypto.randomUUID()}.${ext}`
 
   const { error: uploadError } = await admin.storage
     .from('contratos')
