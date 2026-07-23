@@ -27,6 +27,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-23-upload-contrato-parceiro-nome-acentuado',
+    data: '2026-07-23',
+    titulo: 'Corrigido: contrato assinado de parceiro não anexava quando o nome do arquivo tinha acento',
+    tipo: 'correcao',
+    itens: [
+      'Ao anexar o contrato assinado na ficha de um parceiro, arquivos com acento, espaço ou hífen no nome (ex.: "CONTRATO DE PARCERIA PREVIDENCIÁRIA - Fulano e Ciclano.pdf") eram rejeitados no envio, mesmo o parceiro já estando marcado como "contrato assinado". Corrigido: qualquer nome de arquivo agora é aceito normalmente.',
+    ],
+  },
+  {
     id: '2026-07-23-contrato-pdf-nao-abria-no-adobe',
     data: '2026-07-23',
     titulo: 'Corrigido: contrato em PDF podia não abrir no Adobe Acrobat',
