@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine, Upload, Plus, X, Lock, ChevronDown, ChevronUp, Mail, Check } from 'lucide-react'
+import { FileText, History, Pencil, Trash2, Send, ExternalLink, AlertTriangle, PenLine, Upload, Plus, X, Lock, ChevronDown, ChevronUp, Mail, Check, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { salvarParceiroDoContrato } from '@/app/(crm)/parceiros/actions'
@@ -13,6 +13,7 @@ import {
   enviarParaAssinatura,
   listarSignatariosParaEdicao,
   salvarEmailsSignatarios,
+  baixarViaAssinada,
 } from '@/app/(crm)/contratos/actions'
 import type { ContratoGerado } from '@/app/(crm)/contratos/actions'
 import { createClient } from '@/lib/supabase/client'
@@ -539,6 +540,7 @@ export function ContratosView({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [activeTab, setActiveTab] = useState<'gerador' | 'upload' | 'historico'>('gerador')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [baixandoId, setBaixandoId] = useState<string | null>(null)
   const [enviandoId, setEnviandoId] = useState<string | null>(null)
   const [signatarioOpen, setSignatarioOpen] = useState(false)
   const [editandoEmailId, setEditandoEmailId] = useState<string | null>(null)
@@ -745,6 +747,19 @@ export function ContratosView({
         iframeOrigin || window.location.origin,
       )
     }, 300)
+  }
+
+  function baixarAssinado(id: string) {
+    setBaixandoId(id)
+    startTransition(async () => {
+      const res = await baixarViaAssinada(id)
+      setBaixandoId(null)
+      if (res.error) {
+        toast.error(res.error)
+      } else if (res.url) {
+        window.open(res.url, '_blank', 'noopener')
+      }
+    })
   }
 
   function excluir(id: string) {
@@ -1037,6 +1052,18 @@ export function ContratosView({
                         >
                           <Pencil className="size-3" />
                           Re-editar
+                        </button>
+                      )}
+                      {statusEfetivo(item) === 'assinado' && (
+                        <button
+                          type="button"
+                          title="Baixar a via assinada"
+                          disabled={baixandoId === item.id}
+                          onClick={() => baixarAssinado(item.id)}
+                          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                        >
+                          <Download className="size-3" />
+                          {baixandoId === item.id ? 'Gerando link…' : 'Baixar via assinada'}
                         </button>
                       )}
                       <button

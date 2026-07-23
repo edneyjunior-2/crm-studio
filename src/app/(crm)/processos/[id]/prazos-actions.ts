@@ -51,6 +51,35 @@ export async function marcarPrazoCumprido(
   return {}
 }
 
+export async function editarPrazo(
+  prazoId:        string,
+  processoId:     string,
+  descricao:      string,
+  dataPrazo:      string,
+  responsavelId?: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado.' }
+  if (!descricao.trim() || !dataPrazo) return { error: 'Descrição e data são obrigatórios.' }
+
+  const { data, error } = await supabase
+    .from('processos_prazos')
+    .update({
+      descricao:      descricao.trim(),
+      data_prazo:     dataPrazo,
+      responsavel_id: responsavelId || null,
+    })
+    .eq('id', prazoId)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data?.length) return { error: 'Prazo não encontrado ou sem permissão.' }
+  revalidatePath(`/processos/${processoId}`)
+  revalidatePath('/calendario')
+  return {}
+}
+
 export async function excluirPrazo(
   prazoId:    string,
   processoId: string,

@@ -27,6 +27,62 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-23-editar-prazo-processo',
+    data: '2026-07-23',
+    titulo: 'Agora dá para editar um prazo já cadastrado no processo',
+    tipo: 'melhoria',
+    modulo: 'advocacia',
+    itens: [
+      'Na aba Prazos de um processo, além de marcar como cumprido e excluir, agora dá para editar a descrição, a data e o responsável de um prazo já cadastrado — sem precisar excluir e criar de novo.',
+    ],
+  },
+  {
+    id: '2026-07-23-calendario-mes-incompleto',
+    data: '2026-07-23',
+    titulo: 'Corrigido: eventos sumindo no início/fim da visão Mês do calendário',
+    tipo: 'correcao',
+    itens: [
+      'Na visão Mês do Calendário, eventos e bloqueios de agenda marcados nos primeiros ou últimos dias visíveis na grade (que pertencem ao mês anterior ou seguinte) não apareciam. Agora a busca cobre a grade inteira mostrada na tela.',
+    ],
+  },
+  {
+    id: '2026-07-23-baixar-contrato-assinado',
+    data: '2026-07-23',
+    titulo: 'Novo botão para baixar a via assinada do contrato',
+    tipo: 'novidade',
+    itens: [
+      'No Histórico de contratos, um contrato com status "Assinado" agora tem um botão "Baixar via assinada" para baixar o PDF final assinado por todas as partes.',
+    ],
+  },
+  {
+    id: '2026-07-23-saudacao-whatsapp-sem-nome',
+    data: '2026-07-23',
+    titulo: 'Saudação do WhatsApp mais natural quando o contato ainda não tem nome cadastrado',
+    tipo: 'correcao',
+    modulo: 'atendimento',
+    itens: [
+      'Ao reabrir conversa com um contato ainda sem nome cadastrado, a mensagem-modelo dizia "Olá Cliente" (parecia um nome esquecido de preencher). Agora a saudação usa um texto mais natural.',
+    ],
+  },
+  {
+    id: '2026-07-23-editar-cliente-aviso-permissao',
+    data: '2026-07-23',
+    titulo: 'Corrigido: editar cliente sem permissão mostrava "sucesso" sem salvar nada',
+    tipo: 'correcao',
+    itens: [
+      'Ao tentar editar um cliente sem ter permissão para isso, o sistema mostrava "Cliente atualizado com sucesso" mesmo sem gravar a alteração. Agora aparece um aviso claro de que a edição não foi permitida.',
+    ],
+  },
+  {
+    id: '2026-07-23-nome-arquivo-contrato-por-modelo',
+    data: '2026-07-23',
+    titulo: 'Nome do PDF do contrato agora reflete o modelo usado',
+    tipo: 'correcao',
+    itens: [
+      'O PDF baixado no Gerador de Contratos sempre se chamava "Contrato_Parceria_...", mesmo quando o modelo usado era outro (ex.: honorários advocatícios). Agora o nome do arquivo usa o modelo/aba realmente selecionado.',
+    ],
+  },
+  {
     id: '2026-07-23-honorarios-restrito-advocacia',
     data: '2026-07-23',
     titulo: 'Aba de Honorários agora é exclusiva de contas de Advocacia',

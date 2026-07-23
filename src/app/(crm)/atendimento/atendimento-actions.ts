@@ -646,7 +646,10 @@ export async function sugerirValoresTemplate(
   const { empresaId, userId } = await authEmpresa()
   const admin = createAdminClient()
 
-  let nomeCliente = 'Cliente'
+  // Minúsculo de propósito: "Olá Cliente," (maiúsculo) lê como um nome que
+  // deveria ter sido preenchido e não foi — soa robótico (chamado #26).
+  // "Olá cliente," lê como forma de tratamento genérica, mais natural.
+  let nomeCliente = 'cliente'
   if (clienteId) {
     const { data: cliente } = await admin
       .from('clientes')

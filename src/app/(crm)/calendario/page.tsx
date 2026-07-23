@@ -178,12 +178,24 @@ export default async function CalendarioPage({
 
   const admin = createAdminClient()
 
-  // Faixa de datas para bloqueios
+  // Faixa de datas para bloqueios/eventos. Na visão mês, a GRADE renderizada
+  // (MesView) começa no domingo anterior ao dia 1 e cobre 6 semanas (42 dias)
+  // — sempre mostra alguns dias do mês anterior/seguinte pra preencher a
+  // grade. Buscar só o mês calendário estrito (1 a 28-31) deixa esses dias de
+  // borda sem dado nenhum, mesmo quando o usuário tem evento/bloqueio neles
+  // (bug #36 reportado: "agenda não aparece completa"). Buscar a grade
+  // inteira, não o mês estrito.
+  const primeiroDiaMes = new Date(anoAtual, mesAtual, 1)
+  const inicioGradeMes = new Date(primeiroDiaMes)
+  inicioGradeMes.setDate(1 - primeiroDiaMes.getDay())
+  const fimGradeMes = new Date(inicioGradeMes)
+  fimGradeMes.setDate(inicioGradeMes.getDate() + 41) // 42 dias — mesmo tamanho de grade do MesView
+
   const bloqueioInicio = visao === 'mes'
-    ? dateToParam(new Date(anoAtual, mesAtual, 1))
+    ? dateToParam(inicioGradeMes)
     : dateToParam(weekDates[0])
   const bloqueioFim = visao === 'mes'
-    ? dateToParam(new Date(anoAtual, mesAtual + 1, 0))
+    ? dateToParam(fimGradeMes)
     : dateToParam(weekDates[6])
 
   const [

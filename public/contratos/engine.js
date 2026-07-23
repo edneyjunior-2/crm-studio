@@ -473,9 +473,14 @@
     var nomeParceiro = currentMode === 'pf' ? data.PF_NOME : data.PARCEIRO_RAZAO;
     var slug = (nomeParceiro || 'Parceiro').replace(/[^a-zA-Z0-9]+/g, '_');
     var prefixo = cfg.documentPrefix ? (cfg.documentPrefix + '_') : '';
+    // Nome do arquivo reflete o MODELO/aba usado (chave de contractModels),
+    // não mais fixo em "Parceria" — tenant com mais de um modelo (ex.:
+    // honorários advocatícios + parceria) baixava tudo com nome de
+    // "Contrato_Parceria_..." mesmo quando o modelo usado era outro.
+    var modeloLabel = currentContract ? (currentContract.charAt(0).toUpperCase() + currentContract.slice(1)) : 'Parceria';
     var fileName = minuta
       ? (cfg.minutaFileName || 'Minuta_Contrato.pdf')
-      : ('Contrato_Parceria_' + prefixo + slug + '.pdf');
+      : ('Contrato_' + modeloLabel + '_' + prefixo + slug + '.pdf');
     if (autoSave) {
       doc.save(fileName);
       // Base64 do MESMO doc que acabou de ser salvo (nenhuma mutação depois

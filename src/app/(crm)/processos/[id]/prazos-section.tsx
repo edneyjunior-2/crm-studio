@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus, Trash2, Check, Loader2, CalendarClock } from 'lucide-react'
-import { criarPrazo, marcarPrazoCumprido, excluirPrazo } from './prazos-actions'
+import { Plus, Trash2, Check, Loader2, CalendarClock, Pencil, X } from 'lucide-react'
+import { criarPrazo, marcarPrazoCumprido, excluirPrazo, editarPrazo } from './prazos-actions'
 
 interface Prazo {
   id:               string
@@ -78,12 +78,40 @@ export function PrazosSection({ processoId, prazos: inicial, membros }: Props) {
   const [toggling, startToggle]     = useTransition()
   const [deleting, startDelete]     = useTransition()
 
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [editDescricao, setEditDescricao] = useState('')
+  const [editData, setEditData]           = useState('')
+  const [editRespId, setEditRespId]       = useState('')
+  const [erroEdit, setErroEdit]           = useState<string | null>(null)
+  const [savingEdit, startSaveEdit]       = useTransition()
+
   function handleSalvar() {
     setErro(null)
     startSave(async () => {
       const res = await criarPrazo(processoId, descricao, dataPrazo, respId || undefined)
       if (res.error) { setErro(res.error); return }
       setDescricao(''); setDataPrazo(''); setRespId(''); setShowForm(false)
+    })
+  }
+
+  function abrirEdicao(prazo: Prazo) {
+    setEditandoId(prazo.id)
+    setEditDescricao(prazo.descricao)
+    setEditData(prazo.data_prazo)
+    setEditRespId(prazo.responsavel_id ?? '')
+    setErroEdit(null)
+  }
+
+  function handleSalvarEdicao(prazoId: string) {
+    setErroEdit(null)
+    startSaveEdit(async () => {
+      const res = await editarPrazo(prazoId, processoId, editDescricao, editData, editRespId || undefined)
+      if (res.error) { setErroEdit(res.error); return }
+      const respNome = membros.find((m) => m.id === editRespId)?.nome ?? null
+      setPrazos((p) => p.map((x) => x.id === prazoId
+        ? { ...x, descricao: editDescricao.trim(), data_prazo: editData, responsavel_id: editRespId || null, responsavel_nome: respNome }
+        : x))
+      setEditandoId(null)
     })
   }
 
@@ -187,41 +215,101 @@ export function PrazosSection({ processoId, prazos: inicial, membros }: Props) {
       ) : (
         <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
           {[...pendentes, ...cumpridos].map((prazo) => (
-            <li
-              key={prazo.id}
-              className={`flex items-start gap-3 px-4 py-3 ${prazo.cumprido ? 'opacity-60' : ''}`}
-            >
-              <button
-                type="button"
-                onClick={() => handleToggle(prazo.id, prazo.cumprido)}
-                disabled={toggling}
-                className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                  prazo.cumprido
-                    ? 'border-emerald-500 bg-emerald-500 text-white'
-                    : 'border-border bg-background hover:border-foreground/40'
-                }`}
-                title={prazo.cumprido ? 'Marcar como pendente' : 'Marcar como cumprido'}
+            editandoId === prazo.id ? (
+              <li key={prazo.id} className="flex flex-col gap-3 bg-muted/30 px-4 py-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label className="text-xs font-medium text-muted-foreground">Descrição do prazo</label>
+                    <input
+                      value={editDescricao}
+                      onChange={(e) => setEditDescricao(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Data fatal</label>
+                    <input
+                      type="date"
+                      value={editData}
+                      onChange={(e) => setEditData(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                  {membros.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">Responsável</label>
+                      <select value={editRespId} onChange={(e) => setEditRespId(e.target.value)} className={inputClass}>
+                        <option value="">Nenhum</option>
+                        {membros.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+                {erroEdit && <p className="text-xs text-destructive">{erroEdit}</p>}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSalvarEdicao(prazo.id)}
+                    disabled={savingEdit || !editDescricao.trim() || !editData}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-60"
+                  >
+                    {savingEdit ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                    {savingEdit ? 'Salvando…' : 'Salvar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditandoId(null)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    <X className="size-4" />
+                    Cancelar
+                  </button>
+                </div>
+              </li>
+            ) : (
+              <li
+                key={prazo.id}
+                className={`flex items-start gap-3 px-4 py-3 ${prazo.cumprido ? 'opacity-60' : ''}`}
               >
-                {prazo.cumprido && <Check className="size-2.5" />}
-              </button>
-              <div className="min-w-0 flex-1">
-                <p className={`text-sm font-medium ${prazo.cumprido ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                  {prazo.descricao}
-                </p>
-                {prazo.responsavel_nome && (
-                  <p className="text-[11px] text-muted-foreground">Resp.: {prazo.responsavel_nome}</p>
-                )}
-              </div>
-              <BadgePrazo dataPrazo={prazo.data_prazo} cumprido={prazo.cumprido} />
-              <button
-                onClick={() => handleDelete(prazo.id)}
-                disabled={deleting}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
-                title="Excluir prazo"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
-            </li>
+                <button
+                  type="button"
+                  onClick={() => handleToggle(prazo.id, prazo.cumprido)}
+                  disabled={toggling}
+                  className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                    prazo.cumprido
+                      ? 'border-emerald-500 bg-emerald-500 text-white'
+                      : 'border-border bg-background hover:border-foreground/40'
+                  }`}
+                  title={prazo.cumprido ? 'Marcar como pendente' : 'Marcar como cumprido'}
+                >
+                  {prazo.cumprido && <Check className="size-2.5" />}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-medium ${prazo.cumprido ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                    {prazo.descricao}
+                  </p>
+                  {prazo.responsavel_nome && (
+                    <p className="text-[11px] text-muted-foreground">Resp.: {prazo.responsavel_nome}</p>
+                  )}
+                </div>
+                <BadgePrazo dataPrazo={prazo.data_prazo} cumprido={prazo.cumprido} />
+                <button
+                  onClick={() => abrirEdicao(prazo)}
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent"
+                  title="Editar prazo"
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+                <button
+                  onClick={() => handleDelete(prazo.id)}
+                  disabled={deleting}
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+                  title="Excluir prazo"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </li>
+            )
           ))}
         </ul>
       )}

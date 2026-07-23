@@ -198,7 +198,7 @@ export async function updateCliente(
   const cpf = (formData.get('cpf') as string) || null
   const bloqueioExclusividade = (formData.get('bloqueio_exclusividade') as string) !== 'false'
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clientes')
     .update({
       razao_social: formData.get('razao_social') as string,
@@ -216,8 +216,16 @@ export async function updateCliente(
       bloqueio_exclusividade: bloqueioExclusividade,
     })
     .eq('id', id)
+    .select('id')
 
   if (error) return { error: error.message }
+  // RLS bloqueando (ex.: comercial tentando editar cliente cadastrado por
+  // outra pessoa) não gera `error` — só retorna 0 linhas. Sem essa checagem,
+  // o formulário mostrava "Cliente atualizado com sucesso" sem gravar nada
+  // (chamado #34).
+  if (!data?.length) {
+    return { error: 'Você não tem permissão para editar este cliente.' }
+  }
 
   revalidatePath('/clientes')
   revalidatePath(`/clientes/${id}`)

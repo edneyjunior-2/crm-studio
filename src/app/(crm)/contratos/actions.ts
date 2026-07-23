@@ -144,6 +144,35 @@ export async function listarContratosGerados(): Promise<ContratoGerado[]> {
   })
 }
 
+/**
+ * Gera uma URL assinada (60s) para baixar a via assinada do contrato (PDF
+ * final que o ZapSign gravou em signed_storage_path após todos assinarem).
+ * O bucket é privado — signed_storage_path vem do BANCO (RLS isola por
+ * tenant via a query em contratos_gerados), nunca de parâmetro do cliente.
+ */
+export async function baixarViaAssinada(id: string): Promise<{ url?: string; error?: string }> {
+  const { supabase } = await getAuthUser()
+
+  const { data: contrato, error } = await supabase
+    .from('contratos_gerados')
+    .select('signed_storage_path')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!contrato?.signed_storage_path) {
+    return { error: 'A via assinada ainda não está disponível para este contrato.' }
+  }
+
+  const admin = createAdminClient()
+  const { data: signed, error: signErr } = await admin.storage
+    .from(BUCKET_CONTRATOS_GERADOS)
+    .createSignedUrl(contrato.signed_storage_path, 60)
+
+  if (signErr) return { error: signErr.message }
+  return { url: signed?.signedUrl }
+}
+
 export async function excluirContratoGerado(id: string): Promise<{ error?: string }> {
   const { supabase } = await getAuthUser()
 
