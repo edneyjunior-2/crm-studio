@@ -17,7 +17,7 @@ import {
   arquivarConversa, desarquivarConversa, enviarMidiaConversa,
   iniciarConversa, reabrirConversaComTemplate, responderConversa,
   salvarContatoConversa, buscarClientesPorNome, vincularClienteExistente,
-  verificarJanela24hWhatsApp,
+  verificarJanela24hWhatsApp, buscarMensagensConversa,
 } from './atendimento-actions'
 import { TemplateWhatsAppPainel, type TemplateEscolhido } from './template-whatsapp-painel'
 import type { WhatsAppTemplateInfo } from '@/lib/whatsapp-cloud'
@@ -504,8 +504,11 @@ function StatusEntrega({ status, erro }: { status: string | null; erro: string |
 /** MIME aceito no anexo — mesma allow-list validada de novo no server (enviarMidiaConversa). */
 const MIME_MIDIA_ENVIO = ['image/jpeg', 'image/png', 'image/webp', 'audio/mpeg', 'audio/ogg', 'audio/mp4', 'application/pdf']
 const TAMANHO_MAXIMO_MIDIA_BYTES = 4 * 1024 * 1024
+/** Intervalo do polling da conversa aberta — curto o bastante pra parecer em tempo
+ * real, sem virar o principal consumidor de requisições do módulo. */
+const POLL_MENSAGENS_MS = 4_000
 
-function Thread({ conversa, mensagens, isPending, clientesComTelefone, templatesWhatsApp, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida, onArquivar }: ThreadProps) {
+function Thread({ conversa, mensagens: mensagensIniciais, isPending, clientesComTelefone, templatesWhatsApp, onVoltar, onAssumir, onDevolver, onResolver, onMarcarLida, onArquivar }: ThreadProps) {
   const router = useRouter()
   const status = conversa.status ?? 'bot'
   const [resposta, setResposta] = useState('')
@@ -522,6 +525,15 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, templates
   // pra sempre, só até uma mensagem NOVA falhar ou a conversa ser reaberta.
   const [dispensadaMensagemId, setDispensadaMensagemId] = useState<string | null>(null)
 
+  // Mensagens exibidas: começam com o que a page.tsx já buscou (evita esperar o
+  // 1º poll pra pintar a tela) e depois são mantidas frescas por `buscarMensagensConversa`
+  // (ver useEffect de polling abaixo) — nunca precisa de F5 pra ver mensagem nova.
+  const [mensagens, setMensagens] = useState(mensagensIniciais)
+  const mensagensRef = useRef(mensagens)
+  useEffect(() => {
+    mensagensRef.current = mensagens
+  }, [mensagens])
+
   // Trocar de conversa reseta o fallback de janela — ajuste durante o render
   // (sem useEffect) para não disparar um re-render extra.
   const [conversaIdAnterior, setConversaIdAnterior] = useState(conversa.id)
@@ -530,6 +542,64 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, templates
     setForaDaJanela(false)
     setDispensadaMensagemId(null)
   }
+
+  // `mensagensIniciais` chega uma referência nova a cada render do Server Component
+  // (troca de conversa OU `router.refresh()` depois de uma ação, ex.: enviar mensagem)
+  // — sincroniza a lista local com ela durante o render (mesmo padrão acima, sem
+  // useEffect) sempre que a referência mudar, sem esperar o próximo tick do polling.
+  const [mensagensIniciaisAnterior, setMensagensIniciaisAnterior] = useState(mensagensIniciais)
+  if (mensagensIniciais !== mensagensIniciaisAnterior) {
+    setMensagensIniciaisAnterior(mensagensIniciais)
+    setMensagens(mensagensIniciais)
+  }
+
+  // Polling da conversa aberta: busca mensagens novas (do cliente, do bot, ou mudança
+  // de delivery_status) sem precisar de F5. Pausa quando a aba fica em background
+  // (document.hidden) pra não gastar rede à toa, e busca na hora ao voltar o foco.
+  // Reinicia do zero sempre que `conversa.id` muda (dependência do efeito) — nunca
+  // dois pollings simultâneos nem mensagem de uma conversa vazando pra outra.
+  useEffect(() => {
+    let cancelado = false
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    async function buscar() {
+      const frescas = await buscarMensagensConversa(conversa.id)
+      if (cancelado) return
+      // [] pode ser conversa genuinamente vazia OU falha transitória (a action nunca
+      // lança) — se já tínhamos mensagens, não apaga a tela por causa de um poll
+      // ruim; mantém a última lista conhecida e tenta de novo no próximo tick.
+      if (frescas.length === 0 && mensagensRef.current.length > 0) return
+      setMensagens(frescas)
+    }
+
+    function pararIntervalo() {
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+    function iniciarIntervalo() {
+      if (intervalId) return
+      intervalId = setInterval(buscar, POLL_MENSAGENS_MS)
+    }
+    function aoMudarVisibilidade() {
+      if (document.hidden) {
+        pararIntervalo()
+        return
+      }
+      buscar()
+      iniciarIntervalo()
+    }
+
+    if (!document.hidden) iniciarIntervalo()
+    document.addEventListener('visibilitychange', aoMudarVisibilidade)
+
+    return () => {
+      cancelado = true
+      pararIntervalo()
+      document.removeEventListener('visibilitychange', aoMudarVisibilidade)
+    }
+  }, [conversa.id])
 
   // Detecção RETROATIVA: a Meta às vezes aceita o texto livre na hora (delivery_status
   // vira 'sent') e só rejeita minutos depois via webhook assíncrono, marcando

@@ -1,7 +1,7 @@
 import { getAuthUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Inbox, type Conversa, type Mensagem } from './inbox'
-import { listarClientesComTelefone, listarTemplatesWhatsAppAtivos } from './atendimento-actions'
+import { buscarMensagensConversa, listarClientesComTelefone, listarTemplatesWhatsAppAtivos } from './atendimento-actions'
 
 /**
  * Aba Atendimento — inbox de conversas do WhatsApp do SDR (robô Leila).
@@ -55,35 +55,9 @@ export default async function AtendimentoPage({
   const selecionada =
     listaConversas.find((conv) => conv.id === selecionadaId) ?? null
 
-  let mensagens: Mensagem[] = []
-  if (selecionada) {
-    const { data: msgs } = await admin
-      .from('messages')
-      .select(
-        'id, conversation_id, direction, texto, author_type, delivery_status, delivery_erro, media_url, media_mime, created_at'
-      )
-      .eq('conversation_id', selecionada.id)
-      .order('created_at', { ascending: true })
-
-    // `media_url` guarda o CAMINHO dentro do bucket privado 'whatsapp-media' (não uma
-    // URL pronta) — geramos aqui uma URL assinada (1h) pra cada mensagem com mídia.
-    // Falha em uma mídia específica não pode derrubar a conversa inteira: degrada
-    // pra null só naquela mensagem.
-    mensagens = await Promise.all(
-      ((msgs ?? []) as Mensagem[]).map(async (msg) => {
-        if (!msg.media_url) return msg
-        try {
-          const { data, error } = await admin.storage
-            .from('whatsapp-media')
-            .createSignedUrl(msg.media_url, 3600)
-          if (error || !data) return { ...msg, media_url: null }
-          return { ...msg, media_url: data.signedUrl }
-        } catch {
-          return { ...msg, media_url: null }
-        }
-      })
-    )
-  }
+  // Mesma query + assinatura de mídia usada pelo polling do Thread (evita duas
+  // fontes da verdade pro mesmo SELECT) — ver `buscarMensagensConversa`.
+  const mensagens: Mensagem[] = selecionada ? await buscarMensagensConversa(selecionada.id) : []
 
   const [clientesComTelefone, templatesWhatsApp] = await Promise.all([
     listarClientesComTelefone(),

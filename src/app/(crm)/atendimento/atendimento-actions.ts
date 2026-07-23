@@ -10,6 +10,7 @@ import {
   uploadMidiaWhatsApp, enviarMidiaWhatsApp, listarTemplatesWhatsApp,
   type TipoMidiaWhatsApp, type WhatsAppTemplateInfo,
 } from '@/lib/whatsapp-cloud'
+import type { Mensagem } from './inbox'
 
 /**
  * Server actions do inbox de Atendimento (conversas do SDR / WhatsApp).
@@ -726,4 +727,58 @@ export async function reabrirConversaComTemplate(
 
   revalidatePath('/atendimento')
   return { id: convId }
+}
+
+/**
+ * Busca as mensagens ATUALIZADAS de uma conversa — mesma query/assinatura de mídia
+ * de `AtendimentoPage` (page.tsx), reempacotada como Server Action pra ser chamada
+ * via polling pelo `Thread` (inbox.tsx) enquanto a conversa está aberta, sem
+ * precisar de reload de página nem de Supabase Realtime (ver spec: `messages`/
+ * `conversations` não têm policy de leitura pro client comum — só admin client).
+ *
+ * Escopo de tenant: confirma que `conversationId` pertence à `empresa_id` do
+ * usuário autenticado antes de buscar qualquer mensagem — mesma checagem usada em
+ * `responderConversa`/`assumirConversa`. Nunca lança: qualquer falha (conversa de
+ * outra empresa, erro de rede/query) devolve `[]`, e quem chama mantém a última
+ * lista de mensagens conhecida em vez de limpar a tela (polling é best-effort).
+ */
+export async function buscarMensagensConversa(conversationId: string): Promise<Mensagem[]> {
+  const { empresaId } = await authEmpresa()
+  const admin = createAdminClient()
+
+  const { data: conv } = await admin
+    .from('conversations')
+    .select('id')
+    .eq('id', conversationId)
+    .eq('empresa_id', empresaId)
+    .maybeSingle()
+  if (!conv) return []
+
+  const { data: msgs, error } = await admin
+    .from('messages')
+    .select(
+      'id, conversation_id, direction, texto, author_type, delivery_status, delivery_erro, media_url, media_mime, created_at'
+    )
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+  if (error || !msgs) return []
+
+  // `media_url` guarda o CAMINHO dentro do bucket privado 'whatsapp-media' (não uma
+  // URL pronta) — mesma assinatura (1h) que page.tsx gera no carregamento inicial.
+  // Falha em uma mídia específica não derruba o poll inteiro: degrada pra null só
+  // naquela mensagem.
+  return Promise.all(
+    (msgs as Mensagem[]).map(async (msg) => {
+      if (!msg.media_url) return msg
+      try {
+        const { data, error: erroAssinatura } = await admin.storage
+          .from('whatsapp-media')
+          .createSignedUrl(msg.media_url, 3600)
+        if (erroAssinatura || !data) return { ...msg, media_url: null }
+        return { ...msg, media_url: data.signedUrl }
+      } catch {
+        return { ...msg, media_url: null }
+      }
+    })
+  )
 }

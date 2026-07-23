@@ -27,6 +27,26 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-23-atendimento-atualizacao-automatica',
+    data: '2026-07-23',
+    titulo: 'A conversa aberta no Atendimento agora se atualiza sozinha',
+    tipo: 'melhoria',
+    modulo: 'atendimento',
+    itens: [
+      'Antes, uma mensagem nova só aparecia depois de recarregar a página manualmente. Agora, com a conversa aberta, mensagens novas do cliente (ou respostas da Leila) aparecem sozinhas em poucos segundos — sem precisar de F5.',
+    ],
+  },
+  {
+    id: '2026-07-23-detectar-mensagem-whatsapp-nao-entregue',
+    data: '2026-07-23',
+    titulo: 'Aviso automático quando uma mensagem do WhatsApp não é entregue',
+    tipo: 'correcao',
+    modulo: 'atendimento',
+    itens: [
+      'Às vezes o WhatsApp aceita o envio de uma mensagem na hora, mas rejeita a entrega minutos depois porque o contato está fora da janela de 24h — antes isso ficava só com um ícone de erro discreto. Agora o sistema detecta essa falha e já oferece reabrir a conversa com uma mensagem-modelo aprovada.',
+    ],
+  },
+  {
     id: '2026-07-23-editar-prazo-processo',
     data: '2026-07-23',
     titulo: 'Agora dá para editar um prazo já cadastrado no processo',
