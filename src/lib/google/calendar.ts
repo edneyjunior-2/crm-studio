@@ -360,3 +360,40 @@ export async function listGoogleCalendarEvents(
     throw err
   }
 }
+
+export interface GoogleCalendarListEntry {
+  id: string
+  summary: string
+  primary: boolean
+  accessRole: string
+}
+
+/**
+ * Lista TODOS os calendários que o usuário tem acesso no Google (não só o
+ * 'primary', que é o único sincronizado hoje por sincronizarCalendarioUsuario).
+ * Diagnóstico read-only — usado pra confirmar se um usuário reportando "agenda
+ * incompleta" tem compromissos num calendário secundário/compartilhado que a
+ * sincronização atual nunca alcança (chamado #36).
+ */
+export async function listGoogleCalendars(params: {
+  userId: string
+  accessToken: string
+  refreshToken: string
+  tokenExpiry: string
+}): Promise<{ ok: true; calendars: GoogleCalendarListEntry[] } | { ok: false; erro: string }> {
+  const { userId, accessToken, refreshToken, tokenExpiry } = params
+  try {
+    const auth = await getValidAuthClient(userId, accessToken, refreshToken, tokenExpiry)
+    const calendar = google.calendar({ version: 'v3', auth })
+    const res = await calendar.calendarList.list()
+    const calendars = (res.data.items ?? []).map((c) => ({
+      id: c.id ?? '',
+      summary: c.summary ?? '(sem nome)',
+      primary: !!c.primary,
+      accessRole: c.accessRole ?? '',
+    }))
+    return { ok: true, calendars }
+  } catch (err) {
+    return { ok: false, erro: err instanceof Error ? err.message : String(err) }
+  }
+}
