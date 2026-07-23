@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth'
+import { assertModulo } from '@/lib/gating'
 
 export interface CriarHonorarioInput {
   processoId:     string
@@ -17,6 +18,9 @@ export async function criarHonorarioProcesso(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Não autenticado.' }
+
+  const erroModulo = await assertModulo('processos')
+  if (erroModulo) return { error: erroModulo }
 
   const { empresaId } = await getAuthUser()
   if (!empresaId) return { error: 'Empresa não encontrada.' }

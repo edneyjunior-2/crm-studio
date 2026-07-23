@@ -17,6 +17,8 @@ interface Props {
   templates: WhatsAppTemplateInfo[]
   clienteId: string | undefined
   enviando: boolean
+  /** Texto do aviso no topo do painel. Default: aviso preventivo (checagem antes de enviar). */
+  aviso?: string
   onCancelar: () => void
   onEnviar: (escolha: TemplateEscolhido) => void
 }
@@ -36,7 +38,7 @@ function renderizarPreview(bodyText: string, variaveis: string[]): string {
  * confere as variáveis antes do envio (nunca manda sem o usuário ver o texto
  * final primeiro).
  */
-export function TemplateWhatsAppPainel({ templates, clienteId, enviando, onCancelar, onEnviar }: Props) {
+export function TemplateWhatsAppPainel({ templates, clienteId, enviando, aviso, onCancelar, onEnviar }: Props) {
   const [nomeEscolhido, setNomeEscolhido] = useState(templates[0]?.name ?? '')
   const template = templates.find((t) => t.name === nomeEscolhido) ?? templates[0] ?? null
 
@@ -52,8 +54,8 @@ export function TemplateWhatsAppPainel({ templates, clienteId, enviando, onCance
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
       <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
-        Esse contato não fala com você há mais de 24h — o WhatsApp exige uma mensagem-modelo para reabrir
-        contato.
+        {aviso ??
+          'Esse contato não fala com você há mais de 24h — o WhatsApp exige uma mensagem-modelo para reabrir contato.'}
       </p>
 
       {templates.length > 1 && (

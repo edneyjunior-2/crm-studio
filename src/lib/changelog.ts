@@ -27,6 +27,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-23-honorarios-restrito-advocacia',
+    data: '2026-07-23',
+    titulo: 'Aba de Honorários agora é exclusiva de contas de Advocacia',
+    tipo: 'correcao',
+    itens: [
+      'A aba "Honorários", dentro de Financeiro, aparecia e podia ser acessada em qualquer conta — mesmo fora da área de Advocacia. Agora ela só aparece e só pode ser aberta por quem tem esse módulo ativo.',
+    ],
+  },
+  {
     id: '2026-07-23-corrige-nome-perfil-renomeado-no-select',
     data: '2026-07-23',
     titulo: 'Corrige o nome do perfil renomeado sumindo ao trocar o perfil de alguém',

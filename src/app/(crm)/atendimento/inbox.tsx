@@ -517,6 +517,10 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, templates
   // pela opção de reabrir com o template aprovado (mesmo padrão do NovaConversaDialog).
   const [foraDaJanela, setForaDaJanela] = useState(false)
   const [reabrindo, startReabrir] = useTransition()
+  // Id da última mensagem humana pra qual o atendente já viu e fechou o aviso de
+  // falha pós-envio (ver `mostrarTemplatePosFalha` abaixo) — "Voltar" não silencia
+  // pra sempre, só até uma mensagem NOVA falhar ou a conversa ser reaberta.
+  const [dispensadaMensagemId, setDispensadaMensagemId] = useState<string | null>(null)
 
   // Trocar de conversa reseta o fallback de janela — ajuste durante o render
   // (sem useEffect) para não disparar um re-render extra.
@@ -524,6 +528,24 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, templates
   if (conversa.id !== conversaIdAnterior) {
     setConversaIdAnterior(conversa.id)
     setForaDaJanela(false)
+    setDispensadaMensagemId(null)
+  }
+
+  // Detecção RETROATIVA: a Meta às vezes aceita o texto livre na hora (delivery_status
+  // vira 'sent') e só rejeita minutos depois via webhook assíncrono, marcando
+  // delivery_status='failed' com delivery_erro contendo o código 131047 (fora da
+  // janela de 24h). Esse caso não passa pelo retorno síncrono de `enviar()` acima —
+  // por isso é derivado direto de `mensagens` a cada atualização, em vez de só do
+  // resultado da Server Action.
+  const ultimaMensagemHumana = [...mensagens].reverse().find((m) => m.direction === 'out' && m.author_type === 'humano') ?? null
+  const falhouPorJanelaDepois = Boolean(
+    ultimaMensagemHumana?.delivery_status === 'failed' && ultimaMensagemHumana.delivery_erro?.includes('131047'),
+  )
+  const mostrarTemplatePosFalha = falhouPorJanelaDepois && ultimaMensagemHumana?.id !== dispensadaMensagemId
+
+  function fecharPainelTemplate() {
+    setForaDaJanela(false)
+    if (ultimaMensagemHumana) setDispensadaMensagemId(ultimaMensagemHumana.id)
   }
 
   function enviar() {
@@ -654,13 +676,18 @@ function Thread({ conversa, mensagens, isPending, clientesComTelefone, templates
         )}
       </div>
 
-      {foraDaJanela ? (
+      {foraDaJanela || mostrarTemplatePosFalha ? (
         <div className="border-t border-border px-4 py-3">
           <TemplateWhatsAppPainel
             templates={templatesWhatsApp}
             clienteId={conversa.cliente_id ?? undefined}
             enviando={reabrindo}
-            onCancelar={() => setForaDaJanela(false)}
+            aviso={
+              mostrarTemplatePosFalha && !foraDaJanela
+                ? 'Essa mensagem não foi entregue — o contato está fora da janela de 24h (a Meta só aceitou o envio na hora, mas rejeitou a entrega depois). Use um modelo aprovado pra reabrir contato.'
+                : undefined
+            }
+            onCancelar={fecharPainelTemplate}
             onEnviar={reabrirComTemplate}
           />
         </div>

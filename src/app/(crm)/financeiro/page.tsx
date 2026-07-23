@@ -436,6 +436,18 @@ export default async function FinanceiroPage() {
   // Qualquer outro role sem permissão vai pro dashboard
   if (!['admin', 'socio'].includes(profile.role)) redirect('/dashboard')
 
+  // "Honorários" é exclusivo da vertical Advocacia (módulo 'processos') — some
+  // do header pra quem não tem esse módulo, mesmo que 'financeiro' esteja ativo.
+  const { plano, empresaId, modulosPermitidos } = await getAuthUser()
+  let extrasModulos: string[] = []
+  if (empresaId) {
+    const { data } = await supabase.from('empresas').select('modulos_ativos').eq('id', empresaId).single()
+    extrasModulos = data?.modulos_ativos ?? []
+  }
+  const temHonorarios =
+    temModulo(plano, 'processos', extrasModulos) &&
+    (modulosPermitidos == null || modulosPermitidos.includes('processos'))
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -465,15 +477,17 @@ export default async function FinanceiroPage() {
             <FileText className="size-3.5" />
             Relatório
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/financeiro/honorarios" />}
-          >
-            <HandCoins className="size-3.5" />
-            Honorários
-          </Button>
+          {temHonorarios && (
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/financeiro/honorarios" />}
+            >
+              <HandCoins className="size-3.5" />
+              Honorários
+            </Button>
+          )}
         </div>
       </div>
 
