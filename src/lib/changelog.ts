@@ -27,6 +27,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-23-corrige-nome-perfil-renomeado-no-select',
+    data: '2026-07-23',
+    titulo: 'Corrige o nome do perfil renomeado sumindo ao trocar o perfil de alguém',
+    tipo: 'correcao',
+    itens: [
+      'Em Configurações › Usuários, se você renomeou um perfil (por exemplo, trocou "Comercial" por "Assistente"), o campo "Alterar perfil" agora mostra o nome novo corretamente depois de escolher — antes, ele voltava a mostrar o nome antigo.',
+    ],
+  },
+  {
     id: '2026-07-22-permissao-ver-pipeline-completo',
     data: '2026-07-22',
     titulo: 'Dê a um perfil a visão completa do Pipeline, sem precisar torná-lo sócio',

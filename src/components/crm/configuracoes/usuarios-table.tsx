@@ -29,7 +29,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -191,12 +190,15 @@ function RoleSelect({
 
   return (
     <Select
-      defaultValue={currentRole}
+      value={currentRole}
       onValueChange={handleChange}
       disabled={disabled || isPending}
     >
       <SelectTrigger size="sm" className="w-36">
-        <SelectValue />
+        {/* label manual evita bug de SelectValue com valores não-UUID (convenção Base UI):
+            defaultValue+SelectValue mostrava o texto certo na lista aberta, mas o valor cru
+            (ex.: "comercial") no trigger fechado depois de escolher um papel renomeado. */}
+        <span>{nomePorRole[currentRole] ?? roleBadge[currentRole].label}</span>
       </SelectTrigger>
       <SelectContent>
         {(Object.keys(ROLE_ORDER) as Role[]).map((r) => (
