@@ -27,6 +27,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-23-contrato-pdf-nao-abria-no-adobe',
+    data: '2026-07-23',
+    titulo: 'Corrigido: contrato em PDF podia não abrir no Adobe Acrobat',
+    tipo: 'correcao',
+    itens: [
+      'Escritórios que ainda não cadastraram um papel timbrado podiam gerar contratos que abriam normalmente no navegador, mas davam erro ao abrir no Adobe Acrobat — um problema sério para quem precisa anexar o contrato assinado em peticionamento eletrônico. Corrigido: contratos gerados a partir de agora abrem normalmente em qualquer leitor de PDF.',
+    ],
+  },
+  {
     id: '2026-07-23-atendimento-atualizacao-automatica',
     data: '2026-07-23',
     titulo: 'A conversa aberta no Atendimento agora se atualiza sozinha',

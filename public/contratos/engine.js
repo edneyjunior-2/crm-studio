@@ -354,7 +354,9 @@
     var paragraphGap = 1.8;
 
     function drawTimbrado() {
-      doc.addImage(TIMBRADO_DATA_URI, 'JPEG', 0, 0, pageW, pageH);
+      if (TIMBRADO_DATA_URI) {
+        doc.addImage(TIMBRADO_DATA_URI, 'JPEG', 0, 0, pageW, pageH);
+      }
       if (minuta) {
         doc.setFont('times', 'italic');
         doc.setFontSize(8.5);
