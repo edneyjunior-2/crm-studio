@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthUser } from '@/lib/auth'
 import { NovoProcessoForm } from './novo-processo-form'
 
+// Cobre a Server Action de busca no DataJud (timeout interno de 35s p/ tribunais
+// lentos como o tjba) — sem isso a função da Vercel pode matar a requisição
+// antes do timeout do fetch, mascarando o fix com um erro genérico.
+export const maxDuration = 45
+
 export default async function NovoProcessoPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

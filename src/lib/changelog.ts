@@ -45,6 +45,16 @@ export const CHANGELOG: Release[] = [
     ],
   },
   {
+    id: '2026-07-22-datajud-timeout-tribunais-lentos',
+    data: '2026-07-22',
+    titulo: 'Corrigido erro de conexão ao buscar processo pelo número CNJ',
+    tipo: 'correcao',
+    modulo: 'advocacia',
+    itens: [
+      'A busca automática de dados pelo DataJud (botão "Buscar DataJud" em Novo Processo) estava falhando com "não foi possível conectar" para tribunais mais lentos para responder, como o TJBA. Agora o sistema espera mais tempo antes de desistir.',
+    ],
+  },
+  {
     id: '2026-07-22-escolher-template-whatsapp',
     data: '2026-07-22',
     titulo: 'Escolha qual mensagem-modelo usar para reabrir uma conversa no WhatsApp',

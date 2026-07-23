@@ -13,6 +13,11 @@ import {
 import { parseValorBR } from '@/lib/honorarios'
 import { getProcessosConfig } from '@/lib/processos-config'
 
+// Timeout maior que o default (15s) usado no sync em lote/cron: aqui é uma
+// chamada única, sem orçamento de maxDuration apertado, e tribunais como o
+// tjba já mediram até 32s de resposta na API pública do DataJud.
+const DATAJUD_TIMEOUT_FORM_MS = 35_000
+
 export interface BuscarProcessoResult {
   numeroProcesso:   string
   tribunalSlug:     string
@@ -28,7 +33,7 @@ export async function buscarProcesso(
   numero: string,
 ): Promise<BuscarProcessoResult | { erro: string }> {
   const normalizado = normalizarNumeroCNJ(numero)
-  const res = await buscarProcessoDataJud(normalizado)
+  const res = await buscarProcessoDataJud(normalizado, undefined, DATAJUD_TIMEOUT_FORM_MS)
 
   if (!res.ok) {
     // Mensagem específica por motivo — não mascarar 401/429/rede como "não encontrado".
@@ -139,7 +144,7 @@ export async function criarProcesso(
 
   // Buscar e salvar movimentações iniciais do DataJud (best-effort — não impede o cadastro)
   try {
-    const res = await buscarProcessoDataJud(normalizado, tribunalSlug)
+    const res = await buscarProcessoDataJud(normalizado, tribunalSlug, DATAJUD_TIMEOUT_FORM_MS)
     if (res.ok && res.processo.movimentos.length) {
       // datajud.ts já descarta movimentos com dataHora inválida; aqui só formatamos.
       const movs = res.processo.movimentos.map((m) => {

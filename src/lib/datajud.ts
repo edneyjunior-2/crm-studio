@@ -177,6 +177,7 @@ export function normalizarNumeroCNJ(numero: string): string {
 export async function buscarProcessoDataJud(
   numeroCNJ: string,
   tribunalSlug?: string,
+  timeoutMs: number = DATAJUD_TIMEOUT_MS,
 ): Promise<DataJudResult> {
   const slug    = tribunalSlug ?? detectarTribunal(numeroCNJ)
   const numero  = normalizarNumeroCNJ(numeroCNJ)        // pontuado — para exibir/retornar
@@ -193,7 +194,7 @@ export async function buscarProcessoDataJud(
   })
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), DATAJUD_TIMEOUT_MS)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   let res: Response
   try {
