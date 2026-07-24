@@ -3,6 +3,9 @@ import { criarDocumentoAssinatura, type ModalidadeAssinatura } from '@/lib/zapsi
 
 export const MODALIDADES_VALIDAS: ModalidadeAssinatura[] = ['simples', 'email', 'sms', 'qualificada']
 
+export const ESTILOS_ASSINATURA_VALIDOS = ['padrao', 'na_linha'] as const
+export type EstiloAssinatura = (typeof ESTILOS_ASSINATURA_VALIDOS)[number]
+
 export const BUCKET_CONTRATOS_GERADOS = 'contratos-gerados'
 
 /**
@@ -29,6 +32,15 @@ export async function dispararAssinaturaZapSign(params: {
   signatarios: Array<{ nome: string; email?: string }>
   /** Quem clicou em "Enviar para assinatura" (user.id de getAuthUser() no chamador). */
   enviadoPor?: string
+  /**
+   * Origem do contrato (`contratos_gerados.origem`) — determina se a
+   * preferência `contrato_estilo_assinatura` da empresa se aplica. Só
+   * 'gerador' tem o marcador-âncora `<<assinatura_N>>` desenhado no PDF
+   * (por `engine.js`); 'upload' (PDF pronto enviado pelo usuário) nunca tem
+   * esse marcador, então nunca recebe `signature_placement`, mesmo que a
+   * empresa tenha escolhido "na linha".
+   */
+  origem: 'gerador' | 'upload'
 }): Promise<{ error?: string; linkAssinatura?: string; signatarios?: string[] }> {
   const admin = createAdminClient()
 
@@ -65,12 +77,21 @@ export async function dispararAssinaturaZapSign(params: {
     return { error: `Sem e-mail para: ${semEmail.join(', ')}. Cada signatário recebe o link no próprio e-mail.` }
   }
 
+  // Estilo "na linha": só contratos do gerador têm o marcador-âncora
+  // `<<assinatura_N>>` desenhado no PDF (engine.js) — casa cada signatário
+  // com o marcador da MESMA posição em que a lista foi montada (1-based,
+  // mesma ordem dos blocos `sign` no documento).
+  const estiloNaLinha = config.contrato_estilo_assinatura === 'na_linha' && params.origem === 'gerador'
+  const signatariosComPosicao = estiloNaLinha
+    ? params.signatarios.map((s, i) => ({ ...s, signaturePlacement: `<<assinatura_${i + 1}>>` }))
+    : params.signatarios
+
   let resultado: Awaited<ReturnType<typeof criarDocumentoAssinatura>>
   try {
     resultado = await criarDocumentoAssinatura({
       pdfBase64: params.pdfBase64,
       nomeArquivo: params.nomeArquivo,
-      signatarios: params.signatarios,
+      signatarios: signatariosComPosicao,
       modalidade,
       brandName: empresa?.nome ?? undefined,
       observers: emailEnviadoPor ? [emailEnviadoPor] : undefined,

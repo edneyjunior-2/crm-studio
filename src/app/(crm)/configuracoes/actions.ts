@@ -13,6 +13,7 @@ import { PRECO_ADDON, NOME_ADDON, ADDON_BLOCO_USUARIOS, ADDONS_EMPILHAVEIS } fro
 import { temAddon, limiteUsuariosEfetivo } from '@/lib/addons-server'
 import { appUrl } from '@/lib/site-url'
 import { atualizarFotoPerfilWhatsApp, atualizarPerfilComercialWhatsApp } from '@/lib/whatsapp-cloud'
+import { ESTILOS_ASSINATURA_VALIDOS, type EstiloAssinatura } from '@/lib/contratos-assinatura'
 import { z } from 'zod'
 
 // ---------------------------------------------------------------------------
@@ -873,6 +874,49 @@ export async function salvarSignatarioContratos(dados: {
   if (error) return { error: error.message }
 
   revalidatePath('/configuracoes')
+  revalidatePath('/contratos')
+  return {}
+}
+
+/**
+ * Estilo de posicionamento da assinatura eletrônica nos contratos do GERADOR
+ * (`origem='gerador'` — uploads não são afetados, ver dispararAssinaturaZapSign):
+ * 'padrao' (hoje, assinatura só na página de certificação do ZapSign) ou
+ * 'na_linha' (assinatura visual em cima da linha do contrato, via
+ * marcador-âncora desenhado por `engine.js`).
+ *
+ * Gated por `getAuthUser()` (qualquer pessoa autenticada da empresa, sem
+ * restrição de role) — diferente de `salvarSignatarioContratos` acima
+ * (admin/sócio), decisão explícita do dono: qualquer um do time pode
+ * escolher o estilo, só "quem assina pela empresa" continua restrito.
+ */
+export async function salvarEstiloAssinatura(
+  estilo: EstiloAssinatura,
+): Promise<{ error?: string }> {
+  const { empresaId } = await getAuthUser()
+  if (!empresaId) return { error: 'Sua conta não está vinculada a uma empresa.' }
+
+  if (!ESTILOS_ASSINATURA_VALIDOS.includes(estilo)) {
+    return { error: 'Estilo de assinatura inválido.' }
+  }
+
+  const db = createAdminClient()
+
+  const { data: emp } = await db
+    .from('empresas')
+    .select('config')
+    .eq('id', empresaId)
+    .single()
+
+  const configAtual = (emp?.config as Record<string, unknown> | null) ?? {}
+
+  const { error } = await db
+    .from('empresas')
+    .update({ config: { ...configAtual, contrato_estilo_assinatura: estilo } })
+    .eq('id', empresaId)
+
+  if (error) return { error: error.message }
+
   revalidatePath('/contratos')
   return {}
 }

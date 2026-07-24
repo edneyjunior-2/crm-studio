@@ -92,6 +92,15 @@ export interface ZapSignSignatario {
   nome: string
   email?: string
   telefone?: string
+  /**
+   * Texto-âncora (ex.: `<<assinatura_1>>`) que deve existir literalmente no
+   * PDF — o ZapSign localiza esse texto e desenha a assinatura visual ALI
+   * (em cima da linha do documento), em vez de só na página de certificação
+   * anexada no final. Campo `signature_placement` do ZapSign, por signatário
+   * (docs.zapsign.com.br/documentos/criar-documento). Omitido = comportamento
+   * de hoje (só página de certificação).
+   */
+  signaturePlacement?: string
 }
 
 export type ModalidadeAssinatura = 'simples' | 'email' | 'sms' | 'qualificada'
@@ -107,7 +116,7 @@ export interface ZapSignSignatarioStatus {
 export async function criarDocumentoAssinatura(params: {
   pdfBase64: string
   nomeArquivo: string
-  signatarios: Array<{ nome: string; email?: string; telefone?: string }>
+  signatarios: ZapSignSignatario[]
   modalidade: ModalidadeAssinatura
   /**
    * Nome exibido como remetente no e-mail de solicitação de assinatura
@@ -242,6 +251,7 @@ function mapearSignatario(signatario: ZapSignSignatario, modalidade: ModalidadeA
     // individual de assinatura. Confirmado na doc oficial (docs.zapsign.com.br,
     // seção "Configurando signatários").
     send_automatic_email: true,
+    ...(signatario.signaturePlacement ? { signature_placement: signatario.signaturePlacement } : {}),
   }
 }
 

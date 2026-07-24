@@ -156,6 +156,7 @@ export async function POST(request: NextRequest) {
     nomeArquivo,
     signatarios,
     enviadoPor: user.id,
+    origem: 'upload',
   })
 
   revalidatePath('/contratos')

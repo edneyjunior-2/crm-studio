@@ -27,6 +27,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-24-assinatura-na-linha-do-contrato',
+    data: '2026-07-24',
+    titulo: 'Agora dá para escolher onde a assinatura aparece no contrato',
+    tipo: 'novidade',
+    itens: [
+      'Até agora, quando um contrato gerado pelo CRM era assinado eletronicamente, a assinatura só aparecia numa página extra de certificação, no final do documento. Agora, em Contratos, qualquer pessoa da equipe pode escolher o estilo "na linha do documento" — a assinatura passa a aparecer em cima da própria linha do contrato, como num documento assinado à mão. Vale só para contratos feitos pelo gerador; documentos enviados prontos por upload continuam como estão.',
+    ],
+  },
+  {
     id: '2026-07-24-atendimento-reconhece-contato-ja-cadastrado',
     data: '2026-07-24',
     titulo: 'WhatsApp agora reconhece um contato já cadastrado, mesmo com o número em outro formato',

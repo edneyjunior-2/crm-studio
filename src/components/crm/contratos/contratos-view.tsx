@@ -22,7 +22,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { salvarSignatarioContratos, contratarAddon } from '@/app/(crm)/configuracoes/actions'
+import { salvarSignatarioContratos, salvarEstiloAssinatura, contratarAddon } from '@/app/(crm)/configuracoes/actions'
+import type { EstiloAssinatura } from '@/lib/contratos-assinatura'
 import { ADDON_ASSINATURA } from '@/lib/addons'
 
 function formatDateTime(iso: string) {
@@ -508,6 +509,7 @@ export function ContratosView({
   podeConfigurarAssinatura = false,
   signatarioNome = '',
   signatarioEmail = '',
+  estiloAssinatura = 'padrao',
   temAssinaturaEletronica = false,
   empresaId,
   ehAdvocacia = false,
@@ -522,6 +524,10 @@ export function ContratosView({
   podeConfigurarAssinatura?: boolean
   signatarioNome?: string
   signatarioEmail?: string
+  /** Estilo de posicionamento da assinatura nos contratos do gerador —
+   *  qualquer pessoa da empresa pode mudar (sem gate de role, diferente de
+   *  quem assina pela empresa). */
+  estiloAssinatura?: EstiloAssinatura
   /** Empresa contratou o add-on de assinatura eletrônica (R$49/mês). Sem isso,
    *  tanto o envio do histórico quanto a aba "Enviar documento" viram CTA de
    *  upsell (mesmo padrão de assinaturaConfigurada) — o bloqueio real é no
@@ -546,6 +552,25 @@ export function ContratosView({
   const [editandoEmailId, setEditandoEmailId] = useState<string | null>(null)
   const [comprandoAddon, setComprandoAddon] = useState(false)
   const [, startTransition] = useTransition()
+  const [estilo, setEstilo] = useState<EstiloAssinatura>(estiloAssinatura)
+  const [salvandoEstilo, startSalvarEstilo] = useTransition()
+
+  function alternarEstiloAssinatura() {
+    const novo: EstiloAssinatura = estilo === 'na_linha' ? 'padrao' : 'na_linha'
+    startSalvarEstilo(async () => {
+      const res = await salvarEstiloAssinatura(novo)
+      if (res.error) {
+        toast.error(res.error)
+        return
+      }
+      setEstilo(novo)
+      toast.success(
+        novo === 'na_linha'
+          ? 'A partir de agora, a assinatura aparece em cima da linha do documento.'
+          : 'A partir de agora, a assinatura volta a aparecer só na página de certificação.',
+      )
+    })
+  }
 
   // Estado local do histórico: começa a partir da prop (fetch único no
   // server), mas passa a ser atualizado também pelo Realtime (assinatura
@@ -878,6 +903,19 @@ export function ContratosView({
               <span className="max-w-[14rem] truncate">Assina: {signatarioNome}</span>
             </button>
           )}
+
+          {/* Estilo de posicionamento da assinatura — qualquer pessoa da
+              empresa pode mudar, sem gate de role (diferente do botão acima). */}
+          <button
+            type="button"
+            onClick={alternarEstiloAssinatura}
+            disabled={salvandoEstilo}
+            title="Onde a assinatura aparece nos contratos do gerador (não afeta documentos enviados por upload)"
+            className="mb-1 flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-60"
+          >
+            <PenLine className="size-3" />
+            <span>Assinatura: {estilo === 'na_linha' ? 'na linha do documento' : 'padrão'}</span>
+          </button>
         </div>
       </div>
 

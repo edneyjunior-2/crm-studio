@@ -366,6 +366,14 @@
       }
     }
     var y = marginTop;
+    // Contador de blocos de assinatura, na ordem em que aparecem no PDF —
+    // usado pra desenhar o marcador-âncora `<<assinatura_N>>` (ver drawBlock,
+    // bloco 'sign'). O ZapSign usa esse texto pra posicionar a assinatura
+    // visual em cima da linha, quando a empresa escolhe o estilo "na linha"
+    // (contrato_estilo_assinatura) — ver dispararAssinaturaZapSign no CRM.
+    // Reiniciado a cada PDF gerado; nunca lido/afetado se a empresa não usar
+    // o estilo "na linha" (o marcador fica no PDF mas nunca é referenciado).
+    var signCounter = 0;
     drawTimbrado();
 
     function ensureSpace(h) {
@@ -438,6 +446,16 @@
         }
         ensureSpace(groupHs);
         y += 11;
+        // Marcador-âncora pro ZapSign (texto real, minúsculo e quase branco —
+        // imperceptível a olho nu, mas localizável pelo signature_placement).
+        // Sempre desenhado, incondicional — ver comentário de signCounter.
+        signCounter++;
+        doc.setFont('times', 'normal');
+        doc.setFontSize(1);
+        doc.setTextColor(254, 254, 254);
+        doc.text('<<assinatura_' + signCounter + '>>', pageW / 2, y - 1, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(11);
         doc.setLineWidth(0.3);
         var lineLen = Math.min(120, usableW);
         doc.line((pageW - lineLen)/2, y, (pageW + lineLen)/2, y);

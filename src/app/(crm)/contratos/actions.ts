@@ -339,7 +339,15 @@ export async function enviarParaAssinatura(
 
   // 4. Modalidade + ZapSign + gravação de status (compartilhado com o upload).
   const nomeArquivo = `Contrato - ${(contrato.parceiro_nome ?? contrato.id).slice(0, 200)}.pdf`
-  const res = await dispararAssinaturaZapSign({ empresaId, contratoId, pdfBase64, nomeArquivo, signatarios, enviadoPor: user.id })
+  const res = await dispararAssinaturaZapSign({
+    empresaId,
+    contratoId,
+    pdfBase64,
+    nomeArquivo,
+    signatarios,
+    enviadoPor: user.id,
+    origem: contrato.origem === 'upload' ? 'upload' : 'gerador',
+  })
   if (res.error) return { error: res.error }
 
   revalidatePath('/contratos')

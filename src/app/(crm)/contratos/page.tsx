@@ -16,6 +16,10 @@ export default async function ContratosPage() {
   let assinaturaConfigurada = false
   let signatarioNome  = ''
   let signatarioEmail = ''
+  // Estilo de posicionamento da assinatura (ver salvarEstiloAssinatura em
+  // (crm)/configuracoes/actions.ts) — 'padrao' quando ausente (comportamento
+  // de hoje, sem mudança).
+  let estiloAssinatura: 'padrao' | 'na_linha' = 'padrao'
   // Add-on de assinatura eletrônica (R$49/mês — spec
   // addon-assinatura-eletronica-zapsign.md). Sem empresa (conta órfã) não há
   // como ter o add-on — default false (fail-closed, mesmo espírito de temAddon).
@@ -40,6 +44,7 @@ export default async function ContratosPage() {
     signatarioNome  = (config.contrato_signatario_nome  as string | undefined)?.trim() ?? ''
     signatarioEmail = (config.contrato_signatario_email as string | undefined)?.trim() ?? ''
     assinaturaConfigurada = !!(signatarioNome && signatarioEmail)
+    estiloAssinatura = config.contrato_estilo_assinatura === 'na_linha' ? 'na_linha' : 'padrao'
 
     if (templatePath && aprovado) {
       // Proxy same-origin autenticado (/api/contratos/template) em vez de signed
@@ -68,6 +73,7 @@ export default async function ContratosPage() {
       podeConfigurarAssinatura={role === 'admin' || role === 'socio'}
       signatarioNome={signatarioNome}
       signatarioEmail={signatarioEmail}
+      estiloAssinatura={estiloAssinatura}
       temAssinaturaEletronica={temAssinaturaEletronica}
       empresaId={empresaId}
       ehAdvocacia={ehAdvocacia}
