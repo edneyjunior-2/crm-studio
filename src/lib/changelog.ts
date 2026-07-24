@@ -27,6 +27,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    id: '2026-07-24-atendimento-reconhece-contato-ja-cadastrado',
+    data: '2026-07-24',
+    titulo: 'WhatsApp agora reconhece um contato já cadastrado, mesmo com o número em outro formato',
+    tipo: 'correcao',
+    modulo: 'atendimento',
+    itens: [
+      'Uma mensagem nova do WhatsApp podia aparecer como "número desconhecido" e abrir uma conversa separada, mesmo quando esse contato já estava salvo na aba Contatos e já tinha uma conversa anterior — porque o número chegava num formato levemente diferente do que foi salvo antes. Corrigido: o sistema agora reconhece o mesmo número em formatos diferentes, reabre a conversa certa e vincula automaticamente ao contato já cadastrado.',
+    ],
+  },
+  {
     id: '2026-07-23-upload-contrato-parceiro-nome-acentuado',
     data: '2026-07-23',
     titulo: 'Corrigido: contrato assinado de parceiro não anexava quando o nome do arquivo tinha acento',
